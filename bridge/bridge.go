@@ -392,7 +392,7 @@ func (s *Bridge) cliProcess(c *conn.Conn) {
 			c.Close()
 			return
 		}
-		c.Write([]byte(crypt.Md5(version.GetVersion(ver))))
+		c.Write(crypt.ComputeHMAC(client.VerifyKey, ts, hmacBuf, []byte(version.GetVersion(ver))))
 		c.SetReadDeadlineBySecond(5)
 
 		if flag, err := c.ReadFlag(); err == nil {

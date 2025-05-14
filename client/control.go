@@ -2,6 +2,7 @@ package client
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
@@ -350,7 +351,8 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		if err := c.WriteLenContent(randBuf); err != nil {
 			return nil, err
 		}
-		if _, err := c.Write(crypt.ComputeHMAC(vkey, ts, minVerBytes, vs, ipBuf, randBuf)); err != nil {
+		hmacBuf := crypt.ComputeHMAC(vkey, ts, minVerBytes, vs, ipBuf, randBuf)
+		if _, err := c.Write(hmacBuf); err != nil {
 			return nil, err
 		}
 		b, err := c.GetShortContent(32)
@@ -358,7 +360,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			logs.Error("%v", err)
 			return nil, errors.New(fmt.Sprintf("Validation key %s incorrect", vkey))
 		}
-		if crypt.Md5(version.GetVersion(Ver)) != string(b) {
+		if !bytes.Equal(b, crypt.ComputeHMAC(vkey, ts, hmacBuf, []byte(version.GetVersion(Ver)))) {
 			logs.Warn("The client does not match the server version. The current core version of the client is", version.GetVersion(Ver))
 			return nil, err
 		}
