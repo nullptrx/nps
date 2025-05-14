@@ -142,6 +142,11 @@ npc start
   - 更换哈希算法
   - 增加记录客户端本地IP地址
   - 修复最快IP解析
+  - HTTP正向代理使用相对路径 [#75](https://github.com/djylb/nps/issues/75)
+  - 新增WS、WSS方式连接服务端 [#71](https://github.com/djylb/nps/issues/71)
+  - 客户端服务器双向认证
+  - 允许独立配置连接协议
+  - 网页添加命令行提示
 
 - **v0.26.56 (2025-05-07)**
   - 日志相对路径使用配置路径
