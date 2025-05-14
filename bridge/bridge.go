@@ -392,6 +392,10 @@ func (s *Bridge) cliProcess(c *conn.Conn) {
 			c.Close()
 			return
 		}
+		if ServerSecureMode && IsReplay(string(hmacBuf)) {
+			c.Close()
+			return
+		}
 		c.Write(crypt.ComputeHMAC(client.VerifyKey, ts, hmacBuf, []byte(version.GetVersion(ver))))
 		c.SetReadDeadlineBySecond(5)
 
