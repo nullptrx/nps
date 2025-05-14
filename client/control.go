@@ -201,22 +201,19 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 	var err error
 	var connection net.Conn
 	var sess *kcp.UDPSession
+	var path string
 
 	timeout := time.Second * 10
 	dialer := net.Dialer{Timeout: timeout}
-	path := "/"
 	server, path = common.SplitServerAndPath(server)
-	logs.Debug("Server: %s Path: %s", server, path)
+	//logs.Debug("Server: %s Path: %s", server, path)
 	server, err = common.GetFastAddr(server, tp)
 	if err != nil {
-		logs.Debug("Fast Server: %s Path: %s Error: %v", server, path, err)
-	} else {
-		logs.Debug("Fast Server: %s Path: %s", server, path)
+		logs.Debug("Server: %s Path: %s Error: %v", server, path, err)
 	}
 
 	if tp == "tcp" || tp == "tls" || tp == "ws" || tp == "wss" {
 		var rawConn net.Conn
-
 		if proxyUrl != "" {
 			u, er := url.Parse(proxyUrl)
 			if er != nil {
@@ -238,12 +235,31 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		if err != nil {
 			return nil, err
 		}
-		if tp == "tls" {
-			//logs.Debug("GetTls")
+
+		switch tp {
+		case "tcp":
+			connection = rawConn
+		case "tls":
 			conf := &tls.Config{InsecureSkipVerify: true}
 			connection, err = conn.NewTlsConn(rawConn, timeout, conf)
-		} else {
-			connection = rawConn
+			if err != nil {
+				return nil, err
+			}
+		case "ws":
+			// use the conn package helper
+			urlStr := "ws://" + server + path
+			connection, err = conn.DialWSOverConn(rawConn, urlStr, timeout)
+			if err != nil {
+				return nil, err
+			}
+		case "wss":
+			// use the conn package helper
+			urlStr := "wss://" + server + path
+			tlsConf := &tls.Config{InsecureSkipVerify: true}
+			connection, err = conn.DialWSSOverConn(rawConn, urlStr, tlsConf, timeout)
+			if err != nil {
+				return nil, err
+			}
 		}
 	} else {
 		sess, err = kcp.DialWithOptions(server, nil, 10, 3)
@@ -339,28 +355,35 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 }
 
 // http proxy connection
-func NewHttpProxyConn(url *url.URL, remoteAddr string) (net.Conn, error) {
-	req, err := http.NewRequest("CONNECT", "http://"+remoteAddr, nil)
+func NewHttpProxyConn(proxyURL *url.URL, remoteAddr string) (net.Conn, error) {
+	proxyConn, err := net.DialTimeout("tcp", proxyURL.Host, 10*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	password, _ := url.User.Password()
-	req.Header.Set("Authorization", "Basic "+basicAuth(strings.Trim(url.User.Username(), " "), password))
-	// we make a http proxy request
-	proxyConn, err := net.Dial("tcp", url.Host)
-	if err != nil {
-		return nil, err
+	req := &http.Request{
+		Method: http.MethodConnect,
+		URL:    &url.URL{Opaque: remoteAddr},
+		Host:   remoteAddr,
+		Header: make(http.Header),
+	}
+	if proxyURL.User != nil {
+		username := proxyURL.User.Username()
+		password, _ := proxyURL.User.Password()
+		req.SetBasicAuth(username, password)
 	}
 	if err := req.Write(proxyConn); err != nil {
+		_ = proxyConn.Close()
 		return nil, err
 	}
-	res, err := http.ReadResponse(bufio.NewReader(proxyConn), req)
+	resp, err := http.ReadResponse(bufio.NewReader(proxyConn), req)
 	if err != nil {
+		_ = proxyConn.Close()
 		return nil, err
 	}
-	_ = res.Body.Close()
-	if res.StatusCode != 200 {
-		return nil, errors.New("Proxy error " + res.Status)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		_ = proxyConn.Close()
+		return nil, errors.New("proxy CONNECT failed: " + resp.Status)
 	}
 	return proxyConn, nil
 }

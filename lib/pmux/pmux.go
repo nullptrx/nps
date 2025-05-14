@@ -1,11 +1,10 @@
-// This module is used for port reuse
+// Package pmux This module is used for port reuse
 // Distinguish client, web manager , HTTP and HTTPS according to the difference of protocol
 package pmux
 
 import (
 	"bufio"
 	"bytes"
-	"github.com/djylb/nps/lib/crypt"
 	"io"
 	"net"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/djylb/nps/lib/common"
+	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/pkg/errors"
 )
@@ -39,6 +39,8 @@ type PortMux struct {
 	clientHost    string
 	clientConn    chan *PortConn
 	clientTlsConn chan *PortConn
+	clientWsConn  chan *PortConn
+	clientWssConn chan *PortConn
 	httpConn      chan *PortConn
 	httpsConn     chan *PortConn
 	managerConn   chan *PortConn
@@ -97,7 +99,17 @@ func (pMux *PortMux) process(conn net.Conn) {
 	var readMore = false
 	switch common.BytesToNum(buf) {
 	case HTTP_CONNECT, HTTP_DELETE, HTTP_GET, HTTP_HEAD, HTTP_OPTIONS, HTTP_POST, HTTP_PUT, HTTP_TRACE: //http and manager
-		if pMux.managerConn != nil && pMux.httpConn != nil {
+		i := 0
+		if pMux.httpConn != nil {
+			i++
+		}
+		if pMux.managerConn != nil {
+			i++
+		}
+		if pMux.clientWsConn != nil {
+			i++
+		}
+		if i > 1 {
 			buffer.Reset()
 			r := bufio.NewReader(conn)
 			buffer.Write(buf)
@@ -116,9 +128,11 @@ func (pMux *PortMux) process(conn net.Conn) {
 					str = strings.Replace(str, "host:", "", -1)
 					str = strings.TrimSpace(str)
 					// Determine whether it is the same as the manager domain name
-					if common.GetIpByAddr(str) == pMux.managerHost {
+					if common.GetIpByAddr(str) == pMux.managerHost && pMux.managerConn != nil {
 						ch = pMux.managerConn
-					} else {
+					} else if common.GetIpByAddr(str) == pMux.clientHost && pMux.clientWsConn != nil {
+						ch = pMux.clientWsConn
+					} else if pMux.httpConn != nil {
 						ch = pMux.httpConn
 					}
 					b, _ := r.Peek(r.Buffered())
@@ -135,6 +149,10 @@ func (pMux *PortMux) process(conn net.Conn) {
 			ch = pMux.managerConn
 			readMore = true
 			//logs.Debug("Only use managerConn")
+		} else if pMux.clientWsConn != nil {
+			ch = pMux.clientWsConn
+			readMore = true
+			//logs.Debug("Only use clientWsConn")
 		} else {
 			return
 		}
@@ -143,7 +161,7 @@ func (pMux *PortMux) process(conn net.Conn) {
 			return
 		}
 		ch = pMux.clientConn
-	default: // https or clientTls
+	default: // https or clientTls or clientWss
 		if pMux.httpsConn != nil && pMux.clientTlsConn != nil {
 			helloInfo, rawData, err := crypt.ReadClientHello(conn, buf)
 			if err == nil && helloInfo != nil && (helloInfo.ServerName == "" || helloInfo.ServerName == pMux.clientHost) {
@@ -160,6 +178,9 @@ func (pMux *PortMux) process(conn net.Conn) {
 		} else if pMux.clientTlsConn != nil {
 			ch = pMux.clientTlsConn
 			//logs.Debug("Only use clientTlsConn")
+		} else if pMux.clientWssConn != nil {
+			ch = pMux.clientWssConn
+			//logs.Debug("Only use clientWssConn")
 		} else {
 			return
 		}
@@ -196,6 +217,16 @@ func (pMux *PortMux) GetClientListener() net.Listener {
 func (pMux *PortMux) GetClientTlsListener() net.Listener {
 	pMux.clientTlsConn = make(chan *PortConn)
 	return NewPortListener(pMux.clientTlsConn, pMux.Listener.Addr())
+}
+
+func (pMux *PortMux) GetClientWsListener() net.Listener {
+	pMux.clientWsConn = make(chan *PortConn)
+	return NewPortListener(pMux.clientWsConn, pMux.Listener.Addr())
+}
+
+func (pMux *PortMux) GetClientWssListener() net.Listener {
+	pMux.clientWssConn = make(chan *PortConn)
+	return NewPortListener(pMux.clientWssConn, pMux.Listener.Addr())
 }
 
 func (pMux *PortMux) GetHttpListener() net.Listener {

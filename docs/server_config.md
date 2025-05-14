@@ -40,6 +40,7 @@ nps.exe -conf_path=D:\test\nps
 | `web_cert_file` | Web HTTPS 证书文件路径                      |
 | `web_key_file`  | Web HTTPS 证书密钥文件路径                    |
 | `web_base_url`  | Web 管理主路径（默认 `/`，适用于 Web 反向代理时调整路径）   |
+| `web_ws_url`    | WebSocket 路径（用于客户端连接，留空关闭）            |
 | `open_captcha`  | 是否启用验证码                               |
 
 ---
@@ -53,7 +54,12 @@ nps.exe -conf_path=D:\test\nps
 | `http_proxy_ip`    | HTTP 代理监听地址（默认 `0.0.0.0`）         |
 | `http_proxy_port`  | HTTP 代理监听端口（默认 `80`，留空不启用）        |
 | `https_proxy_port` | HTTPS 代理监听端口（默认 `443`，留空不启用）      |
-| `tls_bridge_port`  | 客户端与服务端通信 TLS 端口（默认 `8025`，留空不启用） |
+| `bridge_tls_port`  | 客户端与服务端通信 TLS 端口（默认 `8025`，留空不启用） |
+| `bridge_ws_port`   | 客户端与服务端通信 WS 端口（默认 `8026`，留空不启用）  |
+| `bridge_wss_port`  | 客户端与服务端通信 WSS 端口（默认 `8027`，留空不启用） |
+| `bridge_host`      | 客户端与服务端通信域名 （端口复用时使用）             |
+| `bridge_cert_file` | 客户端与服务端通信 TLS 证书文件路径              |
+| `bridge_key_file`  | 客户端与服务端通信 TLS 证书密钥文件路径            |
 
 ---
 

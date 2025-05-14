@@ -27,8 +27,9 @@ import (
 )
 
 var (
-	ServerTlsEnable  bool = false
+	ServerTcpEnable  bool = false
 	ServerKcpEnable  bool = false
+	ServerTlsEnable  bool = false
 	ServerWsEnable   bool = false
 	ServerWssEnable  bool = false
 	ServerSecureMode bool = false
@@ -118,17 +119,19 @@ func (s *Bridge) StartTunnel() error {
 		})
 	} else {
 		// tcp
-		go func() {
-			listener, err := connection.GetBridgeTcpListener()
-			if err != nil {
-				logs.Error("%v", err)
-				os.Exit(0)
-				return
-			}
-			conn.Accept(listener, func(c net.Conn) {
-				s.cliProcess(conn.NewConn(c))
-			})
-		}()
+		if ServerTcpEnable {
+			go func() {
+				listener, err := connection.GetBridgeTcpListener()
+				if err != nil {
+					logs.Error("%v", err)
+					os.Exit(0)
+					return
+				}
+				conn.Accept(listener, func(c net.Conn) {
+					s.cliProcess(conn.NewConn(c))
+				})
+			}()
+		}
 
 		// tls
 		if ServerTlsEnable {
@@ -141,6 +144,38 @@ func (s *Bridge) StartTunnel() error {
 				}
 				conn.Accept(tlsListener, func(c net.Conn) {
 					s.cliProcess(conn.NewConn(tls.Server(c, &tls.Config{Certificates: []tls.Certificate{crypt.GetCert()}})))
+				})
+			}()
+		}
+
+		// ws
+		if ServerWsEnable {
+			go func() {
+				wsListener, wsErr := connection.GetBridgeWsListener()
+				if wsErr != nil {
+					logs.Error("%v", wsErr)
+					os.Exit(0)
+					return
+				}
+				wsLn := conn.NewWSListenerFromListener(wsListener, beego.AppConfig.String("bridge_path"))
+				conn.Accept(wsLn, func(c net.Conn) {
+					s.cliProcess(conn.NewConn(c))
+				})
+			}()
+		}
+
+		// wss
+		if ServerWssEnable {
+			go func() {
+				wssListener, wssErr := connection.GetBridgeWssListener()
+				if wssErr != nil {
+					logs.Error("%v", wssErr)
+					os.Exit(0)
+					return
+				}
+				wssLn := conn.NewWSSListenerFromListener(wssListener, beego.AppConfig.String("bridge_path"), crypt.GetCert())
+				conn.Accept(wssLn, func(c net.Conn) {
+					s.cliProcess(conn.NewConn(c))
 				})
 			}()
 		}

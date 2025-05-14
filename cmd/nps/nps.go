@@ -84,10 +84,6 @@ func main() {
 		Option:      options,
 	}
 
-	bridgeTlsPort, _ := beego.AppConfig.Int("tls_bridge_port")
-	bridge.ServerTlsEnable = beego.AppConfig.DefaultBool("tls_enable", true) && bridgeTlsPort != 0
-	bridge.ServerKcpEnable = beego.AppConfig.DefaultBool("kcp_enable", false)
-
 	for _, v := range os.Args[1:] {
 		switch v {
 		case "install", "start", "stop", "uninstall", "restart":
@@ -237,7 +233,7 @@ func run() {
 	logs.Info("the version of server is %s ,allow client core version to be %s,tls enable is %t", version.VERSION, version.GetLatest(), bridge.ServerTlsEnable)
 	connection.InitConnectionService()
 	//crypt.InitTls(filepath.Join(common.GetRunPath(), "conf", "server.pem"), filepath.Join(common.GetRunPath(), "conf", "server.key"))
-	cert, ok := common.LoadCert(beego.AppConfig.String("tls_bridge_cert_file"), beego.AppConfig.String("tls_bridge_key_file"))
+	cert, ok := common.LoadCert(beego.AppConfig.String("bridge_cert_file"), beego.AppConfig.String("bridge_key_file"))
 	if !ok {
 		logs.Info("Using randomly generated certificate.")
 	}
@@ -251,8 +247,19 @@ func run() {
 	bridgeType := beego.AppConfig.String("bridge_type")
 	if bridgeType == "both" {
 		bridgeType = "tcp"
-		bridge.ServerKcpEnable = true
 	}
+	bridgeTlsPort, _ := beego.AppConfig.Int("bridge_tls_port")
+	if bridgeTlsPort == 0 {
+		bridgeTlsPort, _ = beego.AppConfig.Int("tls_bridge_port")
+	}
+	bridgeWsPort, _ := beego.AppConfig.Int("bridge_ws_port")
+	bridgeWssPort, _ := beego.AppConfig.Int("bridge_wss_port")
+	bridgePath := beego.AppConfig.String("bridge_path")
+	bridge.ServerTcpEnable = beego.AppConfig.DefaultBool("tcp_enable", true) && bridgePort != 0 && (bridgeType == "both" || bridgeType == "tcp")
+	bridge.ServerKcpEnable = beego.AppConfig.DefaultBool("kcp_enable", true) && bridgePort != 0 && (bridgeType == "both" || bridgeType == "kcp")
+	bridge.ServerTlsEnable = beego.AppConfig.DefaultBool("tls_enable", true) && bridgeTlsPort != 0
+	bridge.ServerWsEnable = beego.AppConfig.DefaultBool("ws_enable", true) && bridgeWsPort != 0 && bridgePath != ""
+	bridge.ServerWssEnable = beego.AppConfig.DefaultBool("wss_enable", true) && bridgeWssPort != 0 && bridgePath != ""
 	if beego.AppConfig.DefaultBool("secure_mode", false) {
 		bridge.ServerSecureMode = true
 	}

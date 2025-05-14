@@ -9,15 +9,17 @@ require (
 	github.com/c4milo/unpackit v1.0.0
 	github.com/ccding/go-stun v0.1.5
 	github.com/golang/snappy v1.0.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/kardianos/service v1.2.2
-	github.com/miekg/dns v1.1.65
+	github.com/miekg/dns v1.1.66
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.34.0
 	github.com/shirou/gopsutil/v4 v4.25.4
 	github.com/xtaci/kcp-go/v5 v5.6.20
-	golang.org/x/net v0.39.0
-	golang.org/x/sys v0.32.0
+	golang.org/x/crypto v0.38.0
+	golang.org/x/net v0.40.0
+	golang.org/x/sys v0.33.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
@@ -25,7 +27,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dsnet/compress v0.0.1 // indirect
-	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/ebitengine/purego v0.8.3 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
@@ -50,11 +52,10 @@ require (
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/xtaci/lossyconn v0.0.0-20200209145036-adba10fffc37 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/sync v0.13.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
-	golang.org/x/tools v0.32.0 // indirect
+	golang.org/x/sync v0.14.0 // indirect
+	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/tools v0.33.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

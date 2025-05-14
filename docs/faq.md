@@ -182,7 +182,7 @@ allow_time_limit=true
 
 ### **TLS 端口设置**
 ```
-`nps.conf` 新增 `tls_bridge_port=8025`，当 `tls_bridge_port` 不为 `0` 时，NPS 会监听 8025 端口。
+`nps.conf` 新增 `bridge_tls_port=8025`，当 `bridge_tls_port` 不为 `0` 时，NPS 会监听 8025 端口。
 
 客户端可选择连接 TLS 端口或非 TLS 端口：
 - `npc.exe -server=xxx:8024 -vkey=xxx`
