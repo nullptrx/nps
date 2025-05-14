@@ -182,10 +182,13 @@ func (s *Bridge) StartTunnel() error {
 
 		// kcp
 		if ServerKcpEnable {
+			kcpIp := beego.AppConfig.DefaultString("bridge_kcp_ip", beego.AppConfig.String("bridge_ip"))
+			kcpPort := beego.AppConfig.DefaultString("bridge_kcp_port", beego.AppConfig.String("bridge_port"))
+			logs.Info("server start, the bridge type is kcp, the bridge port is %d", kcpPort)
 			go func() {
 				bridgeKcp := *s
 				bridgeKcp.tunnelType = "kcp"
-				conn.NewKcpListenerAndProcess(common.BuildAddress(beego.AppConfig.String("bridge_ip"), beego.AppConfig.String("bridge_port")), func(c net.Conn) {
+				conn.NewKcpListenerAndProcess(common.BuildAddress(kcpIp, kcpPort), func(c net.Conn) {
 					bridgeKcp.cliProcess(conn.NewConn(c))
 				})
 			}()

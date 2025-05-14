@@ -244,19 +244,18 @@ func run() {
 	if err != nil {
 		timeout = 60
 	}
-	bridgeTlsPort, _ := beego.AppConfig.Int("bridge_tls_port")
-	if bridgeTlsPort == 0 {
-		bridgeTlsPort, _ = beego.AppConfig.Int("tls_bridge_port")
-	}
+	bridgeTcpPort := beego.AppConfig.DefaultInt("bridge_tcp_port", bridgePort)
+	bridgeKcpPort := beego.AppConfig.DefaultInt("bridge_kcp_port", bridgePort)
+	bridgeTlsPort := beego.AppConfig.DefaultInt("bridge_tls_port", beego.AppConfig.DefaultInt("tls_bridge_port", 0))
 	bridgeWsPort, _ := beego.AppConfig.Int("bridge_ws_port")
 	bridgeWssPort, _ := beego.AppConfig.Int("bridge_wss_port")
 	bridgePath := beego.AppConfig.String("bridge_path")
 	bridgeType := beego.AppConfig.String("bridge_type")
-	bridge.ServerKcpEnable = beego.AppConfig.DefaultBool("kcp_enable", true) && bridgePort != 0 && (bridgeType == "kcp" || bridgeType == "both")
+	bridge.ServerKcpEnable = beego.AppConfig.DefaultBool("kcp_enable", true) && bridgeKcpPort != 0 && (bridgeType == "kcp" || bridgeType == "both")
 	if bridgeType == "both" {
 		bridgeType = "tcp"
 	}
-	bridge.ServerTcpEnable = beego.AppConfig.DefaultBool("tcp_enable", true) && bridgePort != 0 && bridgeType == "tcp"
+	bridge.ServerTcpEnable = beego.AppConfig.DefaultBool("tcp_enable", true) && bridgeTcpPort != 0 && bridgeType == "tcp"
 	bridge.ServerTlsEnable = beego.AppConfig.DefaultBool("tls_enable", true) && bridgeTlsPort != 0 && bridgeType == "tcp"
 	bridge.ServerWsEnable = beego.AppConfig.DefaultBool("ws_enable", true) && bridgeWsPort != 0 && bridgePath != "" && bridgeType == "tcp"
 	bridge.ServerWssEnable = beego.AppConfig.DefaultBool("wss_enable", true) && bridgeWssPort != 0 && bridgePath != "" && bridgeType == "tcp"
