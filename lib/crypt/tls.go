@@ -91,6 +91,7 @@ func NewTlsClientConn(conn net.Conn) net.Conn {
 			sum := sha256.Sum256(rawCerts[0])
 			key := hex.EncodeToString(sum[:])
 			if _, ok := trustedSet[key]; ok {
+				//logs.Info("Trusted certificate.")
 				return nil
 			}
 			return errors.New("untrusted server certificate")
