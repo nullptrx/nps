@@ -70,7 +70,7 @@ func GetBridgeTlsListener() (net.Listener, error) {
 }
 
 func GetBridgeWsListener() (net.Listener, error) {
-	logs.Info("server start, the bridge type is ws, the bridge port is %s", bridgeWsPort)
+	logs.Info("server start, the bridge type is ws, the bridge port is %s, the bridge path is %s", bridgeWsPort, bridgePath)
 	var p int
 	var err error
 	if p, err = strconv.Atoi(bridgeWsPort); err != nil {
@@ -83,7 +83,7 @@ func GetBridgeWsListener() (net.Listener, error) {
 }
 
 func GetBridgeWssListener() (net.Listener, error) {
-	logs.Info("server start, the bridge type is wss, the bridge port is %s", bridgeWssPort)
+	logs.Info("server start, the bridge type is wss, the bridge port is %s, the bridge path is %s", bridgeWssPort, bridgePath)
 	var p int
 	var err error
 	if p, err = strconv.Atoi(bridgeWssPort); err != nil {

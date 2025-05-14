@@ -1,7 +1,9 @@
 package conn
 
 import (
+	"context"
 	"crypto/tls"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -28,8 +30,13 @@ func (c *WSConn) Read(b []byte) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		if mt == websocket.BinaryMessage {
+		switch mt {
+		case websocket.BinaryMessage:
 			return r.Read(b)
+		case websocket.CloseMessage:
+			return 0, io.EOF
+		default:
+			continue
 		}
 	}
 }
@@ -103,7 +110,6 @@ func NewWSSListenerFromListener(base net.Listener, path string, cert tls.Certifi
 	hl.server = &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 60 * time.Second,
-		TLSConfig:         tlsConfig,
 	}
 	go hl.server.Serve(tls.NewListener(base, tlsConfig))
 	return hl
@@ -112,7 +118,7 @@ func NewWSSListenerFromListener(base net.Listener, path string, cert tls.Certifi
 func (h *httpListener) Accept() (net.Conn, error) {
 	c, ok := <-h.acceptCh
 	if !ok {
-		return nil, nil
+		return nil, io.EOF
 	}
 	return c, nil
 }
@@ -138,7 +144,7 @@ func DialWSOverConn(rawConn net.Conn, urlStr string, timeout time.Duration) (net
 	}
 
 	d := websocket.Dialer{
-		NetDial: func(network, addr string) (net.Conn, error) {
+		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return rawConn, nil
 		},
 		ReadBufferSize:  1024,
@@ -146,7 +152,7 @@ func DialWSOverConn(rawConn net.Conn, urlStr string, timeout time.Duration) (net
 	}
 
 	rawConn.SetDeadline(time.Now().Add(timeout))
-	ws, resp, err := d.Dial(u.String(), http.Header{})
+	ws, resp, err := d.DialContext(context.Background(), u.String(), http.Header{})
 	rawConn.SetDeadline(time.Time{})
 	if err != nil {
 		return nil, err
@@ -169,7 +175,7 @@ func DialWSSOverConn(rawConn net.Conn, urlStr string, tlsConfig *tls.Config, tim
 	}
 
 	d := websocket.Dialer{
-		NetDial: func(network, addr string) (net.Conn, error) {
+		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return tlsConn, nil
 		},
 		ReadBufferSize:  1024,
@@ -177,7 +183,7 @@ func DialWSSOverConn(rawConn net.Conn, urlStr string, tlsConfig *tls.Config, tim
 	}
 
 	tlsConn.SetDeadline(time.Now().Add(timeout))
-	ws, resp, err := d.Dial(u.String(), http.Header{})
+	ws, resp, err := d.DialContext(context.Background(), u.String(), http.Header{})
 	tlsConn.SetDeadline(time.Time{})
 	if err != nil {
 		return nil, err

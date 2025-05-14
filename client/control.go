@@ -246,14 +246,12 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 				return nil, err
 			}
 		case "ws":
-			// use the conn package helper
 			urlStr := "ws://" + server + path
 			connection, err = conn.DialWSOverConn(rawConn, urlStr, timeout)
 			if err != nil {
 				return nil, err
 			}
 		case "wss":
-			// use the conn package helper
 			urlStr := "wss://" + server + path
 			tlsConf := &tls.Config{InsecureSkipVerify: true}
 			connection, err = conn.DialWSSOverConn(rawConn, urlStr, tlsConf, timeout)
