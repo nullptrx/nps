@@ -7,7 +7,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/pem"
+	"errors"
 	"math/big"
 	"net"
 	"os"
@@ -18,7 +20,10 @@ import (
 )
 
 var (
-	cert tls.Certificate
+	cert       tls.Certificate
+	trustedSet = make(map[string]struct{})
+	vkeyToFp   = make(map[string]string)
+	SkipVerify = false
 )
 
 func InitTls(customCert tls.Certificate) {
@@ -53,6 +58,15 @@ func GetCertFingerprint() []byte {
 	return sum[:]
 }
 
+func AddTrustedCert(vkey string, fp []byte) {
+	hexFp := hex.EncodeToString(fp)
+	if old, ok := vkeyToFp[vkey]; ok {
+		delete(trustedSet, old)
+	}
+	vkeyToFp[vkey] = hexFp
+	trustedSet[hexFp] = struct{}{}
+}
+
 func NewTlsServerConn(conn net.Conn) net.Conn {
 	var err error
 	if err != nil {
@@ -65,8 +79,22 @@ func NewTlsServerConn(conn net.Conn) net.Conn {
 }
 
 func NewTlsClientConn(conn net.Conn) net.Conn {
+	if SkipVerify {
+		return tls.Client(conn, &tls.Config{InsecureSkipVerify: true})
+	}
 	conf := &tls.Config{
 		InsecureSkipVerify: true,
+		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			if len(rawCerts) == 0 {
+				return errors.New("no server certificate")
+			}
+			sum := sha256.Sum256(rawCerts[0])
+			key := hex.EncodeToString(sum[:])
+			if _, ok := trustedSet[key]; ok {
+				return nil
+			}
+			return errors.New("untrusted server certificate")
+		},
 	}
 	return tls.Client(conn, conf)
 }

@@ -417,16 +417,15 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			if err != nil {
 				return nil, err
 			}
-			if !SkipTLSVerify && isTls {
-				fpDec, err := crypt.DecryptBytes(fpBuf, vkey)
-				if err != nil {
-					return nil, err
-				}
-				if !tlsVerify && !bytes.Equal(fpDec, tlsFp) {
-					logs.Warn("Certificate verification failed. To skip verification, please set -skip_verify=true")
-					return nil, errors.New("Validation cert incorrect")
-				}
+			fpDec, err := crypt.DecryptBytes(fpBuf, vkey)
+			if err != nil {
+				return nil, err
 			}
+			if !SkipTLSVerify && isTls && !tlsVerify && !bytes.Equal(fpDec, tlsFp) {
+				logs.Warn("Certificate verification failed. To skip verification, please set -skip_verify=true")
+				return nil, errors.New("Validation cert incorrect")
+			}
+			crypt.AddTrustedCert(vkey, fpDec)
 		}
 		if _, err := c.Write([]byte(connType)); err != nil {
 			return nil, err

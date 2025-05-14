@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/djylb/nps/lib/crypt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -63,6 +64,7 @@ func main() {
 	}
 	client.Ver = *protoVer
 	client.SkipTLSVerify = *skipVerify
+	crypt.SkipVerify = *skipVerify
 
 	// 配置日志
 	configureLogging()
