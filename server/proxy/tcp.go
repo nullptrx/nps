@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -162,6 +163,18 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 	if r.Method == "CONNECT" {
 		c.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 		rb = nil
+	} else {
+		r.RequestURI = ""
+		r.Header.Del("Proxy-Connection")
+		r.Header.Del("Proxy-Authenticate")
+		r.Header.Del("Proxy-Authorization")
+		dump, dumpErr := httputil.DumpRequestOut(r, true)
+		if dumpErr != nil {
+			c.Close()
+			logs.Error("dump request failed: %v", dumpErr)
+			return dumpErr
+		}
+		rb = dump
 	}
 
 	return s.DealClient(c, s.task.Client, addr, rb, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
