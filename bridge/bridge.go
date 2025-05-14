@@ -157,7 +157,7 @@ func (s *Bridge) StartTunnel() error {
 					os.Exit(0)
 					return
 				}
-				wsLn := conn.NewWSListenerFromListener(wsListener, beego.AppConfig.String("bridge_path"))
+				wsLn := conn.NewWSListener(wsListener, beego.AppConfig.String("bridge_path"))
 				conn.Accept(wsLn, func(c net.Conn) {
 					s.cliProcess(conn.NewConn(c))
 				})
@@ -173,7 +173,7 @@ func (s *Bridge) StartTunnel() error {
 					os.Exit(0)
 					return
 				}
-				wssLn := conn.NewWSSListenerFromListener(wssListener, beego.AppConfig.String("bridge_path"), crypt.GetCert())
+				wssLn := conn.NewWSSListener(wssListener, beego.AppConfig.String("bridge_path"), crypt.GetCert())
 				conn.Accept(wssLn, func(c net.Conn) {
 					s.cliProcess(conn.NewConn(c))
 				})

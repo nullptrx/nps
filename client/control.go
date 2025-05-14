@@ -2,11 +2,13 @@ package client
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"log"
 	"math"
@@ -247,17 +249,35 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			}
 		case "ws":
 			urlStr := "ws://" + server + path
-			connection, err = conn.DialWSOverConn(rawConn, urlStr, timeout)
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			dialer := websocket.Dialer{
+				HandshakeTimeout: timeout,
+				NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return rawConn, nil
+				},
+			}
+			wsConn, _, err := dialer.DialContext(ctx, urlStr, nil)
 			if err != nil {
 				return nil, err
 			}
+			connection = conn.NewWSConn(wsConn)
 		case "wss":
 			urlStr := "wss://" + server + path
-			tlsConf := &tls.Config{InsecureSkipVerify: true}
-			connection, err = conn.DialWSSOverConn(rawConn, urlStr, tlsConf, timeout)
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			dialer := websocket.Dialer{
+				HandshakeTimeout: timeout,
+				TLSClientConfig:  &tls.Config{InsecureSkipVerify: true},
+				NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return rawConn, nil
+				},
+			}
+			wsConn, _, err := dialer.DialContext(ctx, urlStr, nil)
 			if err != nil {
 				return nil, err
 			}
+			connection = conn.NewWSConn(wsConn)
 		}
 	} else {
 		sess, err = kcp.DialWithOptions(server, nil, 10, 3)

@@ -6,188 +6,157 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
-// --------------------------------------------------------------------
-// Adapter: wrap *websocket.Conn as net.Conn
-// --------------------------------------------------------------------
-
 type WSConn struct {
 	*websocket.Conn
+	readBuf []byte
 }
 
-func WrapWebsocket(ws *websocket.Conn) net.Conn {
-	return &WSConn{Conn: ws}
+func NewWSConn(ws *websocket.Conn) *WSConn {
+	return &WSConn{Conn: ws, readBuf: make([]byte, 0)}
 }
 
-func (c *WSConn) Read(b []byte) (int, error) {
-	for {
-		mt, r, err := c.NextReader()
-		if err != nil {
-			return 0, err
-		}
-		switch mt {
-		case websocket.BinaryMessage:
-			return r.Read(b)
-		case websocket.CloseMessage:
-			return 0, io.EOF
-		default:
-			continue
-		}
+func (c *WSConn) Read(p []byte) (int, error) {
+	if len(c.readBuf) > 0 {
+		n := copy(p, c.readBuf)
+		c.readBuf = c.readBuf[n:]
+		return n, nil
 	}
+	mt, r, err := c.NextReader()
+	if err != nil {
+		return 0, err
+	}
+	if mt == websocket.CloseMessage {
+		return 0, io.EOF
+	}
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return 0, err
+	}
+	n := copy(p, data)
+	if n < len(data) {
+		c.readBuf = append(c.readBuf, data[n:]...)
+	}
+	return n, nil
 }
 
-func (c *WSConn) Write(b []byte) (int, error) {
+func (c *WSConn) Write(p []byte) (int, error) {
 	w, err := c.NextWriter(websocket.BinaryMessage)
 	if err != nil {
 		return 0, err
 	}
-	n, err := w.Write(b)
+	n, err := w.Write(p)
 	if err != nil {
 		return n, err
 	}
 	return n, w.Close()
 }
 
-func (c *WSConn) Close() error                        { return c.Conn.Close() }
-func (c *WSConn) LocalAddr() net.Addr                 { return c.Conn.UnderlyingConn().LocalAddr() }
-func (c *WSConn) RemoteAddr() net.Addr                { return c.Conn.UnderlyingConn().RemoteAddr() }
-func (c *WSConn) SetDeadline(t time.Time) error       { c.Conn.SetReadDeadline(t); return c.Conn.SetWriteDeadline(t) }
-func (c *WSConn) SetReadDeadline(t time.Time) error   { return c.Conn.SetReadDeadline(t) }
-func (c *WSConn) SetWriteDeadline(t time.Time) error  { return c.Conn.SetWriteDeadline(t) }
-
-// --------------------------------------------------------------------
-// Wrap an existing TCP Listener into WS or WSS
-// --------------------------------------------------------------------
+func (c *WSConn) Close() error         { return c.Conn.Close() }
+func (c *WSConn) LocalAddr() net.Addr  { return c.Conn.UnderlyingConn().LocalAddr() }
+func (c *WSConn) RemoteAddr() net.Addr { return c.Conn.UnderlyingConn().RemoteAddr() }
+func (c *WSConn) SetDeadline(t time.Time) error {
+	c.Conn.SetReadDeadline(t)
+	return c.Conn.SetWriteDeadline(t)
+}
+func (c *WSConn) SetReadDeadline(t time.Time) error  { return c.Conn.SetReadDeadline(t) }
+func (c *WSConn) SetWriteDeadline(t time.Time) error { return c.Conn.SetWriteDeadline(t) }
 
 type httpListener struct {
-	base     net.Listener
-	server   *http.Server
 	acceptCh chan net.Conn
+	closeCh  chan struct{}
+	addr     net.Addr
 }
 
-func NewWSListenerFromListener(base net.Listener, path string) net.Listener {
-	hl := &httpListener{
-		base:     base,
-		acceptCh: make(chan net.Conn),
-	}
+func NewWSListener(base net.Listener, path string) net.Listener {
+	ch := make(chan net.Conn, 16)
+	hl := &httpListener{acceptCh: ch, closeCh: make(chan struct{}), addr: base.Addr()}
 	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
 	mux := http.NewServeMux()
 	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-hl.closeCh:
+			return
+		default:
+		}
 		ws, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
-		hl.acceptCh <- WrapWebsocket(ws)
+		ch <- NewWSConn(ws)
 	})
-	hl.server = &http.Server{
-		Handler:           mux,
-		ReadHeaderTimeout: 60 * time.Second,
-	}
-	go hl.server.Serve(base)
+	srv := &http.Server{Handler: mux}
+	go srv.Serve(base)
+	go func() {
+		<-hl.closeCh
+		srv.Close()
+	}()
 	return hl
 }
 
-func NewWSSListenerFromListener(base net.Listener, path string, cert tls.Certificate) net.Listener {
-	hl := &httpListener{
-		base:     base,
-		acceptCh: make(chan net.Conn),
-	}
+func NewWSSListener(base net.Listener, path string, cert tls.Certificate) net.Listener {
+	ch := make(chan net.Conn, 16)
+	hl := &httpListener{acceptCh: ch, closeCh: make(chan struct{}), addr: base.Addr()}
 	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
 	mux := http.NewServeMux()
 	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-hl.closeCh:
+			return
+		default:
+		}
 		ws, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
-		hl.acceptCh <- WrapWebsocket(ws)
+		ch <- NewWSConn(ws)
 	})
 	tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
-	hl.server = &http.Server{
-		Handler:           mux,
-		ReadHeaderTimeout: 60 * time.Second,
-	}
-	go hl.server.Serve(tls.NewListener(base, tlsConfig))
+	srv := &http.Server{Handler: mux, TLSConfig: tlsConfig}
+	go srv.Serve(tls.NewListener(base, tlsConfig))
+	go func() {
+		<-hl.closeCh
+		srv.Close()
+	}()
 	return hl
 }
 
-func (h *httpListener) Accept() (net.Conn, error) {
-	c, ok := <-h.acceptCh
-	if !ok {
+func (hl *httpListener) Accept() (net.Conn, error) {
+	select {
+	case c := <-hl.acceptCh:
+		return c, nil
+	case <-hl.closeCh:
 		return nil, io.EOF
 	}
-	return c, nil
 }
 
-func (h *httpListener) Close() error {
-	err := h.server.Close()
-	close(h.acceptCh)
-	return err
+func (hl *httpListener) Close() error {
+	close(hl.closeCh)
+	return nil
 }
 
-func (h *httpListener) Addr() net.Addr {
-	return h.base.Addr()
+func (hl *httpListener) Addr() net.Addr {
+	return hl.addr
 }
 
-// --------------------------------------------------------------------
-// Client-side: perform WS/WSS handshake over an existing net.Conn
-// --------------------------------------------------------------------
-
-func DialWSOverConn(rawConn net.Conn, urlStr string, timeout time.Duration) (net.Conn, error) {
-	u, err := url.Parse(urlStr)
+func DialWS(ctx context.Context, urlStr string, timeout time.Duration) (net.Conn, error) {
+	d := websocket.Dialer{HandshakeTimeout: timeout}
+	ws, _, err := d.DialContext(ctx, urlStr, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	d := websocket.Dialer{
-		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return rawConn, nil
-		},
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-	}
-
-	rawConn.SetDeadline(time.Now().Add(timeout))
-	ws, resp, err := d.DialContext(context.Background(), u.String(), http.Header{})
-	rawConn.SetDeadline(time.Time{})
-	if err != nil {
-		return nil, err
-	}
-	resp.Body.Close()
-	return WrapWebsocket(ws), nil
+	return NewWSConn(ws), nil
 }
 
-func DialWSSOverConn(rawConn net.Conn, urlStr string, tlsConfig *tls.Config, timeout time.Duration) (net.Conn, error) {
-	tlsConn := tls.Client(rawConn, tlsConfig)
-	tlsConn.SetDeadline(time.Now().Add(timeout))
-	if err := tlsConn.Handshake(); err != nil {
-		return nil, err
-	}
-	tlsConn.SetDeadline(time.Time{})
-
-	u, err := url.Parse(urlStr)
+func DialWSS(ctx context.Context, urlStr string, timeout time.Duration) (net.Conn, error) {
+	d := websocket.Dialer{HandshakeTimeout: timeout, TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	ws, _, err := d.DialContext(ctx, urlStr, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	d := websocket.Dialer{
-		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return tlsConn, nil
-		},
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-	}
-
-	tlsConn.SetDeadline(time.Now().Add(timeout))
-	ws, resp, err := d.DialContext(context.Background(), u.String(), http.Header{})
-	tlsConn.SetDeadline(time.Time{})
-	if err != nil {
-		return nil, err
-	}
-	resp.Body.Close()
-	return WrapWebsocket(ws), nil
+	return NewWSConn(ws), nil
 }
