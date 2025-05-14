@@ -208,9 +208,25 @@
 		<zh-CN>客户端命令</zh-CN>
 		<en-US>Command</en-US>
 	</lang>
+	<lang id="word-commandclient-tcp">
+		<zh-CN>TCP 启动命令</zh-CN>
+		<en-US>TCP Command</en-US>
+	</lang>
+	<lang id="word-commandclient-kcp">
+		<zh-CN>KCP 启动命令</zh-CN>
+		<en-US>KCP Command</en-US>
+	</lang>
 	<lang id="word-commandclient-tls">
 		<zh-CN>TLS 启动命令</zh-CN>
 		<en-US>TLS Command</en-US>
+	</lang>
+	<lang id="word-commandclient-ws">
+		<zh-CN>WS 启动命令</zh-CN>
+		<en-US>WS Command</en-US>
+	</lang>
+	<lang id="word-commandclient-wss">
+		<zh-CN>WSS 启动命令</zh-CN>
+		<en-US>WSS Command</en-US>
 	</lang>
 	<lang id="word-compress">
 		<zh-CN>压缩</zh-CN>

@@ -96,12 +96,27 @@ func (s *BaseController) display(tpl ...string) {
 
 	s.Data["p"] = strconv.Itoa(server.Bridge.TunnelPort)
 
+	if bridge.ServerTcpEnable {
+		s.Data["tcp_p"] = beego.AppConfig.String("bridge_port")
+	}
+	if bridge.ServerKcpEnable {
+		s.Data["kcp_p"] = beego.AppConfig.String("bridge_port")
+	}
 	if bridge.ServerTlsEnable {
 		tlsPort := strconv.Itoa(beego.AppConfig.DefaultInt("bridge_tls_port", 8025))
 		s.Data["tls_p"] = tlsPort
 		s.Data["p1"] = strconv.Itoa(server.Bridge.TunnelPort) + " / " + tlsPort
 	} else {
 		s.Data["p1"] = strconv.Itoa(server.Bridge.TunnelPort)
+	}
+	if wsPath := beego.AppConfig.String("bridge_path"); wsPath != "" {
+		s.Data["ws_path"] = wsPath
+		if bridge.ServerWsEnable {
+			s.Data["ws_p"] = beego.AppConfig.String("bridge_ws_port")
+		}
+		if bridge.ServerWssEnable {
+			s.Data["wss_p"] = beego.AppConfig.String("bridge_wss_port")
+		}
 	}
 
 	s.Data["proxyPort"] = beego.AppConfig.String("hostPort")

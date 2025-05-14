@@ -40,7 +40,6 @@ nps.exe -conf_path=D:\test\nps
 | `web_cert_file` | Web HTTPS 证书文件路径                      |
 | `web_key_file`  | Web HTTPS 证书密钥文件路径                    |
 | `web_base_url`  | Web 管理主路径（默认 `/`，适用于 Web 反向代理时调整路径）   |
-| `web_ws_url`    | WebSocket 路径（用于客户端连接，留空关闭）            |
 | `open_captcha`  | 是否启用验证码                               |
 
 ---

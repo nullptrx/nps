@@ -74,9 +74,20 @@
                 + '<b langtag="word-blackip"></b>: ' + row.BlackIpList + '&emsp;<br/><br/>'
                 + '<b langtag="word-createtime"></b>: ' + row.CreateTime + '&emsp;<br/><br/>'
                 + '<b langtag="word-lastonlinetime"></b>: ' + row.LastOnlineTime + '&emsp;<br/><br/>'
-                + '<b langtag="word-commandclient"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.ip}}:{{.p}} -vkey=" + row.VerifyKey + " -type=" +{{.bridgeType}} +"</code>&emsp;<br/><br/>"
+                {{if index . "tcp_p"}}
+                + '<b langtag="word-commandclient-tcp"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.ip}}:{{.tcp_p}} -vkey=" + row.VerifyKey + " -type=tcp</code>&emsp;<br/><br/>"
+                {{end}}
+                {{if index . "kcp_p"}}
+                + '<b langtag="word-commandclient-kcp"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.ip}}:{{.kcp_p}} -vkey=" + row.VerifyKey + " -type=kcp</code>&emsp;<br/><br/>"
+                {{end}}
                 {{if index . "tls_p"}}
-                + '<b langtag="word-commandclient-tls"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.ip}}:{{.tls_p}} -vkey=" + row.VerifyKey + " -type=tls</code>"
+                + '<b langtag="word-commandclient-tls"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.ip}}:{{.tls_p}} -vkey=" + row.VerifyKey + " -type=tls</code>&emsp;<br/><br/>"
+                {{end}}
+                {{if index . "ws_p"}}
+                + '<b langtag="word-commandclient-ws"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.ip}}:{{.ws_p}}{{.ws_path}} -vkey=" + row.VerifyKey + " -type=ws</code>&emsp;<br/><br/>"
+                {{end}}
+                {{if index . "wss_p"}}
+                + '<b langtag="word-commandclient-wss"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.ip}}:{{.wss_p}}{{.ws_path}} -vkey=" + row.VerifyKey + " -type=wss</code>&emsp;<br/><br/>"
                 {{end}}
         },
         //表格的列
