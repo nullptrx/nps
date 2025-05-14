@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"log"
 	"math"
@@ -29,11 +30,13 @@ import (
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/version"
+	"github.com/gorilla/websocket"
 	"github.com/xtaci/kcp-go/v5"
 	"golang.org/x/net/proxy"
 )
 
 var Ver = version.GetLatestIndex()
+var SkipTLSVerify = false
 
 func GetTaskStatus(path string) {
 	cnf, err := config.NewConfig(path)
@@ -205,14 +208,23 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 	var connection net.Conn
 	var sess *kcp.UDPSession
 	var path string
+	var isTls = false
+	var tlsVerify = false
+	var tlsFp []byte
 
 	timeout := time.Second * 10
 	dialer := net.Dialer{Timeout: timeout}
 	server, path = common.SplitServerAndPath(server)
+	host := common.GetIpByAddr(server)
+	if common.IsDomain(host) {
+		host = ""
+	}
 	//logs.Debug("Server: %s Path: %s", server, path)
-	server, err = common.GetFastAddr(server, tp)
-	if err != nil {
-		logs.Debug("Server: %s Path: %s Error: %v", server, path, err)
+	if HasFailed {
+		server, err = common.GetFastAddr(server, tp)
+		if err != nil {
+			logs.Debug("Server: %s Path: %s Error: %v", server, path, err)
+		}
 	}
 
 	if tp == "tcp" || tp == "tls" || tp == "ws" || tp == "wss" {
@@ -243,10 +255,27 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		case "tcp":
 			connection = rawConn
 		case "tls":
+			isTls = true
 			conf := &tls.Config{InsecureSkipVerify: true}
 			connection, err = conn.NewTlsConn(rawConn, timeout, conf)
 			if err != nil {
 				return nil, err
+			}
+			if tlsConn, ok := connection.(*conn.TlsConn); ok {
+				state := tlsConn.Conn.ConnectionState()
+				if len(state.PeerCertificates) > 0 {
+					leaf := state.PeerCertificates[0]
+					inter := x509.NewCertPool()
+					for _, cert := range state.PeerCertificates[1:] {
+						inter.AddCert(cert)
+					}
+					roots, _ := x509.SystemCertPool()
+					_, err := leaf.Verify(x509.VerifyOptions{DNSName: host, Roots: roots, Intermediates: inter})
+					tlsVerify = (err == nil)
+					sum := sha256.Sum256(leaf.Raw)
+					tlsFp = sum[:]
+					//logs.Info("server cert fingerprint %x, tlsVerify=%t", tlsFp, tlsVerify)
+				}
 			}
 		case "ws":
 			urlStr := "ws://" + server + path
@@ -264,6 +293,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			}
 			connection = conn.NewWSConn(wsConn)
 		case "wss":
+			isTls = true
 			urlStr := "wss://" + server + path
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
@@ -277,6 +307,24 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			wsConn, _, err := dialer.DialContext(ctx, urlStr, nil)
 			if err != nil {
 				return nil, err
+			}
+			if underlying := wsConn.UnderlyingConn(); underlying != nil {
+				if tlsConn, ok := underlying.(*tls.Conn); ok {
+					state := tlsConn.ConnectionState()
+					if len(state.PeerCertificates) > 0 {
+						leaf := state.PeerCertificates[0]
+						inter := x509.NewCertPool()
+						for _, cert := range state.PeerCertificates[1:] {
+							inter.AddCert(cert)
+						}
+						roots, _ := x509.SystemCertPool()
+						_, err := leaf.Verify(x509.VerifyOptions{DNSName: host, Roots: roots, Intermediates: inter})
+						tlsVerify = (err == nil)
+						sum := sha256.Sum256(leaf.Raw)
+						tlsFp = sum[:]
+						//logs.Info("server cert fingerprint %x, tlsVerify=%t", tlsFp, tlsVerify)
+					}
+				}
 			}
 			connection = conn.NewWSConn(wsConn)
 		}
@@ -294,7 +342,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 
 	//logs.Debug("SetDeadline")
 	connection.SetDeadline(time.Now().Add(timeout))
-	defer connection.SetDeadline(time.Time{}) // 解除超时限制
+	defer connection.SetDeadline(time.Time{})
 
 	c := conn.NewConn(connection)
 	if _, err := c.Write([]byte(common.CONN_TEST)); err != nil {
@@ -317,7 +365,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			return nil, err
 		}
 		if crypt.Md5(version.GetVersion(Ver)) != string(b) {
-			logs.Warn("The client does not match the server version. The current core version of the client is", version.GetVersion(Ver))
+			logs.Warn("The client does not match the server version. The current core version of the client is %s", version.GetVersion(Ver))
 			//return nil, err
 		}
 		if _, err := c.Write([]byte(crypt.Md5(vkey))); err != nil {
@@ -361,8 +409,24 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			return nil, errors.New(fmt.Sprintf("Validation key %s incorrect", vkey))
 		}
 		if !bytes.Equal(b, crypt.ComputeHMAC(vkey, ts, hmacBuf, []byte(version.GetVersion(Ver)))) {
-			logs.Warn("The client does not match the server version. The current core version of the client is", version.GetVersion(Ver))
+			logs.Warn("The client does not match the server version. The current core version of the client is %s", version.GetVersion(Ver))
 			return nil, err
+		}
+		if Ver > 1 {
+			fpBuf, err := c.GetShortLenContent()
+			if err != nil {
+				return nil, err
+			}
+			if !SkipTLSVerify && isTls {
+				fpDec, err := crypt.DecryptBytes(fpBuf, vkey)
+				if err != nil {
+					return nil, err
+				}
+				if !tlsVerify && !bytes.Equal(fpDec, tlsFp) {
+					logs.Warn("Certificate verification failed. To skip verification, please set -skip_verify=true")
+					return nil, errors.New("Validation cert incorrect")
+				}
+			}
 		}
 		if _, err := c.Write([]byte(connType)); err != nil {
 			return nil, err

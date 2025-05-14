@@ -47,6 +47,7 @@ var (
 	stunAddr       = flag.String("stun_addr", "stun.miwifi.com:3478", "STUN server address")
 	ver            = flag.Bool("version", false, "Show current version")
 	protoVer       = flag.Int("proto_version", version.GetLatestIndex(), fmt.Sprintf("Protocol version (0-%d)", version.GetLatestIndex()))
+	skipVerify     = flag.Bool("skip_verify", false, "Skip verification of server certificate")
 	disconnectTime = flag.Int("disconnect_timeout", 60, "Disconnect timeout in seconds")
 	dnsServer      = flag.String("dns_server", "8.8.8.8", "DNS server for domain lookup")
 	tlsEnable      = flag.Bool("tls_enable", false, "Enable TLS (Deprecated)")
@@ -61,6 +62,7 @@ func main() {
 		return
 	}
 	client.Ver = *protoVer
+	client.SkipTLSVerify = *skipVerify
 
 	// 配置日志
 	configureLogging()

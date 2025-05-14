@@ -397,6 +397,14 @@ func (s *Bridge) cliProcess(c *conn.Conn) {
 			return
 		}
 		c.Write(crypt.ComputeHMAC(client.VerifyKey, ts, hmacBuf, []byte(version.GetVersion(ver))))
+		if ver > 1 {
+			fpBuf, err := crypt.EncryptBytes(crypt.GetCertFingerprint(), client.VerifyKey)
+			if err != nil {
+				c.Close()
+				return
+			}
+			c.WriteLenContent(fpBuf)
+		}
 		c.SetReadDeadlineBySecond(5)
 
 		if flag, err := c.ReadFlag(); err == nil {

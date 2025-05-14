@@ -49,6 +49,7 @@ func NewRPClient(svraddr string, vKey string, bridgeConnType string, proxyUrl st
 
 var NowStatus int
 var CloseClient bool
+var HasFailed = false
 
 // start
 func (s *TRPClient) Start() {
@@ -60,11 +61,13 @@ retry:
 	NowStatus = 0
 	c, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_MAIN, s.proxyUrl)
 	if err != nil {
+		HasFailed = true
 		logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
 		time.Sleep(time.Second * 5)
 		goto retry
 	}
 	if c == nil {
+		HasFailed = true
 		logs.Error("Error data from server, and will be reconnected in five seconds")
 		time.Sleep(time.Second * 5)
 		goto retry

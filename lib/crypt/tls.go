@@ -3,6 +3,7 @@ package crypt
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -41,6 +42,15 @@ func InitTls(customCert tls.Certificate) {
 
 func GetCert() tls.Certificate {
 	return cert
+}
+
+func GetCertFingerprint() []byte {
+	c := GetCert()
+	if len(c.Certificate) == 0 {
+		return nil
+	}
+	sum := sha256.Sum256(c.Certificate[0])
+	return sum[:]
 }
 
 func NewTlsServerConn(conn net.Conn) net.Conn {

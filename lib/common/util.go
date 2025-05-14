@@ -85,6 +85,13 @@ func GetIpByAddr(host string) string {
 	return host
 }
 
+func IsDomain(s string) bool {
+	if net.ParseIP(s) != nil {
+		return false
+	}
+	return true
+}
+
 // GetPortByAddr
 // return int or 0
 func GetPortByAddr(addr string) int {
