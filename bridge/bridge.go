@@ -43,7 +43,7 @@ type replay struct {
 
 var rep = replay{
 	items: make(map[string]int64, 100),
-	ttl:   30,
+	ttl:   300,
 }
 
 func IsReplay(key string) bool {
@@ -184,7 +184,7 @@ func (s *Bridge) StartTunnel() error {
 		if ServerKcpEnable {
 			kcpIp := beego.AppConfig.DefaultString("bridge_kcp_ip", beego.AppConfig.String("bridge_ip"))
 			kcpPort := beego.AppConfig.DefaultString("bridge_kcp_port", beego.AppConfig.String("bridge_port"))
-			logs.Info("server start, the bridge type is kcp, the bridge port is %d", kcpPort)
+			logs.Info("server start, the bridge type is kcp, the bridge port is %s", kcpPort)
 			go func() {
 				bridgeKcp := *s
 				bridgeKcp.tunnelType = "kcp"
@@ -294,11 +294,16 @@ func (s *Bridge) cliProcess(c *conn.Conn) {
 	//version check
 	ver := version.GetLatestIndex()
 	minVerBytes, err := c.GetShortLenContent()
-	if err == nil && !ServerSecureMode {
+	if err != nil {
+		logs.Error("Failed to read version length from client %v: %v", c.Conn.RemoteAddr(), err)
+		c.Close()
+		return
+	}
+	if !ServerSecureMode {
 		ver = version.GetIndex(string(minVerBytes))
 	}
-	if err != nil || string(minVerBytes) != version.GetVersion(ver) {
-		logs.Info("The client %v version does not match or error occurred", c.Conn.RemoteAddr())
+	if string(minVerBytes) != version.GetVersion(ver) {
+		logs.Warn("Client %v basic version mismatch: expected %s, got %s", c.Conn.RemoteAddr(), version.GetVersion(ver), string(minVerBytes))
 		c.Close()
 		return
 	}
@@ -306,100 +311,123 @@ func (s *Bridge) cliProcess(c *conn.Conn) {
 	//version get
 	vs, err := c.GetShortLenContent()
 	if err != nil {
-		logs.Info("Get client %v version error: %v", c.Conn.RemoteAddr(), err)
+		logs.Error("Failed to read client version from %v: %v", c.Conn.RemoteAddr(), err)
 		c.Close()
 		return
 	}
 	clientVer := string(vs)
 
 	if ver == 0 {
-		// 0.26.0
+		// --- protocol 0.26.0 path ---
 		//write server version to client
-		c.Write([]byte(crypt.Md5(version.GetVersion(ver))))
+		if _, err := c.Write([]byte(crypt.Md5(version.GetVersion(ver)))); err != nil {
+			logs.Error("Failed to write server version to client %v: %v", c.Conn.RemoteAddr(), err)
+			c.Close()
+			return
+		}
 		c.SetReadDeadlineBySecond(5)
 		//get vKey from client
 		keyBuf, err := c.GetShortContent(32)
 		if err != nil {
+			logs.Error("Failed to read vKey from client %v: %v", c.Conn.RemoteAddr(), err)
 			c.Close()
 			return
 		}
 		//verify
 		id, err := file.GetDb().GetIdByVerifyKey(string(keyBuf), c.Conn.RemoteAddr().String(), "", crypt.Md5)
 		if err != nil {
-			logs.Error("Client %v proto-ver %d vkey %s validation error", c.Conn.RemoteAddr(), ver, keyBuf)
+			logs.Error("Validation error for client %v (proto-ver %d, vKey %x): %v", c.Conn.RemoteAddr(), ver, keyBuf, err)
 			s.verifyError(c)
 			return
 		}
 		s.verifySuccess(c)
 
-		if flag, err := c.ReadFlag(); err == nil {
-			s.typeDeal(flag, c, id, clientVer)
-		} else {
-			logs.Warn("%v %s", err, flag)
+		flag, err := c.ReadFlag()
+		if err != nil {
+			logs.Warn("Failed to read operation flag from %v: %v", c.Conn.RemoteAddr(), err)
+			c.Close()
+			return
 		}
+		s.typeDeal(flag, c, id, clientVer)
 	} else {
-		// 0.27.0
+		// --- protocol 0.27.0+ path ---
 		tsBuf, err := c.GetShortContent(8)
 		if err != nil {
+			logs.Error("Failed to read timestamp from client %v: %v", c.Conn.RemoteAddr(), err)
 			c.Close()
 			return
 		}
 		ts := common.BytesToTimestamp(tsBuf)
 		now := time.Now().Unix()
-		if ServerSecureMode && (ts > now || ts < now-rep.ttl) {
+		if ServerSecureMode && (ts > now+rep.ttl || ts < now-rep.ttl) {
+			logs.Error("Timestamp validation failed for %v: ts=%d, now=%d", c.Conn.RemoteAddr(), ts, now)
 			c.Close()
 			return
 		}
 		keyBuf, err := c.GetShortContent(64)
 		if err != nil {
+			logs.Error("Failed to read vKey (64 bytes) from %v: %v", c.Conn.RemoteAddr(), err)
 			c.Close()
 			return
 		}
 		//verify
 		id, err := file.GetDb().GetIdByVerifyKey(string(keyBuf), c.Conn.RemoteAddr().String(), "", crypt.Blake2b)
 		if err != nil {
-			logs.Error("Client %v proto-ver %d vkey %s validation error", c.Conn.RemoteAddr(), ver, keyBuf)
+			logs.Error("Validation error for client %v (proto-ver %d, vKey %x): %v", c.Conn.RemoteAddr(), ver, keyBuf, err)
 			s.verifyError(c)
 			return
 		}
 		client, err := file.GetDb().GetClient(id)
 		if err != nil {
+			logs.Error("Failed to load client record for ID %d: %v", id, err)
 			c.Close()
 			return
 		}
 		ipBuf, err := c.GetShortLenContent()
 		if err != nil {
+			logs.Error("Failed to read encrypted IP from %v: %v", c.Conn.RemoteAddr(), err)
 			c.Close()
 			return
 		}
 		ipDec, err := crypt.DecryptBytes(ipBuf, client.VerifyKey)
 		if err != nil {
+			logs.Error("Failed to decrypt IP for %v: %v", c.Conn.RemoteAddr(), err)
 			c.Close()
 			return
 		}
 		client.LocalAddr = common.DecodeIP(ipDec).String()
 		randBuf, err := c.GetShortLenContent()
 		if err != nil {
+			logs.Error("Failed to read random buffer from %v: %v", c.Conn.RemoteAddr(), err)
 			c.Close()
 			return
 		}
 		hmacBuf, err := c.GetShortContent(32)
 		if err != nil {
+			logs.Error("Failed to read HMAC from %v: %v", c.Conn.RemoteAddr(), err)
 			c.Close()
 			return
 		}
 		if ServerSecureMode && !bytes.Equal(hmacBuf, crypt.ComputeHMAC(client.VerifyKey, ts, minVerBytes, vs, ipBuf, randBuf)) {
+			logs.Error("HMAC verification failed for %v", c.Conn.RemoteAddr())
 			c.Close()
 			return
 		}
 		if ServerSecureMode && IsReplay(string(hmacBuf)) {
+			logs.Error("Replay detected for client %v", c.Conn.RemoteAddr())
 			c.Close()
 			return
 		}
-		c.Write(crypt.ComputeHMAC(client.VerifyKey, ts, hmacBuf, []byte(version.GetVersion(ver))))
+		if _, err := c.Write(crypt.ComputeHMAC(client.VerifyKey, ts, hmacBuf, []byte(version.GetVersion(ver)))); err != nil {
+			logs.Error("Failed to write HMAC response to %v: %v", c.Conn.RemoteAddr(), err)
+			c.Close()
+			return
+		}
 		if ver > 1 {
+			// --- protocol 0.28.0+ path ---
 			fpBuf, err := crypt.EncryptBytes(crypt.GetCertFingerprint(), client.VerifyKey)
 			if err != nil {
+				logs.Error("Failed to encrypt cert fingerprint for %v: %v", c.Conn.RemoteAddr(), err)
 				c.Close()
 				return
 			}
@@ -407,11 +435,13 @@ func (s *Bridge) cliProcess(c *conn.Conn) {
 		}
 		c.SetReadDeadlineBySecond(5)
 
-		if flag, err := c.ReadFlag(); err == nil {
-			s.typeDeal(flag, c, id, clientVer)
-		} else {
-			logs.Warn("%v %s", err, flag)
+		flag, err := c.ReadFlag()
+		if err != nil {
+			logs.Warn("Failed to read operation flag from %v: %v", c.Conn.RemoteAddr(), err)
+			c.Close()
+			return
 		}
+		s.typeDeal(flag, c, id, clientVer)
 	}
 	return
 }

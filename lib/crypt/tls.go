@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/brianvoe/gofakeit/v7"
@@ -21,8 +22,8 @@ import (
 
 var (
 	cert       tls.Certificate
-	trustedSet = make(map[string]struct{})
-	vkeyToFp   = make(map[string]string)
+	trustedSet sync.Map // key:string -> struct{}
+	vkeyToFp   sync.Map // key:vkey(string) -> fpHex(string)
 	SkipVerify = false
 )
 
@@ -60,11 +61,15 @@ func GetCertFingerprint() []byte {
 
 func AddTrustedCert(vkey string, fp []byte) {
 	hexFp := hex.EncodeToString(fp)
-	if old, ok := vkeyToFp[vkey]; ok {
-		delete(trustedSet, old)
+	if oldRaw, loaded := vkeyToFp.Load(vkey); loaded {
+		oldFp := oldRaw.(string)
+		if oldFp == hexFp {
+			return
+		}
+		trustedSet.Delete(oldFp)
 	}
-	vkeyToFp[vkey] = hexFp
-	trustedSet[hexFp] = struct{}{}
+	vkeyToFp.Store(vkey, hexFp)
+	trustedSet.LoadOrStore(hexFp, struct{}{})
 }
 
 func NewTlsServerConn(conn net.Conn) net.Conn {
@@ -80,24 +85,25 @@ func NewTlsServerConn(conn net.Conn) net.Conn {
 
 func NewTlsClientConn(conn net.Conn) net.Conn {
 	if SkipVerify {
-		return tls.Client(conn, &tls.Config{InsecureSkipVerify: true})
+		return tls.Client(conn, &tls.Config{
+			InsecureSkipVerify: true,
+		})
 	}
-	conf := &tls.Config{
+
+	return tls.Client(conn, &tls.Config{
 		InsecureSkipVerify: true,
 		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 			if len(rawCerts) == 0 {
 				return errors.New("no server certificate")
 			}
 			sum := sha256.Sum256(rawCerts[0])
-			key := hex.EncodeToString(sum[:])
-			if _, ok := trustedSet[key]; ok {
-				//logs.Info("Trusted certificate.")
+			fp := hex.EncodeToString(sum[:])
+			if _, ok := trustedSet.Load(fp); ok {
 				return nil
 			}
 			return errors.New("untrusted server certificate")
 		},
-	}
-	return tls.Client(conn, conf)
+	})
 }
 
 func generateKeyPair(commonName, organization string) (rawCert, rawKey []byte, err error) {
