@@ -3,7 +3,6 @@ package client
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
@@ -30,7 +29,6 @@ import (
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/version"
-	"github.com/gorilla/websocket"
 	"github.com/xtaci/kcp-go/v5"
 	"golang.org/x/net/proxy"
 )
@@ -201,6 +199,36 @@ func StartFromFile(path string) {
 	}
 }
 
+func VerifyTLS(connection net.Conn, host string) (fingerprint []byte, verified bool) {
+	tlsConn, ok := connection.(*conn.TlsConn)
+	if !ok {
+		return nil, false
+	}
+	state := tlsConn.Conn.ConnectionState()
+	if len(state.PeerCertificates) == 0 {
+		return nil, false
+	}
+	leaf := state.PeerCertificates[0]
+	inter := x509.NewCertPool()
+	for _, cert := range state.PeerCertificates[1:] {
+		inter.AddCert(cert)
+	}
+	roots, _ := x509.SystemCertPool()
+	opts := x509.VerifyOptions{
+		DNSName:       host,
+		Roots:         roots,
+		Intermediates: inter,
+	}
+	if _, err := leaf.Verify(opts); err != nil {
+		verified = false
+	} else {
+		verified = true
+	}
+	sum := sha256.Sum256(leaf.Raw)
+	fingerprint = sum[:]
+	return fingerprint, verified
+}
+
 // Create a new connection with the server and verify it
 func NewConn(tp string, vkey string, server string, connType string, proxyUrl string) (*conn.Conn, error) {
 	//logs.Debug("NewConn: %s %s %s %s %s", tp, vkey, server, connType, proxyUrl)
@@ -261,72 +289,25 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			if err != nil {
 				return nil, err
 			}
-			if tlsConn, ok := connection.(*conn.TlsConn); ok {
-				state := tlsConn.Conn.ConnectionState()
-				if len(state.PeerCertificates) > 0 {
-					leaf := state.PeerCertificates[0]
-					inter := x509.NewCertPool()
-					for _, cert := range state.PeerCertificates[1:] {
-						inter.AddCert(cert)
-					}
-					roots, _ := x509.SystemCertPool()
-					_, err := leaf.Verify(x509.VerifyOptions{DNSName: host, Roots: roots, Intermediates: inter})
-					tlsVerify = (err == nil)
-					sum := sha256.Sum256(leaf.Raw)
-					tlsFp = sum[:]
-					//logs.Info("server cert fingerprint %x, tlsVerify=%t", tlsFp, tlsVerify)
-				}
-			}
+			tlsFp, tlsVerify = VerifyTLS(connection, host)
 		case "ws":
 			urlStr := "ws://" + server + path
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-			dialer := websocket.Dialer{
-				HandshakeTimeout: timeout,
-				NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					return rawConn, nil
-				},
-			}
-			wsConn, _, err := dialer.DialContext(ctx, urlStr, nil)
+			wsConn, _, err := conn.DialWS(rawConn, urlStr, timeout)
 			if err != nil {
 				return nil, err
 			}
-			connection = conn.NewWSConn(wsConn)
+			connection = conn.NewWsConn(wsConn)
 		case "wss":
 			isTls = true
 			urlStr := "wss://" + server + path
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-			dialer := websocket.Dialer{
-				HandshakeTimeout: timeout,
-				TLSClientConfig:  &tls.Config{InsecureSkipVerify: true},
-				NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					return rawConn, nil
-				},
-			}
-			wsConn, _, err := dialer.DialContext(ctx, urlStr, nil)
+			wsConn, _, err := conn.DialWSS(rawConn, urlStr, timeout)
 			if err != nil {
 				return nil, err
 			}
 			if underlying := wsConn.UnderlyingConn(); underlying != nil {
-				if tlsConn, ok := underlying.(*tls.Conn); ok {
-					state := tlsConn.ConnectionState()
-					if len(state.PeerCertificates) > 0 {
-						leaf := state.PeerCertificates[0]
-						inter := x509.NewCertPool()
-						for _, cert := range state.PeerCertificates[1:] {
-							inter.AddCert(cert)
-						}
-						roots, _ := x509.SystemCertPool()
-						_, err := leaf.Verify(x509.VerifyOptions{DNSName: host, Roots: roots, Intermediates: inter})
-						tlsVerify = (err == nil)
-						sum := sha256.Sum256(leaf.Raw)
-						tlsFp = sum[:]
-						//logs.Info("server cert fingerprint %x, tlsVerify=%t", tlsFp, tlsVerify)
-					}
-				}
+				tlsFp, tlsVerify = VerifyTLS(underlying, host)
 			}
-			connection = conn.NewWSConn(wsConn)
+			connection = conn.NewWsConn(wsConn)
 		}
 	} else {
 		sess, err = kcp.DialWithOptions(server, nil, 10, 3)

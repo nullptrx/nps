@@ -1,14 +1,17 @@
 package proxy
 
 import (
-	"bytes"
+	"context"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/beego/beego"
@@ -44,16 +47,11 @@ func NewTunnelModeServer(process process, bridge NetBridge, task *file.Tunnel) *
 	return s
 }
 
-// 开始
 func (s *TunnelModeServer) Start() error {
 	return conn.NewTcpListenerAndProcess(common.BuildAddress(s.task.ServerIp, strconv.Itoa(s.task.Port)), func(c net.Conn) {
-		// 将新连接加入到连接池中
 		s.activeConnections.Store(c, struct{}{})
-
 		defer func() {
-			// 从连接池中移除连接
 			s.activeConnections.Delete(c)
-
 			if c != nil {
 				c.Close()
 			}
@@ -72,26 +70,20 @@ func (s *TunnelModeServer) Start() error {
 	}, &s.listener)
 }
 
-// Close 停止服务器并关闭所有连接
 func (s *TunnelModeServer) Close() error {
-	// 遍历连接池中的所有连接并关闭它们
 	s.activeConnections.Range(func(key, value interface{}) bool {
-		if conn, ok := key.(net.Conn); ok {
-			conn.Close()
+		if c, ok := key.(net.Conn); ok {
+			c.Close()
 		}
 		return true
 	})
-
-	// 关闭监听器
 	return s.listener.Close()
 }
 
-// web管理方式
 type WebServer struct {
 	BaseServer
 }
 
-// 开始
 func (s *WebServer) Start() error {
 	p, _ := beego.AppConfig.Int("web_port")
 	if p == 0 {
@@ -154,28 +146,72 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 		logs.Info("%v", err)
 		return err
 	}
-
 	if err := s.auth(r, nil, s.task.Client.Cnf.U, s.task.Client.Cnf.P, s.task.MultiAccount, s.task.UserAuth); err != nil {
 		c.Write([]byte(common.ProxyAuthRequiredBytes))
 		c.Close()
 		return err
 	}
-
-	if r.Method == "CONNECT" {
+	if r.Method == http.MethodConnect {
 		c.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
-		rb = nil
-	} else {
-		r.RequestURI = ""
-		r.Header.Del("Proxy-Connection")
-		r.Header.Del("Proxy-Authenticate")
-		r.Header.Del("Proxy-Authorization")
-		hdr, _ := httputil.DumpRequest(r, false)
-		if idx := bytes.Index(rb, []byte("\r\n\r\n")); idx >= 0 {
-			rb = append(hdr, rb[idx+4:]...)
-		} else {
-			rb = hdr
-		}
+		return s.DealClient(c, s.task.Client, addr, nil, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
 	}
-
-	return s.DealClient(c, s.task.Client, addr, rb, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
+	proxy := &httputil.ReverseProxy{
+		Director: func(req *http.Request) {
+			req.RequestURI = ""
+			req.Header.Del("Proxy-Connection")
+			req.Header.Del("Proxy-Authenticate")
+			req.Header.Del("Proxy-Authorization")
+			req.Header.Del("TE")
+			req.Header.Del("Trailers")
+			req.Header.Del("Transfer-Encoding")
+			req.Header.Del("Upgrade")
+			connections := req.Header.Get("Connection")
+			req.Header.Del("Connection")
+			if connections != "" {
+				for _, h := range strings.Split(connections, ",") {
+					req.Header.Del(strings.TrimSpace(h))
+				}
+			}
+		},
+		Transport: &http.Transport{
+			ResponseHeaderTimeout: 60 * time.Second,
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				link := conn.NewLink("tcp", addr, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, r.RemoteAddr, s.task.Target.LocalProxy)
+				target, err := s.bridge.SendLinkInfo(s.task.Client.Id, link, nil)
+				if err != nil {
+					logs.Info("DialContext: connection to host %s (target %s) failed: %v", r.Host, addr, err)
+					return nil, err
+				}
+				rawConn := conn.GetConn(target, link.Crypt, link.Compress, s.task.Client.Rate, true)
+				return conn.NewFlowConn(rawConn, s.task.Flow, s.task.Client.Flow), nil
+			},
+		},
+		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
+			if err == io.EOF {
+				logs.Info("ErrorHandler: io.EOF encountered, writing 521")
+				rw.WriteHeader(521)
+				return
+			}
+			logs.Warn("ErrorHandler: proxy error: method=%s, URL=%s, error=%v", req.Method, req.URL.String(), err)
+			errMsg := err.Error()
+			idx := strings.Index(errMsg, "Task")
+			if idx == -1 {
+				idx = strings.Index(errMsg, "Client")
+			}
+			if idx != -1 {
+				http.Error(rw, errMsg[idx:], http.StatusTooManyRequests)
+			} else {
+				rw.WriteHeader(http.StatusBadGateway)
+			}
+		},
+	}
+	c.Rb = rb
+	listener := conn.NewOneConnListener(c)
+	defer listener.Close()
+	server := &http.Server{
+		Handler: proxy,
+	}
+	server.Serve(listener)
+	logs.Error("HTTP Proxy Close")
+	return nil
 }

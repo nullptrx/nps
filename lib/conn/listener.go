@@ -1,8 +1,10 @@
 package conn
 
 import (
+	"io"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/djylb/nps/lib/logs"
 	"github.com/xtaci/kcp-go/v5"
@@ -55,4 +57,42 @@ func Accept(l net.Listener, f func(c net.Conn)) {
 		}
 		go f(c)
 	}
+}
+
+type OneConnListener struct {
+	conn     net.Conn
+	accepted bool
+	mu       sync.Mutex
+	done     chan struct{}
+}
+
+func NewOneConnListener(c net.Conn) *OneConnListener {
+	return &OneConnListener{
+		conn: c,
+		done: make(chan struct{}),
+	}
+}
+
+func (l *OneConnListener) Accept() (net.Conn, error) {
+	logs.Trace("OneConnListener Accept")
+	l.mu.Lock()
+	if !l.accepted {
+		l.accepted = true
+		l.mu.Unlock()
+		return l.conn, nil
+	}
+	l.mu.Unlock()
+	<-l.done
+	return nil, io.EOF
+}
+
+func (l *OneConnListener) Close() error {
+	err := l.conn.Close()
+	close(l.done)
+	logs.Trace("OneConnListener Close")
+	return err
+}
+
+func (l *OneConnListener) Addr() net.Addr {
+	return l.conn.LocalAddr()
 }

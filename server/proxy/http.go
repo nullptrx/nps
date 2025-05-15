@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -24,64 +23,6 @@ import (
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/server/connection"
 )
-
-var localTCPAddr = &net.TCPAddr{IP: net.ParseIP("127.0.0.1")}
-
-type basicConn struct {
-	io.ReadWriteCloser
-	fakeAddr net.Addr
-}
-
-func (c *basicConn) LocalAddr() net.Addr                { return c.fakeAddr }
-func (c *basicConn) RemoteAddr() net.Addr               { return c.fakeAddr }
-func (c *basicConn) SetDeadline(t time.Time) error      { return nil }
-func (c *basicConn) SetReadDeadline(t time.Time) error  { return nil }
-func (c *basicConn) SetWriteDeadline(t time.Time) error { return nil }
-
-type flowConn struct {
-	*basicConn
-	host *file.Host
-}
-
-func checkFlowLimits(f *file.Flow, label string, now time.Time) error {
-	if f.FlowLimit > 0 && (f.InletFlow+f.ExportFlow) > (f.FlowLimit<<20) {
-		return fmt.Errorf("%s: flow limit exceeded", label)
-	}
-	if !f.TimeLimit.IsZero() && f.TimeLimit.Before(now) {
-		return fmt.Errorf("%s: time limit exceeded", label)
-	}
-	return nil
-}
-
-func (c *flowConn) Read(p []byte) (int, error) {
-	n, err := c.basicConn.Read(p)
-	n64 := int64(n)
-	c.host.Flow.Add(0, n64)
-	c.host.Client.Flow.Add(n64, n64)
-	now := time.Now()
-	if err := checkFlowLimits(c.host.Flow, "Host", now); err != nil {
-		return n, err
-	}
-	if err := checkFlowLimits(c.host.Client.Flow, "Client", now); err != nil {
-		return n, err
-	}
-	return n, err
-}
-
-func (c *flowConn) Write(p []byte) (int, error) {
-	n, err := c.basicConn.Write(p)
-	n64 := int64(n)
-	c.host.Flow.Add(n64, 0)
-	c.host.Client.Flow.Add(n64, n64)
-	now := time.Now()
-	if err := checkFlowLimits(c.host.Flow, "Host", now); err != nil {
-		return n, err
-	}
-	if err := checkFlowLimits(c.host.Client.Flow, "Client", now); err != nil {
-		return n, err
-	}
-	return n, err
-}
 
 type httpServer struct {
 	BaseServer
@@ -297,13 +238,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 					return nil, err
 				}
 				rawConn := conn.GetConn(target, link.Crypt, link.Compress, host.Client.Rate, true)
-				return &flowConn{
-					basicConn: &basicConn{
-						ReadWriteCloser: rawConn,
-						fakeAddr:        localTCPAddr,
-					},
-					host: host,
-				}, nil
+				return conn.NewFlowConn(rawConn, host.Flow, host.Client.Flow), nil
 			},
 		},
 		ModifyResponse: func(resp *http.Response) error {
@@ -327,7 +262,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			logs.Warn("ErrorHandler: proxy error: method=%s, URL=%s, error=%v", req.Method, req.URL.String(), err)
 
 			errMsg := err.Error()
-			idx := strings.Index(errMsg, "Host")
+			idx := strings.Index(errMsg, "Task")
 			if idx == -1 {
 				idx = strings.Index(errMsg, "Client")
 			}
@@ -358,10 +293,7 @@ func (s *httpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		return
 	}
 	rawConn := conn.GetConn(targetConn, link.Crypt, link.Compress, host.Client.Rate, true)
-	wsConn := &basicConn{
-		ReadWriteCloser: rawConn,
-		fakeAddr:        localTCPAddr,
-	}
+	wsConn := conn.NewRWConn(rawConn)
 	var netConn net.Conn = wsConn
 
 	if host.TargetIsHttps {

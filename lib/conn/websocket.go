@@ -11,16 +11,16 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type WSConn struct {
+type WsConn struct {
 	*websocket.Conn
 	readBuf []byte
 }
 
-func NewWSConn(ws *websocket.Conn) *WSConn {
-	return &WSConn{Conn: ws, readBuf: make([]byte, 0)}
+func NewWsConn(ws *websocket.Conn) *WsConn {
+	return &WsConn{Conn: ws, readBuf: make([]byte, 0)}
 }
 
-func (c *WSConn) Read(p []byte) (int, error) {
+func (c *WsConn) Read(p []byte) (int, error) {
 	if len(c.readBuf) > 0 {
 		n := copy(p, c.readBuf)
 		c.readBuf = c.readBuf[n:]
@@ -44,7 +44,7 @@ func (c *WSConn) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-func (c *WSConn) Write(p []byte) (int, error) {
+func (c *WsConn) Write(p []byte) (int, error) {
 	w, err := c.NextWriter(websocket.BinaryMessage)
 	if err != nil {
 		return 0, err
@@ -56,15 +56,15 @@ func (c *WSConn) Write(p []byte) (int, error) {
 	return n, w.Close()
 }
 
-func (c *WSConn) Close() error         { return c.Conn.Close() }
-func (c *WSConn) LocalAddr() net.Addr  { return c.Conn.UnderlyingConn().LocalAddr() }
-func (c *WSConn) RemoteAddr() net.Addr { return c.Conn.UnderlyingConn().RemoteAddr() }
-func (c *WSConn) SetDeadline(t time.Time) error {
+func (c *WsConn) Close() error         { return c.Conn.Close() }
+func (c *WsConn) LocalAddr() net.Addr  { return c.Conn.UnderlyingConn().LocalAddr() }
+func (c *WsConn) RemoteAddr() net.Addr { return c.Conn.UnderlyingConn().RemoteAddr() }
+func (c *WsConn) SetDeadline(t time.Time) error {
 	c.Conn.SetReadDeadline(t)
 	return c.Conn.SetWriteDeadline(t)
 }
-func (c *WSConn) SetReadDeadline(t time.Time) error  { return c.Conn.SetReadDeadline(t) }
-func (c *WSConn) SetWriteDeadline(t time.Time) error { return c.Conn.SetWriteDeadline(t) }
+func (c *WsConn) SetReadDeadline(t time.Time) error  { return c.Conn.SetReadDeadline(t) }
+func (c *WsConn) SetWriteDeadline(t time.Time) error { return c.Conn.SetWriteDeadline(t) }
 
 type httpListener struct {
 	acceptCh chan net.Conn
@@ -87,7 +87,7 @@ func NewWSListener(base net.Listener, path string) net.Listener {
 		if err != nil {
 			return
 		}
-		ch <- NewWSConn(ws)
+		ch <- NewWsConn(ws)
 	})
 	srv := &http.Server{Handler: mux}
 	go srv.Serve(base)
@@ -113,7 +113,7 @@ func NewWSSListener(base net.Listener, path string, cert tls.Certificate) net.Li
 		if err != nil {
 			return
 		}
-		ch <- NewWSConn(ws)
+		ch <- NewWsConn(ws)
 	})
 	tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
 	srv := &http.Server{Handler: mux, TLSConfig: tlsConfig}
@@ -143,20 +143,27 @@ func (hl *httpListener) Addr() net.Addr {
 	return hl.addr
 }
 
-func DialWS(ctx context.Context, urlStr string, timeout time.Duration) (net.Conn, error) {
-	d := websocket.Dialer{HandshakeTimeout: timeout}
-	ws, _, err := d.DialContext(ctx, urlStr, nil)
-	if err != nil {
-		return nil, err
+func DialWS(rawConn net.Conn, urlStr string, timeout time.Duration) (*websocket.Conn, *http.Response, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	dialer := websocket.Dialer{
+		HandshakeTimeout: timeout,
+		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return rawConn, nil
+		},
 	}
-	return NewWSConn(ws), nil
+	return dialer.DialContext(ctx, urlStr, nil)
 }
 
-func DialWSS(ctx context.Context, urlStr string, timeout time.Duration) (net.Conn, error) {
-	d := websocket.Dialer{HandshakeTimeout: timeout, TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
-	ws, _, err := d.DialContext(ctx, urlStr, nil)
-	if err != nil {
-		return nil, err
+func DialWSS(rawConn net.Conn, urlStr string, timeout time.Duration) (*websocket.Conn, *http.Response, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	dialer := websocket.Dialer{
+		HandshakeTimeout: timeout,
+		TLSClientConfig:  &tls.Config{InsecureSkipVerify: true},
+		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return rawConn, nil
+		},
 	}
-	return NewWSConn(ws), nil
+	return dialer.DialContext(ctx, urlStr, nil)
 }
