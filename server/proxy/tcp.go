@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -157,6 +158,19 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 		c.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 		return s.DealClient(c, s.task.Client, addr, nil, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
 	}
+	if r.Header.Get("Upgrade") != "" || r.Header.Get(":protocol") != "" {
+		r.RequestURI = ""
+		r.Header.Del("Proxy-Connection")
+		r.Header.Del("Proxy-Authenticate")
+		r.Header.Del("Proxy-Authorization")
+		hdr, _ := httputil.DumpRequest(r, false)
+		if idx := bytes.Index(rb, []byte("\r\n\r\n")); idx >= 0 {
+			rb = append(hdr, rb[idx+4:]...)
+		} else {
+			rb = hdr
+		}
+		return s.DealClient(c, s.task.Client, addr, rb, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
+	}
 	var server *http.Server
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
@@ -164,17 +178,6 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 			req.Header.Del("Proxy-Connection")
 			req.Header.Del("Proxy-Authenticate")
 			req.Header.Del("Proxy-Authorization")
-			req.Header.Del("TE")
-			req.Header.Del("Trailers")
-			req.Header.Del("Transfer-Encoding")
-			req.Header.Del("Upgrade")
-			connections := req.Header.Get("Connection")
-			req.Header.Del("Connection")
-			if connections != "" {
-				for _, h := range strings.Split(connections, ",") {
-					req.Header.Del(strings.TrimSpace(h))
-				}
-			}
 		},
 		Transport: &http.Transport{
 			ResponseHeaderTimeout: 60 * time.Second,
@@ -217,6 +220,6 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 	})
 	server = &http.Server{Handler: handler}
 	server.Serve(listener)
-	logs.Error("HTTP Proxy Close")
+	//logs.Error("HTTP Proxy Close")
 	return nil
 }
