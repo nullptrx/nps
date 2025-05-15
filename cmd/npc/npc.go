@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/djylb/nps/lib/crypt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"github.com/djylb/nps/client"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/config"
+	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/install"
 	"github.com/djylb/nps/lib/logs"
