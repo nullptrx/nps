@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"errors"
 	"net"
 	"net/http"
@@ -168,13 +169,12 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 		r.Header.Del("Proxy-Connection")
 		r.Header.Del("Proxy-Authenticate")
 		r.Header.Del("Proxy-Authorization")
-		dump, dumpErr := httputil.DumpRequestOut(r, true)
-		if dumpErr != nil {
-			c.Close()
-			logs.Error("dump request failed: %v", dumpErr)
-			return dumpErr
+		hdr, _ := httputil.DumpRequest(r, false)
+		if idx := bytes.Index(rb, []byte("\r\n\r\n")); idx >= 0 {
+			rb = append(hdr, rb[idx+4:]...)
+		} else {
+			rb = hdr
 		}
-		rb = dump
 	}
 
 	return s.DealClient(c, s.task.Client, addr, rb, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)

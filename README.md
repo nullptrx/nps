@@ -134,6 +134,9 @@ npc start
 
 ### Stable
 
+- **v0.28.2 (2025-05-15)**
+  - 修复HTTP正向代理 [#75](https://github.com/djylb/nps/issues/75)
+
 - **v0.28.1 (2025-05-15)**
   - 客户端加密校验证书
 
