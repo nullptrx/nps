@@ -151,10 +151,13 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 		c.Close()
 		return err
 	}
+	remoteAddr := c.Conn.RemoteAddr().String()
+	logs.Info("http proxy request, client=%d method=%s, host=%s, url=%s, remote address=%s, target=%s", s.task.Client.Id, r.Method, r.Host, r.URL.RequestURI(), remoteAddr, addr)
 	if r.Method == http.MethodConnect {
 		c.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 		return s.DealClient(c, s.task.Client, addr, nil, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
 	}
+	var server *http.Server
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			req.RequestURI = ""
@@ -176,7 +179,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 		Transport: &http.Transport{
 			ResponseHeaderTimeout: 60 * time.Second,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				link := conn.NewLink("tcp", addr, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, r.RemoteAddr, s.task.Target.LocalProxy)
+				link := conn.NewLink("tcp", addr, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, remoteAddr, s.task.Target.LocalProxy)
 				target, err := s.bridge.SendLinkInfo(s.task.Client.Id, link, nil)
 				if err != nil {
 					logs.Info("DialContext: connection to host %s (target %s) failed: %v", r.Host, addr, err)
@@ -188,7 +191,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
 			if err == io.EOF {
-				logs.Info("ErrorHandler: io.EOF encountered, writing 521")
+				//logs.Info("ErrorHandler: io.EOF encountered, writing 521")
 				rw.WriteHeader(521)
 				return
 			}
@@ -208,9 +211,11 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 	c.Rb = rb
 	listener := conn.NewOneConnListener(c)
 	defer listener.Close()
-	server := &http.Server{
-		Handler: proxy,
-	}
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		proxy.ServeHTTP(w, req)
+		go server.Close()
+	})
+	server = &http.Server{Handler: handler}
 	server.Serve(listener)
 	logs.Error("HTTP Proxy Close")
 	return nil

@@ -369,27 +369,7 @@ func (s *httpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		return
 	}
 
-	join(clientConn, netConn, []*file.Flow{host.Flow, host.Client.Flow}, s.task, r.RemoteAddr)
-}
-
-func join(c1, c2 net.Conn, flows []*file.Flow, task *file.Tunnel, remote string) {
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		if _, err := goroutine.CopyBuffer(c1, c2, flows, task, remote); err != nil {
-			c1.Close()
-			c2.Close()
-		}
-		wg.Done()
-	}()
-	go func() {
-		if _, err := goroutine.CopyBuffer(c2, c1, flows, task, remote); err != nil {
-			c1.Close()
-			c2.Close()
-		}
-		wg.Done()
-	}()
-	wg.Wait()
+	goroutine.Join(clientConn, netConn, []*file.Flow{host.Flow, host.Client.Flow}, s.task, r.RemoteAddr)
 }
 
 func (s *httpServer) NewServer(port int, scheme string) *http.Server {

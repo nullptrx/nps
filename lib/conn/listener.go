@@ -60,10 +60,11 @@ func Accept(l net.Listener, f func(c net.Conn)) {
 }
 
 type OneConnListener struct {
-	conn     net.Conn
-	accepted bool
-	mu       sync.Mutex
-	done     chan struct{}
+	conn      net.Conn
+	accepted  bool
+	mu        sync.Mutex
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 func NewOneConnListener(c net.Conn) *OneConnListener {
@@ -74,7 +75,7 @@ func NewOneConnListener(c net.Conn) *OneConnListener {
 }
 
 func (l *OneConnListener) Accept() (net.Conn, error) {
-	logs.Trace("OneConnListener Accept")
+	//logs.Trace("OneConnListener Accept")
 	l.mu.Lock()
 	if !l.accepted {
 		l.accepted = true
@@ -88,8 +89,10 @@ func (l *OneConnListener) Accept() (net.Conn, error) {
 
 func (l *OneConnListener) Close() error {
 	err := l.conn.Close()
-	close(l.done)
-	logs.Trace("OneConnListener Close")
+	l.closeOnce.Do(func() {
+		close(l.done)
+		//logs.Trace("OneConnListener Close")
+	})
 	return err
 }
 

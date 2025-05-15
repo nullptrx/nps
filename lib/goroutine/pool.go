@@ -151,3 +151,23 @@ func copyConns(group interface{}) {
 
 var connCopyPool, _ = ants.NewPoolWithFunc(200000, copyConnGroup, ants.WithNonblocking(false))
 var CopyConnsPool, _ = ants.NewPoolWithFunc(100000, copyConns, ants.WithNonblocking(false))
+
+func Join(c1, c2 net.Conn, flows []*file.Flow, task *file.Tunnel, remote string) {
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		if _, err := CopyBuffer(c1, c2, flows, task, remote); err != nil {
+			c1.Close()
+			c2.Close()
+		}
+		wg.Done()
+	}()
+	go func() {
+		if _, err := CopyBuffer(c2, c1, flows, task, remote); err != nil {
+			c1.Close()
+			c2.Close()
+		}
+		wg.Done()
+	}()
+	wg.Wait()
+}
