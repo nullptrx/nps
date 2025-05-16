@@ -24,6 +24,7 @@ import (
 )
 
 var _ = unsafe.Sizeof(0)
+var httpNum = 0
 
 //go:linkname initBeforeHTTPRun github.com/beego/beego.initBeforeHTTPRun
 func initBeforeHTTPRun()
@@ -160,24 +161,25 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 	var server *http.Server
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
-			req.RequestURI = ""
-			req.Header.Del("Proxy-Connection")
-			req.Header.Del("Proxy-Authenticate")
-			req.Header.Del("Proxy-Authorization")
-			req.Header.Del("TE")
-			req.Header.Del("Trailers")
-			req.Header.Del("Transfer-Encoding")
-			req.Header.Del("Upgrade")
-			connections := req.Header.Get("Connection")
-			req.Header.Del("Connection")
-			if connections != "" {
-				for _, h := range strings.Split(connections, ",") {
-					req.Header.Del(strings.TrimSpace(h))
-				}
-			}
+			//req.RequestURI = ""
+			//req.Header.Del("Proxy-Connection")
+			//req.Header.Del("Proxy-Authenticate")
+			//req.Header.Del("Proxy-Authorization")
+			//req.Header.Del("TE")
+			//req.Header.Del("Trailers")
+			//req.Header.Del("Transfer-Encoding")
+			//req.Header.Del("Upgrade")
+			//connections := req.Header.Get("Connection")
+			//req.Header.Del("Connection")
+			//if connections != "" {
+			//	for _, h := range strings.Split(connections, ",") {
+			//		req.Header.Del(strings.TrimSpace(h))
+			//	}
+			//}
 		},
 		Transport: &http.Transport{
 			ResponseHeaderTimeout: 60 * time.Second,
+			//DisableKeepAlives:     true,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				link := conn.NewLink("tcp", addr, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, remoteAddr, s.task.Target.LocalProxy)
 				target, err := s.bridge.SendLinkInfo(s.task.Client.Id, link, nil)
@@ -212,20 +214,44 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 	}
 	c.Rb = rb
 	listener := conn.NewOneConnListener(c)
-	defer listener.Close()
+	var shutdownTimerMu sync.Mutex
+	var shutdownTimer *time.Timer
+	defer func() {
+		listener.Close()
+		shutdownTimerMu.Lock()
+		if shutdownTimer != nil {
+			shutdownTimer.Stop()
+		}
+		shutdownTimerMu.Unlock()
+	}()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		shutdownTimerMu.Lock()
+		if shutdownTimer != nil {
+			shutdownTimer.Stop()
+		}
+		shutdownTimerMu.Unlock()
+		defer func() {
+			//logs.Error("HTTP Proxy Number: %d, Reset timeout", httpNum)
+			shutdownTimerMu.Lock()
+			shutdownTimer = time.AfterFunc(30*time.Second, func() {
+				server.Close()
+			})
+			shutdownTimerMu.Unlock()
+		}()
 		proxy.ServeHTTP(w, req)
-		//go server.Close()
 	})
 	server = &http.Server{
 		Handler: handler,
-		ConnState: func(cc net.Conn, cs http.ConnState) {
-			if cs == http.StateIdle || cs == http.StateClosed {
-				go server.Shutdown(context.Background())
-			}
-		},
 	}
-	server.Serve(listener)
-	logs.Error("HTTP Proxy Close")
+	//httpNum++
+	//logs.Error("HTTP Proxy Number: %d", httpNum)
+	//defer func() {
+	//	httpNum--
+	//	logs.Error("HTTP Proxy Number: %d", httpNum)
+	//}()
+	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	//logs.Error("HTTP Proxy Close")
 	return nil
 }
