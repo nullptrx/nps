@@ -186,7 +186,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 				link := conn.NewLink("tcp", addr, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, remoteAddr, s.task.Target.LocalProxy)
 				target, err := s.bridge.SendLinkInfo(s.task.Client.Id, link, nil)
 				if err != nil {
-					logs.Info("DialContext: connection to host %s (target %s) failed: %v", r.Host, addr, err)
+					logs.Trace("DialContext: connection to host %s (target %s) failed: %v", r.Host, addr, err)
 					return nil, err
 				}
 				rawConn := conn.GetConn(target, link.Crypt, link.Compress, s.task.Client.Rate, true)
@@ -200,7 +200,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 				//go server.Close()
 				return
 			}
-			logs.Warn("ErrorHandler: proxy error: method=%s, URL=%s, error=%v", req.Method, req.URL.String(), err)
+			logs.Debug("ErrorHandler: proxy error: method=%s, URL=%s, error=%v", req.Method, req.URL.String(), err)
 			errMsg := err.Error()
 			idx := strings.Index(errMsg, "Task")
 			if idx == -1 {

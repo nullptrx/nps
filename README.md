@@ -134,10 +134,12 @@ npc start
 
 ### Stable
 
-- **v0.28.3 (2025-05-15)**
+- **v0.28.3 (2025-05-16)**
   - 优化并发读写
   - 延长时间校验窗口
   - 完善服务端日志输出
+  - 重写HTTP正向代理
+  - 支持同一端口监听HTTP/Socks5代理 [#56](https://github.com/djylb/nps/issues/56)
 
 - **v0.28.2 (2025-05-15)**
   - 修复HTTP正向代理 [#75](https://github.com/djylb/nps/issues/75)

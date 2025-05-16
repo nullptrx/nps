@@ -378,7 +378,7 @@ func (s *Sock5ModeServer) Start() error {
 			c.Close()
 			return
 		}
-		logs.Trace("New socks5 or http connection,client %d,remote address %v", s.task.Client.Id, c.RemoteAddr())
+		logs.Trace("New proxy (socks5/http) connection,client %d,remote address %v", s.task.Client.Id, c.RemoteAddr())
 		s.handleConn(c)
 		s.task.Client.CutConn()
 	}, &s.listener)
