@@ -200,11 +200,18 @@ func StartFromFile(path string) {
 }
 
 func VerifyTLS(connection net.Conn, host string) (fingerprint []byte, verified bool) {
-	tlsConn, ok := connection.(*conn.TlsConn)
-	if !ok {
+	var tlsConn *tls.Conn
+	if tc, ok := connection.(*conn.TlsConn); ok {
+		tlsConn = tc.Conn
+	} else if std, ok := connection.(*tls.Conn); ok {
+		tlsConn = std
+	} else {
 		return nil, false
 	}
-	state := tlsConn.Conn.ConnectionState()
+	if err := tlsConn.Handshake(); err != nil {
+		return nil, false
+	}
+	state := tlsConn.ConnectionState()
 	if len(state.PeerCertificates) == 0 {
 		return nil, false
 	}
