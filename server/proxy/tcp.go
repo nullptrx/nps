@@ -153,7 +153,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 		return err
 	}
 	remoteAddr := c.Conn.RemoteAddr().String()
-	logs.Info("http proxy request, client=%d method=%s, host=%s, url=%s, remote address=%s, target=%s", s.task.Client.Id, r.Method, r.Host, r.URL.RequestURI(), remoteAddr, addr)
+	logs.Debug("http proxy request, client=%d method=%s, host=%s, url=%s, remote address=%s, target=%s", s.task.Client.Id, r.Method, r.Host, r.URL.RequestURI(), remoteAddr, addr)
 	if r.Method == http.MethodConnect {
 		c.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 		return s.DealClient(c, s.task.Client, addr, nil, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
