@@ -159,6 +159,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 		return s.DealClient(c, s.task.Client, addr, nil, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
 	}
 	var server *http.Server
+
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			//req.RequestURI = ""
@@ -176,6 +177,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 			//		req.Header.Del(strings.TrimSpace(h))
 			//	}
 			//}
+			req.Header["X-Forwarded-For"] = nil
 		},
 		Transport: &http.Transport{
 			ResponseHeaderTimeout: 60 * time.Second,
@@ -212,8 +214,15 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 			//go server.Close()
 		},
 	}
-	c.Rb = rb
-	listener := conn.NewOneConnListener(c)
+	var listener *conn.OneConnListener
+	if c.Rb == nil {
+		c.Rb = rb
+		listener = conn.NewOneConnListener(c)
+	} else {
+		cc := conn.NewConn(c)
+		cc.Rb = rb
+		listener = conn.NewOneConnListener(cc)
+	}
 	var shutdownTimerMu sync.Mutex
 	var shutdownTimer *time.Timer
 	defer func() {

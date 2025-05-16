@@ -294,7 +294,20 @@ func (s *Sock5ModeServer) handleConn(c net.Conn) {
 	}
 
 	if version := buf[0]; version != 5 {
-		logs.Warn("only support socks5, request from: %v", c.RemoteAddr())
+		method := string(buf)
+		switch method {
+		case "GE", "PO", "HE", "PU ", "DE", "OP", "CO", "TR", "PA", "PR", "MK", "MO", "LO", "UN", "RE", "AC", "SE", "LI":
+			nConn := conn.NewConn(c)
+			nConn.Rb = buf
+			ss := NewTunnelModeServer(ProcessHttp, s.bridge, s.task)
+			if err := ProcessHttp(nConn, ss); err != nil {
+				logs.Warn("http proxy error: %v", err)
+			}
+			c.Close()
+			return
+		}
+		logs.Trace("Socks5 Buf: %s", buf)
+		logs.Warn("only support socks5 and http, request from: %v", c.RemoteAddr())
 		c.Close()
 		return
 	}
@@ -328,7 +341,7 @@ func (s *Sock5ModeServer) Auth(c net.Conn) error {
 		return err
 	}
 	if header[0] != userAuthVersion {
-		return errors.New("验证方式不被支持")
+		return errors.New("auth method not supported")
 	}
 	userLen := int(header[1])
 	user := make([]byte, userLen)
@@ -336,7 +349,7 @@ func (s *Sock5ModeServer) Auth(c net.Conn) error {
 		return err
 	}
 	if _, err := c.Read(header[:1]); err != nil {
-		return errors.New("密码长度获取错误")
+		return errors.New("failed to read password length")
 	}
 	passLen := int(header[0])
 	pass := make([]byte, passLen)
@@ -353,7 +366,7 @@ func (s *Sock5ModeServer) Auth(c net.Conn) error {
 		if _, err := c.Write([]byte{userAuthVersion, authFailure}); err != nil {
 			return err
 		}
-		return errors.New("验证不通过")
+		return errors.New("auth failed")
 	}
 }
 
@@ -365,7 +378,7 @@ func (s *Sock5ModeServer) Start() error {
 			c.Close()
 			return
 		}
-		logs.Trace("New socks5 connection,client %d,remote address %v", s.task.Client.Id, c.RemoteAddr())
+		logs.Trace("New socks5 or http connection,client %d,remote address %v", s.task.Client.Id, c.RemoteAddr())
 		s.handleConn(c)
 		s.task.Client.CutConn()
 	}, &s.listener)

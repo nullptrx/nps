@@ -36,12 +36,12 @@
 		<en-US>UDP</en-US>
 	</lang>
 	<lang id="scheme-httpproxy">
-		<zh-CN>HTTP 代理</zh-CN>
-		<en-US>HTTP proxy</en-US>
+		<zh-CN>HTTP 代理 （弃用）</zh-CN>
+		<en-US>HTTP Proxy (Deprecated)</en-US>
 	</lang>
 	<lang id="scheme-socks5">
-		<zh-CN>SOCKS 代理</zh-CN>
-		<en-US>SOCKS 5</en-US>
+		<zh-CN>混合代理</zh-CN>
+		<en-US>Mix Proxy</en-US>
 	</lang>
 	<lang id="scheme-secret">
 		<zh-CN>私密代理</zh-CN>
@@ -97,8 +97,8 @@
 		<en-US>HTTP proxy list</en-US>
 	</lang>
 	<lang id="page-listsocks5">
-		<zh-CN>SOCKS 代理列表</zh-CN>
-		<en-US>SOCKS 5 list</en-US>
+		<zh-CN>混合代理列表</zh-CN>
+		<en-US>Mix Proxy list</en-US>
 	</lang>
 	<lang id="page-listsecret">
 		<zh-CN>私密代理列表</zh-CN>

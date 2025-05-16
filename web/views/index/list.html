@@ -4,6 +4,9 @@
             <div class="ibox float-e-margins">
                 <div class="ibox-title">
                     <h5><span id="langtag"></span><span></span></h5>
+                    {{ if eq "socks5" .menu }}
+                    <a href="{{.web_base_url}}/index/http"><span class="nav-label" langtag="scheme-httpproxy"></span></a>
+                    {{ end }}
                     <div class="ibox-tools">
                         <a class="collapse-link">
                             <i class="fa fa-chevron-up"></i>
