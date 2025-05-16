@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -158,20 +157,6 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 		c.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 		return s.DealClient(c, s.task.Client, addr, nil, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
 	}
-	//if r.Header.Get("Upgrade") != "" || r.Header.Get(":protocol") != "" {
-	if strings.EqualFold(r.Header.Get("Connection"), "Upgrade") && strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
-		r.RequestURI = ""
-		r.Header.Del("Proxy-Connection")
-		r.Header.Del("Proxy-Authenticate")
-		r.Header.Del("Proxy-Authorization")
-		hdr, _ := httputil.DumpRequest(r, false)
-		if idx := bytes.Index(rb, []byte("\r\n\r\n")); idx >= 0 {
-			rb = append(hdr, rb[idx+4:]...)
-		} else {
-			rb = hdr
-		}
-		return s.DealClient(c, s.task.Client, addr, rb, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
-	}
 	var server *http.Server
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
@@ -208,6 +193,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 			if err == io.EOF {
 				//logs.Info("ErrorHandler: io.EOF encountered, writing 521")
 				rw.WriteHeader(521)
+				//go server.Close()
 				return
 			}
 			logs.Warn("ErrorHandler: proxy error: method=%s, URL=%s, error=%v", req.Method, req.URL.String(), err)
@@ -221,6 +207,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 			} else {
 				rw.WriteHeader(http.StatusBadGateway)
 			}
+			//go server.Close()
 		},
 	}
 	c.Rb = rb
@@ -228,9 +215,16 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 	defer listener.Close()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		proxy.ServeHTTP(w, req)
-		go server.Close()
+		//go server.Close()
 	})
-	server = &http.Server{Handler: handler}
+	server = &http.Server{
+		Handler: handler,
+		ConnState: func(cc net.Conn, cs http.ConnState) {
+			if cs == http.StateIdle || cs == http.StateClosed {
+				go server.Shutdown(context.Background())
+			}
+		},
+	}
 	server.Serve(listener)
 	logs.Error("HTTP Proxy Close")
 	return nil
