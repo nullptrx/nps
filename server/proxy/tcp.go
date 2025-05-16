@@ -1,9 +1,11 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
+	"github.com/djylb/nps/lib/goroutine"
 	"io"
 	"net"
 	"net/http"
@@ -158,7 +160,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 		c.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 		return s.DealClient(c, s.task.Client, addr, nil, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
 	}
-	if r.Header.Get("Upgrade") != "" || r.Header.Get(":protocol") != "" {
+	if false && (r.Header.Get("Upgrade") != "" || r.Header.Get(":protocol") != "") {
 		r.RequestURI = ""
 		r.Header.Del("Proxy-Connection")
 		r.Header.Del("Proxy-Authenticate")
@@ -215,11 +217,74 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 	listener := conn.NewOneConnListener(c)
 	defer listener.Close()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		defer func() {
+			go server.Close()
+		}()
+		if req.Method == "CONNECT" || req.Header.Get("Upgrade") != "" || req.Header.Get(":protocol") != "" {
+			link := conn.NewLink("tcp", addr, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, r.RemoteAddr, s.task.Target.LocalProxy)
+			targetConn, err := s.bridge.SendLinkInfo(s.task.Client.Id, link, nil)
+			if err != nil {
+				logs.Info("handleWebsocket: connection to target %s failed: %v", link.Host, err)
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.WriteHeader(http.StatusBadGateway)
+				w.Write(s.errorContent)
+				return
+			}
+			rawConn := conn.GetConn(targetConn, link.Crypt, link.Compress, s.task.Client.Rate, true)
+			wsConn := conn.NewRWConn(rawConn)
+			var netConn net.Conn = wsConn
+			hijacker, ok := w.(http.Hijacker)
+			if !ok {
+				http.Error(w, "WebSocket hijacking not supported", http.StatusInternalServerError)
+				logs.Error("handleWebsocket: WebSocket hijacking not supported.")
+				return
+			}
+			clientConn, clientBuf, err := hijacker.Hijack()
+			if err != nil {
+				http.Error(w, "WebSocket hijacking failed", http.StatusInternalServerError)
+				logs.Error("handleWebsocket: WebSocket hijacking failed.")
+				return
+			}
+			//defer clientConn.Close()
+			if err := r.Write(netConn); err != nil {
+				logs.Error("handleWebsocket: failed to write handshake to backend: %v", err)
+				netConn.Close()
+				clientConn.Close()
+				return
+			}
+			backendReader := bufio.NewReader(netConn)
+			resp, err := http.ReadResponse(backendReader, r)
+			if err != nil {
+				logs.Error("handleWebsocket: failed to read handshake response from backend: %v", err)
+				netConn.Close()
+				clientConn.Close()
+				return
+			}
+			if resp.StatusCode != http.StatusSwitchingProtocols {
+				logs.Error("handleWebsocket: unexpected status code in handshake: %d", resp.StatusCode)
+				netConn.Close()
+				clientConn.Close()
+				return
+			}
+			if err := resp.Write(clientBuf); err != nil {
+				logs.Error("handleWebsocket: failed to write handshake response to client: %v", err)
+				netConn.Close()
+				clientConn.Close()
+				return
+			}
+			if err := clientBuf.Flush(); err != nil {
+				logs.Error("handleWebsocket: failed to flush handshake response to client: %v", err)
+				netConn.Close()
+				clientConn.Close()
+				return
+			}
+			goroutine.Join(clientConn, netConn, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task, r.RemoteAddr)
+			return
+		}
 		proxy.ServeHTTP(w, req)
-		go server.Close()
 	})
 	server = &http.Server{Handler: handler}
 	server.Serve(listener)
-	//logs.Error("HTTP Proxy Close")
+	logs.Error("HTTP Proxy Close")
 	return nil
 }
