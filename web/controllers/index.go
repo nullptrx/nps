@@ -48,6 +48,13 @@ func (s *IndexController) Http() {
 	s.SetType("httpProxy")
 	s.display("index/list")
 }
+
+func (s *IndexController) Mix() {
+	s.SetInfo("mix proxy")
+	s.SetType("mixProxy")
+	s.display("index/list")
+}
+
 func (s *IndexController) File() {
 	s.SetInfo("file server")
 	s.SetType("file")
@@ -115,6 +122,10 @@ func (s *IndexController) Add() {
 			Password:  s.getEscapeString("password"),
 			LocalPath: s.getEscapeString("local_path"),
 			StripPre:  s.getEscapeString("strip_pre"),
+			MixProxy: &file.MixProxy{
+				Http:   s.GetBoolNoErr("enable_http"),
+				Socks5: s.GetBoolNoErr("enable_socks5"),
+			},
 			Flow: &file.Flow{
 				FlowLimit: int64(s.GetIntNoErr("flow_limit")),
 				TimeLimit: common.GetTimeNoErrByStr(s.getEscapeString("time_limit")),
@@ -203,6 +214,8 @@ func (s *IndexController) Edit() {
 			t.Id = id
 			t.LocalPath = s.getEscapeString("local_path")
 			t.StripPre = s.getEscapeString("strip_pre")
+			t.MixProxy.Http = s.GetBoolNoErr("enable_http")
+			t.MixProxy.Socks5 = s.GetBoolNoErr("enable_socks5")
 			t.Remark = s.getEscapeString("remark")
 			t.Flow.FlowLimit = int64(s.GetIntNoErr("flow_limit"))
 			t.Flow.TimeLimit = common.GetTimeNoErrByStr(s.getEscapeString("time_limit"))

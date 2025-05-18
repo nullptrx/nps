@@ -203,15 +203,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			//logs.Debug("Director: set req.URL.Scheme=%s, req.URL.Host=%s", req.URL.Scheme, req.URL.Host)
 			common.ChangeHostAndHeader(req, host.HostChange, host.HeaderChange, isHttpOnlyRequest)
 			if isHttpOnlyRequest {
-				// 传递 X-Forwarded 头
-				req.Header.Set("X-Forwarded-Proto", r.URL.Scheme)
-				req.Header.Set("X-Scheme", r.URL.Scheme)
-				if r.URL.Scheme == "https" {
-					req.Header.Set("X-Forwarded-Ssl", "on")
-					req.Header.Set("X-Forwarded-Port", s.httpsPortStr)
-				} else {
-					req.Header.Set("X-Forwarded-Port", s.httpPortStr)
-				}
+				req.Header["X-Forwarded-For"] = nil
 			}
 		},
 		Transport: &http.Transport{

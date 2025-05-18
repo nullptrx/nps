@@ -105,7 +105,7 @@ func StartLocalServer(l *config.LocalServer, config *config.CommonConfig) error 
 	switch l.Type {
 	case "p2ps":
 		logs.Info("successful start-up of local socks5 monitoring, port %d", l.Port)
-		return proxy.NewSock5ModeServer(p2pNetBridge, task).Start()
+		return proxy.NewTunnelModeServer(proxy.ProcessMix, p2pNetBridge, task).Start()
 	case "p2pt":
 		logs.Info("successful start-up of local tcp trans monitoring, port %d", l.Port)
 		return proxy.NewTunnelModeServer(proxy.HandleTrans, p2pNetBridge, task).Start()

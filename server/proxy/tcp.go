@@ -24,7 +24,8 @@ import (
 )
 
 var _ = unsafe.Sizeof(0)
-var httpNum = 0
+
+//var httpNum = 0
 
 //go:linkname initBeforeHTTPRun github.com/beego/beego.initBeforeHTTPRun
 func initBeforeHTTPRun()
@@ -75,9 +76,11 @@ func (s *TunnelModeServer) Close() error {
 	s.activeConnections.Range(func(key, value interface{}) bool {
 		if c, ok := key.(net.Conn); ok {
 			c.Close()
+			s.activeConnections.Delete(key)
 		}
 		return true
 	})
+	s.activeConnections = sync.Map{}
 	return s.listener.Close()
 }
 

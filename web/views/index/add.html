@@ -13,6 +13,7 @@
                                 <span id="caseudp" langtag="info-caseudp"></span>
                                 <span id="casehttpProxy" langtag="info-casehttpproxy"></span>
                                 <span id="casesocks5" langtag="info-casesocks5"></span>
+                                <span id="casemixProxy" langtag="info-casemixproxy"></span>
                                 <span id="casesecret" langtag="info-casesecret"></span>
                                 <span id="casep2p" langtag="info-casep2p"></span>
                                 <span id="casefile" langtag="info-casefile"></span>
@@ -20,8 +21,9 @@
                             <select class="form-control selectpicker" id="type" name="type">
                                 <option value="tcp" langtag="scheme-tcp"></option>
                                 <option value="udp" langtag="scheme-udp"></option>
-                                <option value="httpProxy" langtag="scheme-httpProxy"></option>
-                                <option value="socks5" langtag="scheme-socks5"></option>
+                                <option value="mixProxy" langtag="scheme-mixProxy"></option>
+                                {{/*<option value="httpProxy" langtag="scheme-httpProxy"></option>*/}}
+                                {{/*<option value="socks5" langtag="scheme-socks5"></option>*/}}
                                 <option value="secret" langtag="scheme-secret"></option>
                                 <option value="p2p" langtag="scheme-p2p"></option>
                                 {{/*<option value="file" langtag="scheme-file"></option>*/}}
@@ -72,6 +74,24 @@
                         </div>
                     </div>
                     {{end}}
+                    <div class="form-group" id="enable_http">
+                        <label class="control-label font-bold" langtag="word-enablehttpproxy"></label>
+                        <div class="col-sm-12">
+                            <select class="form-control selectpicker" name="enable_http">
+                                <option value="0" langtag="word-no"></option>
+                                <option selected value="1" langtag="word-yes"></option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" id="enable_socks5">
+                        <label class="control-label font-bold" langtag="word-enablesocks5proxy"></label>
+                        <div class="col-sm-12">
+                            <select class="form-control selectpicker" name="enable_socks5">
+                                <option value="0" langtag="word-no"></option>
+                                <option selected value="1" langtag="word-yes"></option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="form-group" id="proxy_protocol">
                         <label class="control-label font-bold" langtag="word-proxyprotocol"></label>
                         <div class="col-sm-12">
@@ -145,11 +165,12 @@
 
 <script>
     var arr = []
-    arr["all"] = ["auth", "port", "target", "password", "flow_reset", "flow_limit", "time_limit", "local_path", "strip_pre", "proxy_protocol", "local_proxy", "client_id", "server_ip"]
+    arr["all"] = ["auth", "port", "target", "password", "flow_reset", "flow_limit", "time_limit", "enable_http", "enable_socks5", "local_path", "strip_pre", "proxy_protocol", "local_proxy", "client_id", "server_ip"]
     arr["tcp"] = ["port", "target", "proxy_protocol", "local_proxy", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
     arr["udp"] = ["port", "target", "local_proxy", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
-    arr["socks5"] = ["auth", "port", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
-    arr["httpProxy"] = ["auth", "port", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
+    arr["mixProxy"] = ["auth", "port", "client_id", "server_ip", "enable_http", "enable_socks5", "flow_reset", "flow_limit", "time_limit"]
+    //arr["socks5"] = ["auth", "port", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
+    //arr["httpProxy"] = ["auth", "port", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
     arr["secret"] = ["target", "password", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
     arr["p2p"] = ["target", "password", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
     arr["file"] = ["port", "local_path", "strip_pre", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]

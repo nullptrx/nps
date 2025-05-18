@@ -28,12 +28,24 @@ import (
 
 var (
 	logLevel string
-	ver      = flag.Bool("version", false, "show current version")
-	confPath = flag.String("conf_path", "", "set current confPath")
+	genTOTP  = flag.Bool("gen2fa", false, "Generate TOTP Secret")
+	getTOTP  = flag.String("get2fa", "", "Get TOTP Code")
+	ver      = flag.Bool("version", false, "Show Current Version")
+	confPath = flag.String("conf_path", "", "Set Conf Path")
 )
 
 func main() {
 	flag.Parse()
+	// gen TOTP
+	if *genTOTP {
+		crypt.PrintTOTPSecret()
+		return
+	}
+	// get TOTP
+	if *getTOTP != "" {
+		crypt.PrintTOTPCode(*getTOTP)
+		return
+	}
 	// init log
 	if *ver {
 		common.PrintVersion(version.GetLatestIndex())

@@ -7,7 +7,6 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/beego/beego"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/file"
@@ -47,13 +46,13 @@ const (
 	authFailure     = uint8(1)
 )
 
-type Sock5ModeServer struct {
-	BaseServer
-	listener net.Listener
-}
+//type Sock5ModeServer struct {
+//	BaseServer
+//	listener net.Listener
+//}
 
 // req
-func (s *Sock5ModeServer) handleRequest(c net.Conn) {
+func (s *TunnelModeServer) handleSocks5Request(c net.Conn) {
 	/*
 		The SOCKS request is formed as follows:
 		+----+-----+-------+------+----------+----------+
@@ -86,7 +85,7 @@ func (s *Sock5ModeServer) handleRequest(c net.Conn) {
 }
 
 // reply
-func (s *Sock5ModeServer) sendReply(c net.Conn, rep uint8) {
+func (s *TunnelModeServer) sendReply(c net.Conn, rep uint8) {
 	reply := []byte{
 		5,
 		rep,
@@ -110,7 +109,7 @@ func (s *Sock5ModeServer) sendReply(c net.Conn, rep uint8) {
 }
 
 // do conn
-func (s *Sock5ModeServer) doConnect(c net.Conn, command uint8) {
+func (s *TunnelModeServer) doConnect(c net.Conn, command uint8) {
 	addrType := make([]byte, 1)
 	c.Read(addrType)
 	var host string
@@ -151,14 +150,14 @@ func (s *Sock5ModeServer) doConnect(c net.Conn, command uint8) {
 }
 
 // conn
-func (s *Sock5ModeServer) handleConnect(c net.Conn) {
+func (s *TunnelModeServer) handleConnect(c net.Conn) {
 	s.doConnect(c, connectMethod)
 }
 
 // passive mode
-func (s *Sock5ModeServer) handleBind(c net.Conn) {
+func (s *TunnelModeServer) handleBind(c net.Conn) {
 }
-func (s *Sock5ModeServer) sendUdpReply(writeConn net.Conn, c net.Conn, rep uint8, serverIp string) {
+func (s *TunnelModeServer) sendUdpReply(writeConn net.Conn, c net.Conn, rep uint8, serverIp string) {
 	reply := []byte{
 		5,
 		rep,
@@ -177,7 +176,7 @@ func (s *Sock5ModeServer) sendUdpReply(writeConn net.Conn, c net.Conn, rep uint8
 
 }
 
-func (s *Sock5ModeServer) handleUDP(c net.Conn) {
+func (s *TunnelModeServer) handleUDP(c net.Conn) {
 	defer c.Close()
 	addrType := make([]byte, 1)
 	c.Read(addrType)
@@ -284,58 +283,8 @@ func (s *Sock5ModeServer) handleUDP(c net.Conn) {
 	}
 }
 
-// new conn
-func (s *Sock5ModeServer) handleConn(c net.Conn) {
-	buf := make([]byte, 2)
-	if _, err := io.ReadFull(c, buf); err != nil {
-		logs.Warn("negotiation err %v", err)
-		c.Close()
-		return
-	}
-
-	if version := buf[0]; version != 5 {
-		method := string(buf)
-		switch method {
-		case "GE", "PO", "HE", "PU ", "DE", "OP", "CO", "TR", "PA", "PR", "MK", "MO", "LO", "UN", "RE", "AC", "SE", "LI":
-			nConn := conn.NewConn(c)
-			nConn.Rb = buf
-			ss := NewTunnelModeServer(ProcessHttp, s.bridge, s.task)
-			if err := ProcessHttp(nConn, ss); err != nil {
-				logs.Warn("http proxy error: %v", err)
-			}
-			c.Close()
-			return
-		}
-		logs.Trace("Socks5 Buf: %s", buf)
-		logs.Warn("only support socks5 and http, request from: %v", c.RemoteAddr())
-		c.Close()
-		return
-	}
-	nMethods := buf[1]
-
-	methods := make([]byte, nMethods)
-	if len, err := c.Read(methods); len != int(nMethods) || err != nil {
-		logs.Warn("wrong method")
-		c.Close()
-		return
-	}
-	if (s.task.Client.Cnf.U != "" && s.task.Client.Cnf.P != "") || (s.task.MultiAccount != nil && len(s.task.MultiAccount.AccountMap) > 0) || (s.task.UserAuth != nil && len(s.task.UserAuth.AccountMap) > 0) {
-		buf[1] = UserPassAuth
-		c.Write(buf)
-		if err := s.Auth(c); err != nil {
-			c.Close()
-			logs.Warn("Validation failed: %v", err)
-			return
-		}
-	} else {
-		buf[1] = 0
-		c.Write(buf)
-	}
-	s.handleRequest(c)
-}
-
 // socks5 auth
-func (s *Sock5ModeServer) Auth(c net.Conn) error {
+func (s *TunnelModeServer) Auth(c net.Conn) error {
 	header := []byte{0, 0}
 	if _, err := io.ReadAtLeast(c, header, 2); err != nil {
 		return err
@@ -370,8 +319,86 @@ func (s *Sock5ModeServer) Auth(c net.Conn) error {
 	}
 }
 
+func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
+	if s.task.MixProxy == nil {
+		s.task.MixProxy = &file.MixProxy{
+			Socks5: true,
+			Http:   true,
+		}
+		switch s.task.Mode {
+		case "socks5":
+			s.task.Mode = "mixProxy"
+			s.task.MixProxy.Http = false
+		case "httpProxy":
+			s.task.Mode = "mixProxy"
+			s.task.MixProxy.Socks5 = false
+		}
+	}
+
+	buf := make([]byte, 2)
+	if _, err := io.ReadFull(c, buf); err != nil {
+		logs.Warn("negotiation err %v", err)
+		c.Close()
+		return err
+	}
+
+	if version := buf[0]; version != 5 {
+		method := string(buf)
+		switch method {
+		case "GE", "PO", "HE", "PU ", "DE", "OP", "CO", "TR", "PA", "PR", "MK", "MO", "LO", "UN", "RE", "AC", "SE", "LI":
+			if !s.task.MixProxy.Http {
+				logs.Warn("http proxy is disable, client %d request from: %v", s.task.Client.Id, c.RemoteAddr())
+				c.Close()
+				return errors.New("http proxy is disabled")
+			}
+			nConn := conn.NewConn(c)
+			nConn.Rb = buf
+			ss := NewTunnelModeServer(ProcessHttp, s.bridge, s.task)
+			if err := ProcessHttp(nConn, ss); err != nil {
+				logs.Warn("http proxy error: %v", err)
+				return err
+			}
+			c.Close()
+			return nil
+		}
+		logs.Trace("Socks5 Buf: %s", buf)
+		logs.Warn("only support socks5 and http, request from: %v", c.RemoteAddr())
+		c.Close()
+		return errors.New("unknown protocol")
+	}
+
+	if !s.task.MixProxy.Socks5 {
+		logs.Warn("socks5 proxy is disable, client %d request from: %v", s.task.Client.Id, c.RemoteAddr())
+		c.Close()
+		return errors.New("socks5 proxy is disabled")
+	}
+
+	nMethods := buf[1]
+	methods := make([]byte, nMethods)
+	if len, err := c.Read(methods); len != int(nMethods) || err != nil {
+		logs.Warn("wrong method")
+		c.Close()
+		return errors.New("wrong method")
+	}
+	if (s.task.Client.Cnf.U != "" && s.task.Client.Cnf.P != "") || (s.task.MultiAccount != nil && len(s.task.MultiAccount.AccountMap) > 0) || (s.task.UserAuth != nil && len(s.task.UserAuth.AccountMap) > 0) {
+		buf[1] = UserPassAuth
+		c.Write(buf)
+		if err := s.Auth(c); err != nil {
+			c.Close()
+			logs.Warn("Validation failed: %v", err)
+			return err
+		}
+	} else {
+		buf[1] = 0
+		c.Write(buf)
+	}
+	s.handleSocks5Request(c)
+	return nil
+}
+
+/*
 // start
-func (s *Sock5ModeServer) Start() error {
+func (s *TunnelModeServer) Start() error {
 	return conn.NewTcpListenerAndProcess(common.BuildAddress(s.task.ServerIp, strconv.Itoa(s.task.Port)), func(c net.Conn) {
 		if err := s.CheckFlowAndConnNum(s.task.Client); err != nil {
 			logs.Warn("client id %d, task id %d, error %v, when socks5 connection", s.task.Client.Id, s.task.Id, err)
@@ -385,7 +412,7 @@ func (s *Sock5ModeServer) Start() error {
 }
 
 // new
-func NewSock5ModeServer(bridge NetBridge, task *file.Tunnel) *Sock5ModeServer {
+func NewSock5ModeServer(bridge NetBridge, task *file.Tunnel) *TunnelModeServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
 	s := new(Sock5ModeServer)
 	s.bridge = bridge
@@ -395,6 +422,7 @@ func NewSock5ModeServer(bridge NetBridge, task *file.Tunnel) *Sock5ModeServer {
 }
 
 // close
-func (s *Sock5ModeServer) Close() error {
+func (s *TunnelModeServer) Close() error {
 	return s.listener.Close()
 }
+*/

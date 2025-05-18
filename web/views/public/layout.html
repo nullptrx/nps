@@ -67,13 +67,9 @@
                     <a href="{{.web_base_url}}/index/udp"><i class="fa fa-random fa-lg"></i>
                     <span class="nav-label" langtag="scheme-udp"></span></a>
                 </li>
-                <!--<li class="{{if eq "http" .menu}}active{{end}}">
-                    <a href="{{.web_base_url}}/index/http"><i class="fa fa-server fa-lg"></i>
-                    <span class="nav-label" langtag="scheme-httpproxy"></span></a>
-                </li>-->
-                <li class="{{if eq "socks5" .menu}}active{{end}}">
-                    <a href="{{.web_base_url}}/index/socks5"><i class="fa fa-layer-group fa-lg"></i>
-                    <span class="nav-label" langtag="scheme-socks5"></span></a>
+                <li class="{{if eq "mix" .menu}}active{{end}}">
+                    <a href="{{.web_base_url}}/index/mix"><i class="fa fa-layer-group fa-lg"></i>
+                    <span class="nav-label" langtag="scheme-mixproxy"></span></a>
                 </li>
                 <li class="{{if eq "secret" .menu}}active{{end}}">
                     <a href="{{.web_base_url}}/index/secret"><i class="fa fa-low-vision fa-lg"></i>

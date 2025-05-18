@@ -383,19 +383,46 @@ func (s *Bridge) cliProcess(c *conn.Conn) {
 			c.Close()
 			return
 		}
-		ipBuf, err := c.GetShortLenContent()
+		infoBuf, err := c.GetShortLenContent()
 		if err != nil {
 			logs.Error("Failed to read encrypted IP from %v: %v", c.Conn.RemoteAddr(), err)
 			c.Close()
 			return
 		}
-		ipDec, err := crypt.DecryptBytes(ipBuf, client.VerifyKey)
+		infoDec, err := crypt.DecryptBytes(infoBuf, client.VerifyKey)
 		if err != nil {
-			logs.Error("Failed to decrypt IP for %v: %v", c.Conn.RemoteAddr(), err)
+			logs.Error("Failed to decrypt Info for %v: %v", c.Conn.RemoteAddr(), err)
 			c.Close()
 			return
 		}
-		client.LocalAddr = common.DecodeIP(ipDec).String()
+		if ver < 3 {
+			// --- protocol 0.27.0 - 0.28.0 path ---
+			client.LocalAddr = common.DecodeIP(infoDec).String()
+		} else {
+			// --- protocol 0.29.0+ path ---
+			// infoDec = [17-byte IP][1-byte L][L-byte tp]
+			if len(infoDec) < 18 {
+				logs.Error("Invalid payload length from %v: %d", c.Conn.RemoteAddr(), len(infoDec))
+				c.Close()
+				return
+			}
+			ipPart := infoDec[:17]
+			l := int(infoDec[17])
+			if len(infoDec) < 18+l {
+				logs.Error("Declared tp length %d exceeds payload from %v", l, c.Conn.RemoteAddr())
+				c.Close()
+				return
+			}
+			ip := common.DecodeIP(ipPart)
+			if ip == nil {
+				logs.Error("Failed to decode IP from %v", c.Conn.RemoteAddr())
+				c.Close()
+				return
+			}
+			client.LocalAddr = ip.String()
+			tp := string(infoDec[18 : 18+l])
+			client.Mode = tp
+		}
 		randBuf, err := c.GetShortLenContent()
 		if err != nil {
 			logs.Error("Failed to read random buffer from %v: %v", c.Conn.RemoteAddr(), err)
@@ -408,7 +435,7 @@ func (s *Bridge) cliProcess(c *conn.Conn) {
 			c.Close()
 			return
 		}
-		if ServerSecureMode && !bytes.Equal(hmacBuf, crypt.ComputeHMAC(client.VerifyKey, ts, minVerBytes, vs, ipBuf, randBuf)) {
+		if ServerSecureMode && !bytes.Equal(hmacBuf, crypt.ComputeHMAC(client.VerifyKey, ts, minVerBytes, vs, infoBuf, randBuf)) {
 			logs.Error("HMAC verification failed for %v", c.Conn.RemoteAddr())
 			c.Close()
 			return

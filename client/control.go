@@ -376,8 +376,35 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		if _, err := c.Write([]byte(crypt.Blake2b(vkey))); err != nil {
 			return nil, err
 		}
-		ipBuf, err := crypt.EncryptBytes(common.EncodeIP(common.GetOutboundIP()), vkey)
-		if err := c.WriteLenContent(ipBuf); err != nil {
+		var infoBuf []byte
+		if Ver < 3 {
+			// 0.27.0 0.28.0
+			var err error
+			infoBuf, err = crypt.EncryptBytes(common.EncodeIP(common.GetOutboundIP()), vkey)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			// 0.29.0
+			ipPart := common.EncodeIP(common.GetOutboundIP()) // 17bit
+			tpBytes := []byte(tp)
+			tpLen := len(tpBytes)
+			if tpLen > 32 {
+				return nil, fmt.Errorf("tp too long: %d bytes (max %d)", tpLen, 32)
+			}
+			length := byte(tpLen)
+			// IP(17 bit) + len(1 bit) + tpBytes
+			buf := make([]byte, 0, len(ipPart)+1+len(tpBytes))
+			buf = append(buf, ipPart...)
+			buf = append(buf, length)
+			buf = append(buf, tpBytes...)
+			var err error
+			infoBuf, err = crypt.EncryptBytes(buf, vkey)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if err := c.WriteLenContent(infoBuf); err != nil {
 			return nil, err
 		}
 		randBuf, err := common.RandomBytes(1000)
@@ -387,7 +414,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		if err := c.WriteLenContent(randBuf); err != nil {
 			return nil, err
 		}
-		hmacBuf := crypt.ComputeHMAC(vkey, ts, minVerBytes, vs, ipBuf, randBuf)
+		hmacBuf := crypt.ComputeHMAC(vkey, ts, minVerBytes, vs, infoBuf, randBuf)
 		if _, err := c.Write(hmacBuf); err != nil {
 			return nil, err
 		}

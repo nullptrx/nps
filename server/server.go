@@ -135,10 +135,10 @@ func NewMode(Bridge *bridge.Bridge, c *file.Tunnel) proxy.Service {
 	switch c.Mode {
 	case "tcp", "file":
 		service = proxy.NewTunnelModeServer(proxy.ProcessTunnel, Bridge, c)
-	case "socks5":
-		service = proxy.NewSock5ModeServer(Bridge, c)
-	case "httpProxy":
-		service = proxy.NewTunnelModeServer(proxy.ProcessHttp, Bridge, c)
+	case "mixProxy", "socks5", "httpProxy":
+		service = proxy.NewTunnelModeServer(proxy.ProcessMix, Bridge, c)
+		//service = proxy.NewSock5ModeServer(Bridge, c)
+		//service = proxy.NewTunnelModeServer(proxy.ProcessHttp, Bridge, c)
 	case "tcpTrans":
 		service = proxy.NewTunnelModeServer(proxy.HandleTrans, Bridge, c)
 	case "udp":
@@ -316,6 +316,18 @@ func GetTunnel(start, length int, typeVal string, clientId int, search string, s
 		} else {
 			sort.SliceStable(all_list, func(i, j int) bool { return all_list[i].Password > all_list[j].Password })
 		}
+	} else if sortField == "MixProxy.Http" {
+		if order == "asc" {
+			sort.SliceStable(all_list, func(i, j int) bool { return all_list[i].MixProxy.Http && !all_list[j].MixProxy.Http })
+		} else {
+			sort.SliceStable(all_list, func(i, j int) bool { return !all_list[i].MixProxy.Http && all_list[j].MixProxy.Http })
+		}
+	} else if sortField == "MixProxy.Socks5" {
+		if order == "asc" {
+			sort.SliceStable(all_list, func(i, j int) bool { return all_list[i].MixProxy.Socks5 && !all_list[j].MixProxy.Socks5 })
+		} else {
+			sort.SliceStable(all_list, func(i, j int) bool { return !all_list[i].MixProxy.Socks5 && all_list[j].MixProxy.Socks5 })
+		}
 	} else if sortField == "Status" {
 		if order == "asc" {
 			sort.SliceStable(all_list, func(i, j int) bool { return all_list[i].Status && !all_list[j].Status })
@@ -483,6 +495,12 @@ func GetClientList(start, length int, search, sortField, order string, clientId 
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].Version > list[j].Version })
 		}
+	} else if sortField == "Mode" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Mode < list[j].Mode })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Mode > list[j].Mode })
+		}
 	} else if sortField == "Rate.NowRate" {
 		if order == "asc" {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].Rate.NowRate < list[j].Rate.NowRate })
@@ -633,6 +651,15 @@ func GetDashboardData() map[string]interface{} {
 			socks5 += 1
 		case "httpProxy":
 			http += 1
+		case "mixProxy":
+			if value.(*file.Tunnel).MixProxy != nil {
+				if value.(*file.Tunnel).MixProxy.Http {
+					http += 1
+				}
+				if value.(*file.Tunnel).MixProxy.Socks5 {
+					socks5 += 1
+				}
+			}
 		case "udp":
 			udp += 1
 		case "p2p":

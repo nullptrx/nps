@@ -10,6 +10,7 @@ import (
 	"github.com/beego/beego/cache"
 	"github.com/beego/beego/utils/captcha"
 	"github.com/djylb/nps/lib/common"
+	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/server"
 )
@@ -80,7 +81,7 @@ func (self *LoginController) doLogin(username, password string, explicit bool) b
 		}
 	}
 	var auth bool
-	if password == beego.AppConfig.String("web_password") && username == beego.AppConfig.String("web_username") {
+	if adminAuth(password, password) {
 		self.SetSession("isAdmin", true)
 		self.DelSession("clientId")
 		self.DelSession("username")
@@ -187,4 +188,21 @@ func clearIprecord() {
 			return true
 		})
 	}
+}
+
+func adminAuth(username, password string) bool {
+	expectedUser := beego.AppConfig.String("web_username")
+	if username != expectedUser {
+		return false
+	}
+	totpSecret := beego.AppConfig.String("totp_secret")
+	if totpSecret != "" {
+		valid, err := crypt.ValidateTOTPCode(totpSecret, password)
+		if err != nil {
+			return false
+		}
+		return valid
+	}
+	expectedPass := beego.AppConfig.String("web_password")
+	return password == expectedPass
 }

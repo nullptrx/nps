@@ -52,11 +52,21 @@ var (
 	disconnectTime = flag.Int("disconnect_timeout", 60, "Disconnect timeout in seconds")
 	dnsServer      = flag.String("dns_server", "8.8.8.8", "DNS server for domain lookup")
 	tlsEnable      = flag.Bool("tls_enable", false, "Enable TLS (Deprecated)")
+	genTOTP        = flag.Bool("gen2fa", false, "Generate TOTP Secret")
+	getTOTP        = flag.String("get2fa", "", "Get TOTP Code")
 )
 
 func main() {
 	flag.Parse()
-
+	// TOTP
+	if *genTOTP {
+		crypt.PrintTOTPSecret()
+		return
+	}
+	if *getTOTP != "" {
+		crypt.PrintTOTPCode(*getTOTP)
+		return
+	}
 	// 显示版本并退出
 	if *ver {
 		common.PrintVersion(*protoVer)

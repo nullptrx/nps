@@ -43,6 +43,7 @@ type Client struct {
 	Cnf             *Config
 	Id              int        //id
 	VerifyKey       string     //verify key
+	Mode            string     //bridge mode
 	Addr            string     //the ip of client
 	LocalAddr       string     //the local ip of client
 	Remark          string     //remark
@@ -162,6 +163,7 @@ type Tunnel struct {
 	TargetAddr   string
 	NoStore      bool
 	IsHttp       bool
+	MixProxy     *MixProxy
 	LocalPath    string
 	StripPre     string
 	Target       *Target
@@ -169,6 +171,11 @@ type Tunnel struct {
 	MultiAccount *MultiAccount
 	Health
 	sync.RWMutex
+}
+
+type MixProxy struct {
+	Socks5 bool
+	Http   bool
 }
 
 type Health struct {

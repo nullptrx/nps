@@ -4,9 +4,6 @@
             <div class="ibox float-e-margins">
                 <div class="ibox-title">
                     <h5><span id="langtag"></span><span></span></h5>
-                    {{ if eq "socks5" .menu }}
-                    <a href="{{.web_base_url}}/index/http"><span class="nav-label" langtag="scheme-httpproxy"></span></a>
-                    {{ end }}
                     <div class="ibox-tools">
                         <a class="collapse-link">
                             <i class="fa fa-chevron-up"></i>
@@ -199,6 +196,38 @@
                 title: '<span langtag="word-stripprefix"></span>', //标题
                 halign: 'center',
                 visible: true //false表示不显示
+            },
+            {{ end }}
+            {{ if and .type (eq .type "mixProxy") }}
+            {
+                field: 'MixProxy.Http', //域值
+                title: '<span langtag="word-httpproxy"></span>', //内容
+                align: 'center',
+                halign: 'center',
+                visible: true, //false表示不显示
+                sortable: true, //启用排序
+                formatter: function (value, row, index) {
+                    if (value) {
+                        return '<span class="badge badge-primary" langtag="word-open"></span>'
+                    } else {
+                        return '<span class="badge badge-badge" langtag="word-close"></span>'
+                    }
+                }
+            },
+            {
+                field: 'MixProxy.Socks5', //域值
+                title: '<span langtag="word-socks5proxy"></span>', //内容
+                align: 'center',
+                halign: 'center',
+                visible: true, //false表示不显示
+                sortable: true, //启用排序
+                formatter: function (value, row, index) {
+                    if (value) {
+                        return '<span class="badge badge-primary" langtag="word-open"></span>'
+                    } else {
+                        return '<span class="badge badge-badge" langtag="word-close"></span>'
+                    }
+                }
             },
             {{ end }}
             {
