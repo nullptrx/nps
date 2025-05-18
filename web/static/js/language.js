@@ -174,6 +174,7 @@ function submitform(action, url, postdata) {
         }
     });
     switch (action) {
+        case 'clear':
         case 'delete':
             var langobj = languages['content']['confirm'][action];
             action = (langobj[languages['current']] || langobj[languages['default']] || 'Are you sure you want to ' + action + ' it?');

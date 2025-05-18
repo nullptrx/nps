@@ -163,7 +163,8 @@ type Tunnel struct {
 	TargetAddr   string
 	NoStore      bool
 	IsHttp       bool
-	MixProxy     *MixProxy
+	HttpProxy    bool
+	Socks5Proxy  bool
 	LocalPath    string
 	StripPre     string
 	Target       *Target
@@ -171,11 +172,6 @@ type Tunnel struct {
 	MultiAccount *MultiAccount
 	Health
 	sync.RWMutex
-}
-
-type MixProxy struct {
-	Socks5 bool
-	Http   bool
 }
 
 type Health struct {

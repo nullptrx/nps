@@ -185,6 +185,68 @@ func RemoveRepeatedElement(arr []string) (newArr []string) {
 	return
 }
 
+func clearClientStatus(c *file.Client, name string) {
+	switch name {
+	case "flow":
+		c.Flow.ExportFlow = 0
+		c.Flow.InletFlow = 0
+	case "flow_limit":
+		c.Flow.FlowLimit = 0
+	case "time_limit":
+		c.Flow.TimeLimit = common.GetTimeNoErrByStr("")
+	case "rate_limit":
+		c.RateLimit = 0
+	case "conn_limit":
+		c.MaxConn = 0
+	case "tunnel_limit":
+		c.MaxTunnelNum = 0
+	}
+	if c.Rate != nil {
+		c.Rate.Stop()
+	}
+	if c.RateLimit > 0 {
+		c.Rate = rate.NewRate(int64(c.RateLimit * 1024))
+		c.Rate.Start()
+	} else {
+		c.Rate = rate.NewRate(int64(2 << 23))
+		c.Rate.Start()
+	}
+	return
+}
+
+func clearStatus(id int, name string) (err error) {
+	if id == 0 {
+		file.GetDb().JsonDb.Clients.Range(func(key, value interface{}) bool {
+			v := value.(*file.Client)
+			clearClientStatus(v, name)
+			return true
+		})
+		file.GetDb().JsonDb.StoreClientsToJsonFile()
+		return
+	}
+	if c, err := file.GetDb().GetClient(id); err != nil {
+		return err
+	} else {
+		clearClientStatus(c, name)
+		file.GetDb().JsonDb.StoreClientsToJsonFile()
+	}
+	return
+}
+
+func (s *ClientController) Clear() {
+	id := s.GetIntNoErr("id")
+	if s.GetSession("isAdmin").(bool) {
+		mode := s.getEscapeString("mode")
+		if mode != "" {
+			if err := clearStatus(id, mode); err != nil {
+				s.AjaxErr("modified fail")
+			}
+			s.AjaxOk("modified success")
+		}
+	}
+	s.AjaxErr("modified fail")
+}
+
 // 更改状态
 func (s *ClientController) ChangeStatus() {
 	id := s.GetIntNoErr("id")

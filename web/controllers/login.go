@@ -81,7 +81,7 @@ func (self *LoginController) doLogin(username, password string, explicit bool) b
 		}
 	}
 	var auth bool
-	if adminAuth(password, password) {
+	if adminAuth(username, password) {
 		self.SetSession("isAdmin", true)
 		self.DelSession("clientId")
 		self.DelSession("username")
@@ -191,16 +191,21 @@ func clearIprecord() {
 }
 
 func adminAuth(username, password string) bool {
+	//logs.Error("login %s %s", username, password)
 	expectedUser := beego.AppConfig.String("web_username")
 	if username != expectedUser {
+		//logs.Error("username is wrong")
 		return false
 	}
 	totpSecret := beego.AppConfig.String("totp_secret")
 	if totpSecret != "" {
+		//logs.Error("use totp")
 		valid, err := crypt.ValidateTOTPCode(totpSecret, password)
 		if err != nil {
+			//logs.Error("use totp")
 			return false
 		}
+		//logs.Error("use totp %t", valid)
 		return valid
 	}
 	expectedPass := beego.AppConfig.String("web_password")

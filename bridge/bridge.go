@@ -115,7 +115,7 @@ func (s *Bridge) StartTunnel() error {
 	if s.tunnelType == "kcp" {
 		logs.Info("server start, the bridge type is %s, the bridge port is %d", s.tunnelType, s.TunnelPort)
 		return conn.NewKcpListenerAndProcess(common.BuildAddress(beego.AppConfig.String("bridge_ip"), beego.AppConfig.String("bridge_port")), func(c net.Conn) {
-			s.cliProcess(conn.NewConn(c))
+			s.cliProcess(conn.NewConn(c), "kcp")
 		})
 	} else {
 		// tcp
@@ -128,7 +128,7 @@ func (s *Bridge) StartTunnel() error {
 					return
 				}
 				conn.Accept(listener, func(c net.Conn) {
-					s.cliProcess(conn.NewConn(c))
+					s.cliProcess(conn.NewConn(c), "tcp")
 				})
 			}()
 		}
@@ -143,7 +143,7 @@ func (s *Bridge) StartTunnel() error {
 					return
 				}
 				conn.Accept(tlsListener, func(c net.Conn) {
-					s.cliProcess(conn.NewConn(tls.Server(c, &tls.Config{Certificates: []tls.Certificate{crypt.GetCert()}})))
+					s.cliProcess(conn.NewConn(tls.Server(c, &tls.Config{Certificates: []tls.Certificate{crypt.GetCert()}})), "tls")
 				})
 			}()
 		}
@@ -159,7 +159,7 @@ func (s *Bridge) StartTunnel() error {
 				}
 				wsLn := conn.NewWSListener(wsListener, beego.AppConfig.String("bridge_path"))
 				conn.Accept(wsLn, func(c net.Conn) {
-					s.cliProcess(conn.NewConn(c))
+					s.cliProcess(conn.NewConn(c), "ws")
 				})
 			}()
 		}
@@ -175,7 +175,7 @@ func (s *Bridge) StartTunnel() error {
 				}
 				wssLn := conn.NewWSSListener(wssListener, beego.AppConfig.String("bridge_path"), crypt.GetCert())
 				conn.Accept(wssLn, func(c net.Conn) {
-					s.cliProcess(conn.NewConn(c))
+					s.cliProcess(conn.NewConn(c), "wss")
 				})
 			}()
 		}
@@ -189,7 +189,7 @@ func (s *Bridge) StartTunnel() error {
 				bridgeKcp := *s
 				bridgeKcp.tunnelType = "kcp"
 				conn.NewKcpListenerAndProcess(common.BuildAddress(kcpIp, kcpPort), func(c net.Conn) {
-					bridgeKcp.cliProcess(conn.NewConn(c))
+					bridgeKcp.cliProcess(conn.NewConn(c), "kcp")
 				})
 			}()
 		}
@@ -279,7 +279,7 @@ func (s *Bridge) verifySuccess(c *conn.Conn) {
 	c.Write([]byte(common.VERIFY_SUCCESS))
 }
 
-func (s *Bridge) cliProcess(c *conn.Conn) {
+func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 	if c.Conn == nil || c.Conn.RemoteAddr() == nil {
 		logs.Warn("Invalid connection")
 		return
@@ -398,6 +398,7 @@ func (s *Bridge) cliProcess(c *conn.Conn) {
 		if ver < 3 {
 			// --- protocol 0.27.0 - 0.28.0 path ---
 			client.LocalAddr = common.DecodeIP(infoDec).String()
+			client.Mode = tunnelType
 		} else {
 			// --- protocol 0.29.0+ path ---
 			// infoDec = [17-byte IP][1-byte L][L-byte tp]
@@ -421,7 +422,7 @@ func (s *Bridge) cliProcess(c *conn.Conn) {
 			}
 			client.LocalAddr = ip.String()
 			tp := string(infoDec[18 : 18+l])
-			client.Mode = tp
+			client.Mode = fmt.Sprintf("%s,%s", tunnelType, tp)
 		}
 		randBuf, err := c.GetShortLenContent()
 		if err != nil {

@@ -56,6 +56,17 @@
                             <input class="form-control" langtag="info-suchasport" name="port" placeholder="" type="text">
                         </div>
                     </div>
+                    <div class="form-group" id="mix_proxy">
+                        <label class="control-label font-bold" langtag="scheme-mixproxy"></label>
+                        <div class="col-sm-12">
+						    <input name="enable_http" type="checkbox" value="1" checked>
+                            <span class="help-block m-b-none" langtag="word-enablehttpproxy"></span>
+                        </div>
+                        <div class="col-sm-12">
+						    <input name="enable_socks5" type="checkbox" value="1" checked>
+                            <span class="help-block m-b-none" langtag="word-enablehttpproxy"></span>
+                        </div>
+                    </div>
                     {{if eq true .allow_flow_limit}}
                     <div class="form-group" id="flow_limit">
                         <label class="control-label font-bold" langtag="word-flowlimit"></label>
@@ -74,24 +85,6 @@
                         </div>
                     </div>
                     {{end}}
-                    <div class="form-group" id="enable_http">
-                        <label class="control-label font-bold" langtag="word-enablehttpproxy"></label>
-                        <div class="col-sm-12">
-                            <select class="form-control selectpicker" name="enable_http">
-                                <option value="0" langtag="word-no"></option>
-                                <option selected value="1" langtag="word-yes"></option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-group" id="enable_socks5">
-                        <label class="control-label font-bold" langtag="word-enablesocks5proxy"></label>
-                        <div class="col-sm-12">
-                            <select class="form-control selectpicker" name="enable_socks5">
-                                <option value="0" langtag="word-no"></option>
-                                <option selected value="1" langtag="word-yes"></option>
-                            </select>
-                        </div>
-                    </div>
                     <div class="form-group" id="proxy_protocol">
                         <label class="control-label font-bold" langtag="word-proxyprotocol"></label>
                         <div class="col-sm-12">
@@ -165,10 +158,10 @@
 
 <script>
     var arr = []
-    arr["all"] = ["auth", "port", "target", "password", "flow_reset", "flow_limit", "time_limit", "enable_http", "enable_socks5", "local_path", "strip_pre", "proxy_protocol", "local_proxy", "client_id", "server_ip"]
+    arr["all"] = ["auth", "port", "target", "password", "flow_reset", "flow_limit", "time_limit", "mix_proxy", "local_path", "strip_pre", "proxy_protocol", "local_proxy", "client_id", "server_ip"]
     arr["tcp"] = ["port", "target", "proxy_protocol", "local_proxy", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
     arr["udp"] = ["port", "target", "local_proxy", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
-    arr["mixProxy"] = ["auth", "port", "client_id", "server_ip", "enable_http", "enable_socks5", "flow_reset", "flow_limit", "time_limit"]
+    arr["mixProxy"] = ["auth", "port", "client_id", "server_ip", "mix_proxy", "flow_reset", "flow_limit", "time_limit"]
     //arr["socks5"] = ["auth", "port", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
     //arr["httpProxy"] = ["auth", "port", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
     arr["secret"] = ["target", "password", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]

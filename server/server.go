@@ -316,17 +316,17 @@ func GetTunnel(start, length int, typeVal string, clientId int, search string, s
 		} else {
 			sort.SliceStable(all_list, func(i, j int) bool { return all_list[i].Password > all_list[j].Password })
 		}
-	} else if sortField == "MixProxy.Http" {
+	} else if sortField == "HttpProxy" {
 		if order == "asc" {
-			sort.SliceStable(all_list, func(i, j int) bool { return all_list[i].MixProxy.Http && !all_list[j].MixProxy.Http })
+			sort.SliceStable(all_list, func(i, j int) bool { return all_list[i].HttpProxy && !all_list[j].HttpProxy })
 		} else {
-			sort.SliceStable(all_list, func(i, j int) bool { return !all_list[i].MixProxy.Http && all_list[j].MixProxy.Http })
+			sort.SliceStable(all_list, func(i, j int) bool { return !all_list[i].HttpProxy && all_list[j].HttpProxy })
 		}
-	} else if sortField == "MixProxy.Socks5" {
+	} else if sortField == "Socks5Proxy" {
 		if order == "asc" {
-			sort.SliceStable(all_list, func(i, j int) bool { return all_list[i].MixProxy.Socks5 && !all_list[j].MixProxy.Socks5 })
+			sort.SliceStable(all_list, func(i, j int) bool { return all_list[i].Socks5Proxy && !all_list[j].Socks5Proxy })
 		} else {
-			sort.SliceStable(all_list, func(i, j int) bool { return !all_list[i].MixProxy.Socks5 && all_list[j].MixProxy.Socks5 })
+			sort.SliceStable(all_list, func(i, j int) bool { return !all_list[i].Socks5Proxy && all_list[j].Socks5Proxy })
 		}
 	} else if sortField == "Status" {
 		if order == "asc" {
@@ -537,6 +537,8 @@ func dealClientData() {
 			if allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy"); allowLocalProxy {
 				v.IsConnect = true
 				v.Version = version.VERSION
+				v.Mode = "local"
+				v.LocalAddr = common.GetOutboundIP().String()
 				// 如果客户端 ID 小于等于 0 且允许本地代理，插入虚拟客户端
 				if _, exists := Bridge.Client.Load(v.Id); !exists {
 					// 创建虚拟客户端并插入
@@ -652,13 +654,11 @@ func GetDashboardData() map[string]interface{} {
 		case "httpProxy":
 			http += 1
 		case "mixProxy":
-			if value.(*file.Tunnel).MixProxy != nil {
-				if value.(*file.Tunnel).MixProxy.Http {
-					http += 1
-				}
-				if value.(*file.Tunnel).MixProxy.Socks5 {
-					socks5 += 1
-				}
+			if value.(*file.Tunnel).HttpProxy {
+				http += 1
+			}
+			if value.(*file.Tunnel).Socks5Proxy {
+				socks5 += 1
 			}
 		case "udp":
 			udp += 1

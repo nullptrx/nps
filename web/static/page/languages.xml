@@ -144,6 +144,10 @@
 		<zh-CN>取消</zh-CN>
 		<en-US>Cancel</en-US>
 	</lang>
+	<lang id="word-clearflow">
+		<zh-CN>流量清零</zh-CN>
+		<en-US>Clear Traffic</en-US>
+	</lang>
 	<lang id="word-admin">
 		<zh-CN>管理员</zh-CN>
 		<en-US>Admin</en-US>
@@ -871,6 +875,10 @@
 	</lang>
 
 	<confirm>
+		<lang id="clear">
+			<zh-CN>你确定你要清空它吗？</zh-CN>
+			<en-US>Are you sure you want to clear it?</en-US>
+		</lang>
 		<lang id="delete">
 			<zh-CN>你确定你要删除它吗？</zh-CN>
 			<en-US>Are you sure you want to delete it?</en-US>

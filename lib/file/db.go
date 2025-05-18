@@ -109,17 +109,15 @@ func (s *DbUtils) NewTask(t *Tunnel) (err error) {
 		return
 	}
 	t.Flow = new(Flow)
-	t.MixProxy = &MixProxy{
-		Socks5: true,
-		Http:   true,
-	}
 	switch t.Mode {
 	case "socks5":
 		t.Mode = "mixProxy"
-		t.MixProxy.Http = false
+		t.HttpProxy = false
+		t.Socks5Proxy = true
 	case "httpProxy":
 		t.Mode = "mixProxy"
-		t.MixProxy.Socks5 = false
+		t.HttpProxy = true
+		t.Socks5Proxy = false
 	}
 	s.JsonDb.Tasks.Store(t.Id, t)
 	s.JsonDb.StoreTasksToJsonFile()

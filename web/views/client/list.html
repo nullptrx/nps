@@ -4,7 +4,6 @@
             <div class="ibox float-e-margins">
                 <div class="ibox-title">
                     <h5 langtag="page-clientlist"></h5>
-
                     <div class="ibox-tools">
                         <a class="collapse-link">
                             <i class="fa fa-chevron-up"></i>
@@ -18,9 +17,14 @@
                 <div class="content">
                     <div class="table-responsive">
                         <div id="toolbar">
-                            <a class="btn btn-primary dim" href="{{.web_base_url}}/client/add">
-                                <i class="fa fa-fw fa-lg fa-plus"></i>
-                                <span langtag="word-add"></span></a>
+                            <div class="d-flex w-100">
+                                <a class="btn btn-primary dim mr-2" href="{{.web_base_url}}/client/add">
+                                    <i class="fa fa-fw fa-lg fa-plus"></i>
+                                    <span langtag="word-add"></span></a>
+                                <a class="btn btn-danger dim" onclick="submitform('clear', '{{.web_base_url}}/client/clear', {'id': 0, 'mode': 'flow'})">
+                                    <i class="fa fa-fw fa-lg fa-eraser"></i>
+                                    <span langtag="word-clearflow"></span></a>
+                            </div>
                         </div>
                         <table class="table-striped table-hover" data-mobile-responsive="true" id="taskList_table"></table>
                     </div>
@@ -58,24 +62,54 @@
         onExpandRow: function () {$('body').setLang ('.detail-view');},
         onPostBody: function (data) { if ($(this)[0].locale != undefined ) $('body').setLang ('#table'); },
         detailFormatter: function (index, row, element) {
-            return '<b langtag="word-maxconnections"></b>: ' + row.MaxConn + '&emsp;'
+            return '<b langtag="word-maxconnections"></b>: '
+                {{if eq true .isAdmin}}
+                + '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/client/clear\', {\'id\':' + row.Id + ', \'mode\': \'conn_limit\'})">' + row.MaxConn + '</span>'
+                {{else}}
+                + row.MaxConn
+                {{end}}
+                + '&emsp;'
                 + '<b langtag="word-curconnections"></b>: ' + row.NowConn + '&emsp;'
-                + '<b langtag="word-flowlimit"></b>: ' + row.Flow.FlowLimit + 'm&emsp;'
-                + '<b langtag="word-timelimit"></b>: ' + row.Flow.TimeLimit + '&emsp;'
-                + '<b langtag="word-ratelimit"></b>: ' + row.RateLimit + 'KB/s&emsp;'
-                + '<b langtag="word-maxtunnels"></b>: ' + row.MaxTunnelNum + '&emsp;<br/><br/>'
+                + '<b langtag="word-flowlimit"></b>: '
+                {{if eq true .isAdmin}}
+                + '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/client/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow_limit\'})">' + row.Flow.FlowLimit + '</span>'
+                {{else}}
+                + row.Flow.FlowLimit
+                {{end}}
+                + 'm&emsp;'
+                + '<b langtag="word-timelimit"></b>: '
+                {{if eq true .isAdmin}}
+                + '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/client/clear\', {\'id\':' + row.Id + ', \'mode\': \'time_limit\'})">' + row.Flow.TimeLimit + '</span>'
+                {{else}}
+                + row.Flow.TimeLimit
+                {{end}}
+                + '&emsp;'
+                + '<b langtag="word-ratelimit"></b>: '
+                {{if eq true .isAdmin}}
+                + '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/client/clear\', {\'id\':' + row.Id + ', \'mode\': \'rate_limit\'})">' + row.RateLimit + '</span>'
+                {{else}}
+                + row.RateLimit
+                {{end}}
+                + 'KB/s&emsp;'
+                + '<b langtag="word-maxtunnels"></b>: '
+                {{if eq true .isAdmin}}
+                + '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/client/clear\', {\'id\':' + row.Id + ', \'mode\': \'tunnel_limit\'})">' + row.MaxTunnelNum + '</span>'
+                {{else}}
+                + row.MaxTunnelNum
+                {{end}}
+                + '&emsp;<br/><br/>'
+                + '<b langtag="word-createtime"></b>: ' + row.CreateTime + '&emsp;'
+                + '<b langtag="word-lastonlinetime"></b>: ' + row.LastOnlineTime + '&emsp;'
+                + '<b langtag="word-address"></b>: <span onclick="oCopy(this)">' + row.Addr + '</span>&emsp;'
+                + '<b langtag="word-localaddress"></b>: <span onclick="oCopy(this)">' + row.LocalAddr + '</span>&emsp;<br/><br/>'
                 + '<b langtag="word-webusername"></b>: ' + row.WebUserName + '&emsp;'
                 + '<b langtag="word-webpassword"></b>: ' + row.WebPassword + '&emsp;'
                 + '<b langtag="word-basicusername"></b>: ' + row.Cnf.U + '&emsp;'
                 + '<b langtag="word-basicpassword"></b>: ' + row.Cnf.P + '&emsp;<br/><br/>'
-                + '<b langtag="word-address"></b>: <span onclick="oCopy(this)">' + row.Addr + '</span>&emsp;'
-                + '<b langtag="word-localaddress"></b>: <span onclick="oCopy(this)">' + row.LocalAddr + '</span>&emsp;<br/><br/>'
                 + '<b langtag="word-crypt"></b>: <span langtag="word-' + row.Cnf.Crypt + '"></span>&emsp;'
                 + '<b langtag="word-compress"></b>: <span langtag="word-' + row.Cnf.Compress + '"></span>&emsp;'
                 + '<b langtag="word-connectbyconfig"></b>: <span langtag="word-' + row.ConfigConnAllow + '"></span>&emsp;<br/><br/>'
                 + '<b langtag="word-blackip"></b>: ' + row.BlackIpList + '&emsp;<br/><br/>'
-                + '<b langtag="word-createtime"></b>: ' + row.CreateTime + '&emsp;<br/><br/>'
-                + '<b langtag="word-lastonlinetime"></b>: ' + row.LastOnlineTime + '&emsp;<br/><br/>'
                 {{if index . "tcp_p"}}
                 + '<b langtag="word-commandclient-tcp"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.ip}}:{{.tcp_p}} -vkey=" + row.VerifyKey + " -type=tcp</code>&emsp;<br/><br/>"
                 {{end}}
@@ -111,6 +145,13 @@
             {
                 field: 'Version',//域值
                 title: '<span langtag="word-version"></span>',//标题
+                halign: 'center',
+                visible: true,//false表示不显示
+                sortable: true//启用排序
+            },
+            {
+                field: 'Mode',//域值
+                title: '<span langtag="word-scheme"></span>',//标题
                 halign: 'center',
                 visible: true,//false表示不显示
                 sortable: true//启用排序
@@ -156,7 +197,11 @@
                 visible: true,//false表示不显示
                 sortable: true,//启用排序
                 formatter: function (value, row, index) {
+                    {{if eq true .isAdmin}}
+                    return '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/client/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.InletFlow) + '</span>'
+                    {{else}}
                     return changeunit(row.Flow.InletFlow)
+                    {{end}}
                 }
             },
             {
@@ -166,7 +211,11 @@
                 visible: true,//false表示不显示
                 sortable: true,//启用排序
                 formatter: function (value, row, index) {
+                    {{if eq true .isAdmin}}
+                    return '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/client/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.ExportFlow) + '</span>'
+                    {{else}}
                     return changeunit(row.Flow.ExportFlow)
+                    {{end}}
                 }
             },
             {

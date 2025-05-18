@@ -73,15 +73,19 @@
         onLoadSuccess:function (data) {$('body').setLang ('.detail-view');},
         onPostBody: function (data) { if ($(this)[0].locale != undefined ) $('body').setLang ('#table'); },
         detailFormatter: function (index, row, element) {
-            tmp = '<b langtag="word-exportflow"></b>: ' + changeunit(row.Flow.ExportFlow) + '&emsp;'
-                + '<b langtag="word-inletflow"></b>: ' + changeunit(row.Flow.InletFlow) + '&emsp;'
+            tmp = '<b langtag="word-exportflow"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.ExportFlow) + '</span>&emsp;'
+                + '<b langtag="word-inletflow"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.InletFlow) + '</span>&emsp;'
                 + '<b langtag="word-crypt"></b>: ' + row.Client.Cnf.Crypt + '&emsp;'
                 + '<b langtag="word-compress"></b>: ' + row.Client.Cnf.Compress + '&emsp;'
                 + '<b langtag="word-ishttp"></b>: ' + row.IsHttp + '&emsp;<br/><br>'
-                + '<b langtag="word-flowlimit"></b>: ' + row.Flow.FlowLimit + 'm&emsp;'
-                + '<b langtag="word-timelimit"></b>: ' + row.Flow.TimeLimit + '&emsp;<br/><br>'				
-                + '<b langtag="word-basicusername"></b>: ' + row.Client.Cnf.U + '&emsp;'
-                + '<b langtag="word-basicpassword"></b>: ' + row.Client.Cnf.P + '&emsp;'
+                + '<b langtag="word-flowlimit"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow_limit\'})">' + row.Flow.FlowLimit + 'm</span>&emsp;'
+                + '<b langtag="word-timelimit"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'time_limit\'})">' + row.Flow.TimeLimit + '</span>&emsp;'
+            if (row.Mode == "mixProxy") {
+                return tmp + "<br/><br>"
+                    + '<b langtag="word-basicusername"></b>: ' + row.Client.Cnf.U + '&emsp;'
+                    + '<b langtag="word-basicpassword"></b>: ' + row.Client.Cnf.P + '&emsp;<br/><br>'
+                    + '<b langtag="word-auth"></b>: ' + (row.UserAuth && row.UserAuth.Content ? row.UserAuth.Content : '') + '&emsp;<br/><br>'
+            }
             if (row.Mode == "file") {
                 return tmp + "<br/><br>"
                     + '<b langtag="word-localpath"></b>: ' + row.LocalPath + '&emsp;'
@@ -119,7 +123,7 @@
                 sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     return row.Client.Remark 
-                        ? row.Client.Id + ' · ' + row.Client.Remark 
+                        ? row.Client.Id + ' · ' + row.Client.Remark
                         : row.Client.Id;
                 }
             },
@@ -140,6 +144,7 @@
                     return '<span onclick="oCopy(this)">' + value + '</span>'
                 }
             },
+            {{ if not .type }}
             {
                 field: 'Mode', //域值
                 title: '<span langtag="word-scheme"></span>', //标题
@@ -150,6 +155,7 @@
                     return '<span langtag="scheme-' + value + '"></span>'
                 }
             },
+            {{ end }}
             {
                 field: 'Port', //域值
                 title: '<span langtag="word-port"></span>', //标题
@@ -200,7 +206,7 @@
             {{ end }}
             {{ if and .type (eq .type "mixProxy") }}
             {
-                field: 'MixProxy.Http', //域值
+                field: 'HttpProxy', //域值
                 title: '<span langtag="word-httpproxy"></span>', //内容
                 align: 'center',
                 halign: 'center',
@@ -208,14 +214,14 @@
                 sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     if (value) {
-                        return '<span class="badge badge-primary" langtag="word-open"></span>'
+                        return '<span onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stop\', {\'id\':' + row.Id + ', \'mode\': \'http\'})" class="badge badge-primary" langtag="word-open"></span>'
                     } else {
-                        return '<span class="badge badge-badge" langtag="word-close"></span>'
+                        return '<span onclick="submitform(\'start\', \'{{.web_base_url}}/index/start\', {\'id\':' + row.Id + ', \'mode\': \'http\'})" class="badge badge-badge" langtag="word-close"></span>'
                     }
                 }
             },
             {
-                field: 'MixProxy.Socks5', //域值
+                field: 'Socks5Proxy', //域值
                 title: '<span langtag="word-socks5proxy"></span>', //内容
                 align: 'center',
                 halign: 'center',
@@ -223,9 +229,9 @@
                 sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     if (value) {
-                        return '<span class="badge badge-primary" langtag="word-open"></span>'
+                        return '<span onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stop\', {\'id\':' + row.Id + ', \'mode\': \'socks5\'})" class="badge badge-primary" langtag="word-open"></span>'
                     } else {
-                        return '<span class="badge badge-badge" langtag="word-close"></span>'
+                        return '<span onclick="submitform(\'start\', \'{{.web_base_url}}/index/start\', {\'id\':' + row.Id + ', \'mode\': \'socks5\'})" class="badge badge-badge" langtag="word-close"></span>'
                     }
                 }
             },

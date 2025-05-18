@@ -51,19 +51,15 @@ func (s *JsonDb) LoadTaskFromJsonFile() {
 		if post.Client, err = s.GetClient(post.Client.Id); err != nil {
 			return
 		}
-		if post.MixProxy == nil {
-			post.MixProxy = &MixProxy{
-				Socks5: true,
-				Http:   true,
-			}
-		}
 		switch post.Mode {
 		case "socks5":
 			post.Mode = "mixProxy"
-			post.MixProxy.Http = false
+			post.HttpProxy = false
+			post.Socks5Proxy = true
 		case "httpProxy":
 			post.Mode = "mixProxy"
-			post.MixProxy.Socks5 = false
+			post.HttpProxy = true
+			post.Socks5Proxy = false
 		}
 		s.Tasks.Store(post.Id, post)
 		if post.Id > int(s.TaskIncreaseId) {

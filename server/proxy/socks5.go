@@ -203,7 +203,7 @@ func (s *TunnelModeServer) handleUDP(c net.Conn) {
 	//读取端口
 	var port uint16
 	binary.Read(c, binary.BigEndian, &port)
-	logs.Info("%s %d", host, port)
+	logs.Trace("%s %d", host, port)
 	replyAddr, err := net.ResolveUDPAddr("udp", s.task.ServerIp+":0")
 	if err != nil {
 		logs.Error("build local reply addr error %v", err)
@@ -320,19 +320,15 @@ func (s *TunnelModeServer) Auth(c net.Conn) error {
 }
 
 func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
-	if s.task.MixProxy == nil {
-		s.task.MixProxy = &file.MixProxy{
-			Socks5: true,
-			Http:   true,
-		}
-		switch s.task.Mode {
-		case "socks5":
-			s.task.Mode = "mixProxy"
-			s.task.MixProxy.Http = false
-		case "httpProxy":
-			s.task.Mode = "mixProxy"
-			s.task.MixProxy.Socks5 = false
-		}
+	switch s.task.Mode {
+	case "socks5":
+		s.task.Mode = "mixProxy"
+		s.task.HttpProxy = false
+		s.task.Socks5Proxy = true
+	case "httpProxy":
+		s.task.Mode = "mixProxy"
+		s.task.HttpProxy = true
+		s.task.Socks5Proxy = false
 	}
 
 	buf := make([]byte, 2)
@@ -346,7 +342,7 @@ func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
 		method := string(buf)
 		switch method {
 		case "GE", "PO", "HE", "PU ", "DE", "OP", "CO", "TR", "PA", "PR", "MK", "MO", "LO", "UN", "RE", "AC", "SE", "LI":
-			if !s.task.MixProxy.Http {
+			if !s.task.HttpProxy {
 				logs.Warn("http proxy is disable, client %d request from: %v", s.task.Client.Id, c.RemoteAddr())
 				c.Close()
 				return errors.New("http proxy is disabled")
@@ -367,7 +363,7 @@ func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
 		return errors.New("unknown protocol")
 	}
 
-	if !s.task.MixProxy.Socks5 {
+	if !s.task.Socks5Proxy {
 		logs.Warn("socks5 proxy is disable, client %d request from: %v", s.task.Client.Id, c.RemoteAddr())
 		c.Close()
 		return errors.New("socks5 proxy is disabled")

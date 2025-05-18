@@ -116,16 +116,14 @@ func (s *IndexController) Add() {
 				Content:    s.getEscapeString("auth"),
 				AccountMap: common.DealMultiUser(s.getEscapeString("auth")),
 			},
-			Id:        id,
-			Status:    true,
-			Remark:    s.getEscapeString("remark"),
-			Password:  s.getEscapeString("password"),
-			LocalPath: s.getEscapeString("local_path"),
-			StripPre:  s.getEscapeString("strip_pre"),
-			MixProxy: &file.MixProxy{
-				Http:   s.GetBoolNoErr("enable_http"),
-				Socks5: s.GetBoolNoErr("enable_socks5"),
-			},
+			Id:          id,
+			Status:      true,
+			Remark:      s.getEscapeString("remark"),
+			Password:    s.getEscapeString("password"),
+			LocalPath:   s.getEscapeString("local_path"),
+			StripPre:    s.getEscapeString("strip_pre"),
+			HttpProxy:   s.GetBoolNoErr("enable_http"),
+			Socks5Proxy: s.GetBoolNoErr("enable_socks5"),
 			Flow: &file.Flow{
 				FlowLimit: int64(s.GetIntNoErr("flow_limit")),
 				TimeLimit: common.GetTimeNoErrByStr(s.getEscapeString("time_limit")),
@@ -214,8 +212,8 @@ func (s *IndexController) Edit() {
 			t.Id = id
 			t.LocalPath = s.getEscapeString("local_path")
 			t.StripPre = s.getEscapeString("strip_pre")
-			t.MixProxy.Http = s.GetBoolNoErr("enable_http")
-			t.MixProxy.Socks5 = s.GetBoolNoErr("enable_socks5")
+			t.HttpProxy = s.GetBoolNoErr("enable_http")
+			t.Socks5Proxy = s.GetBoolNoErr("enable_socks5")
 			t.Remark = s.getEscapeString("remark")
 			t.Flow.FlowLimit = int64(s.GetIntNoErr("flow_limit"))
 			t.Flow.TimeLimit = common.GetTimeNoErrByStr(s.getEscapeString("time_limit"))
@@ -235,6 +233,13 @@ func (s *IndexController) Edit() {
 
 func (s *IndexController) Stop() {
 	id := s.GetIntNoErr("id")
+	mode := s.getEscapeString("mode")
+	if mode != "" {
+		if err := changeStatus(id, mode, "stop"); err != nil {
+			s.AjaxErr("stop error")
+		}
+		s.AjaxOk("stop success")
+	}
 	if err := server.StopServer(id); err != nil && err.Error() != "task is not running" {
 		s.AjaxErr("stop error")
 	}
@@ -251,6 +256,13 @@ func (s *IndexController) Del() {
 
 func (s *IndexController) Start() {
 	id := s.GetIntNoErr("id")
+	mode := s.getEscapeString("mode")
+	if mode != "" {
+		if err := changeStatus(id, mode, "start"); err != nil {
+			s.AjaxErr("start error")
+		}
+		s.AjaxOk("start success")
+	}
 	if err := server.StartTask(id); err != nil {
 		if err.Error() == "the port open error" {
 			s.AjaxErr("The port cannot be opened because it may has been occupied or is no longer allowed.")
@@ -258,6 +270,55 @@ func (s *IndexController) Start() {
 		s.AjaxErr("start error")
 	}
 	s.AjaxOk("start success")
+}
+
+func (s *IndexController) Clear() {
+	id := s.GetIntNoErr("id")
+	mode := s.getEscapeString("mode")
+	if mode != "" {
+		if err := changeStatus(id, mode, "clear"); err != nil {
+			s.AjaxErr("modified fail")
+		}
+		s.AjaxOk("modified success")
+	}
+	s.AjaxErr("modified fail")
+}
+
+func changeStatus(id int, name, action string) (err error) {
+	if t, err := file.GetDb().GetTask(id); err != nil {
+		return err
+	} else {
+		if name == "http" {
+			if action == "start" {
+				t.HttpProxy = true
+			}
+			if action == "stop" {
+				t.HttpProxy = false
+			}
+		}
+		if name == "socks5" {
+			if action == "start" {
+				t.Socks5Proxy = true
+			}
+			if action == "stop" {
+				t.Socks5Proxy = false
+			}
+		}
+		if name == "flow" && action == "clear" {
+			t.Flow.ExportFlow = 0
+			t.Flow.InletFlow = 0
+		}
+		if name == "flow_limit" && action == "clear" {
+			t.Flow.FlowLimit = 0
+		}
+		if name == "time_limit" && action == "clear" {
+			t.Flow.TimeLimit = common.GetTimeNoErrByStr("")
+		}
+		file.GetDb().UpdateTask(t)
+		server.StopServer(t.Id)
+		server.StartTask(t.Id)
+	}
+	return nil
 }
 
 func (s *IndexController) HostList() {
@@ -320,6 +381,18 @@ func (s *IndexController) StopHost() {
 	h.IsClose = true
 	file.GetDb().JsonDb.StoreHostToJsonFile()
 	s.AjaxOk("stop success")
+}
+
+func (s *IndexController) ClearHost() {
+	id := s.GetIntNoErr("id")
+	mode := s.getEscapeString("mode")
+	if mode != "" {
+		if err := changeHostStatus(id, mode, "clear"); err != nil {
+			s.AjaxErr("modified fail")
+		}
+		s.AjaxOk("modified success")
+	}
+	s.AjaxErr("modified fail")
 }
 
 func (s *IndexController) AddHost() {
@@ -436,4 +509,23 @@ func (s *IndexController) EditHost() {
 		}
 		s.AjaxOk("modified success")
 	}
+}
+
+func changeHostStatus(id int, name, action string) (err error) {
+	if h, err := file.GetDb().GetHostById(id); err != nil {
+		return err
+	} else {
+		if name == "flow" && action == "clear" {
+			h.Flow.ExportFlow = 0
+			h.Flow.InletFlow = 0
+		}
+		if name == "flow_limit" && action == "clear" {
+			h.Flow.FlowLimit = 0
+		}
+		if name == "time_limit" && action == "clear" {
+			h.Flow.TimeLimit = common.GetTimeNoErrByStr("")
+		}
+		file.GetDb().JsonDb.StoreHostToJsonFile()
+	}
+	return nil
 }
