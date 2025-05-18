@@ -242,7 +242,7 @@ func run() {
 	}
 
 	logs.Info("the config path is:" + common.GetRunPath())
-	logs.Info("the version of server is %s ,allow client core version to be %s,tls enable is %t", version.VERSION, version.GetLatest(), bridge.ServerTlsEnable)
+	logs.Info("the version of server is %s ,allow client core version to be %s", version.VERSION, version.GetLatest())
 	connection.InitConnectionService()
 	//crypt.InitTls(filepath.Join(common.GetRunPath(), "conf", "server.pem"), filepath.Join(common.GetRunPath(), "conf", "server.key"))
 	cert, ok := common.LoadCert(beego.AppConfig.String("bridge_cert_file"), beego.AppConfig.String("bridge_key_file"))
