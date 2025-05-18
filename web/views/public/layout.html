@@ -35,7 +35,7 @@
                 <li class="nav-header">
                     <div class="dropdown profile-element">
                     {{if eq true .isAdmin}}
-                        <span><i class="fa fa-user-cog fa-3x"></i></span>
+                        <span><i class="fa fa-user-cog fa-2x"></i></span>
                         <span class="clear"> <span class="block m-t-xs"><strong class="font-bold" langtag="word-admin"></strong></span>
                         <span class="text-muted text-xs block" langtag="word-system">
                     {{else}}
@@ -102,7 +102,7 @@
     </nav>
     <div id="page-wrapper" class="gray-bg">
         <div class="row border-bottom">
-            <nav class="navbar white-bg navbar-fixed-top" role="navigation" style="margin-bottom: 0">
+            <nav class="navbar navbar-fixed-top" role="navigation" style="margin-bottom: 0">
 
                 <div class="navbar-header">
                     <a class="navbar-minimalize minimalize-styl-2 btn btn-primary " href="#"><i class="fa fa-bars"></i></a>
@@ -113,13 +113,18 @@
                         <a href="https://github.com/djylb/nps" langtag="application"></a></span>
                     </li>
                     <li>
-                        <span class="btn-group dropdown">
-                            <button id="languagemenu" class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                <i class="fa fa-globe-asia fa-lg"></i>
-                                <span></span>
+                        <div class="ml-auto d-flex align-items-center" style="gap: 0.5rem;">
+                            <button id="theme-toggle" class="btn btn-outline-secondary" onclick="toggleTheme()">
+                                <i class="fa fa-moon"></i>
                             </button>
-                            <ul class="dropdown-menu"></ul>
-                        </span>
+                            <span class="btn-group dropdown">
+                                <button id="languagemenu" class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <i class="fa fa-globe-asia fa-lg"></i>
+                                    <span></span>
+                                </button>
+                                <ul class="dropdown-menu"></ul>
+                            </span>
+                        </div>
                     </li>
                     <li>
                         <a href="{{.web_base_url}}/login/out">
@@ -130,10 +135,10 @@
             </nav>
         </div>
 
-		<div class="page-content">
-    {{.LayoutContent}}
-		</div>
-		
+        <div class="page-content">
+        {{.LayoutContent}}
+        </div>
+        
         <div class="footer fixed">
             <div class="float-right">
                 <span langtag="word-readmore"></span> <strong><a href="https://github.com/djylb/nps" langtag="word-go"></a></strong>

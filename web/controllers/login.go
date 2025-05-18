@@ -132,6 +132,7 @@ func (self *LoginController) Register() {
 		self.Data["web_base_url"] = beego.AppConfig.String("web_base_url")
 		self.Data["version"] = server.GetVersion()
 		self.Data["year"] = server.GetCurrentYear()
+		self.Data["captcha_open"], _ = beego.AppConfig.Bool("open_captcha")
 		self.TplName = "login/register.html"
 	} else {
 		if b, err := beego.AppConfig.Bool("allow_user_register"); err != nil || !b {
@@ -143,6 +144,14 @@ func (self *LoginController) Register() {
 			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "please check your input"}
 			self.ServeJSON()
 			return
+		}
+		captchaOpen, _ := beego.AppConfig.Bool("open_captcha")
+		if captchaOpen {
+			if !cpt.VerifyReq(self.Ctx.Request) {
+				self.Data["json"] = map[string]interface{}{"status": 0, "msg": "the verification code is wrong, please get it again and try again"}
+				self.ServeJSON()
+				return
+			}
 		}
 		t := &file.Client{
 			Id:          int(file.GetDb().JsonDb.GetClientId()),

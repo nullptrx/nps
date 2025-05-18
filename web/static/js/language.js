@@ -130,6 +130,19 @@
 })(jQuery);
 
 $(document).ready(function () {
+    const savedTheme = localStorage.getItem('nps-theme');
+    const html = document.documentElement;
+    const icon = document.querySelector('#theme-toggle i');
+
+    if (savedTheme === 'dark') {
+        html.setAttribute('theme', 'dark-mode');
+        icon.classList.remove('fa-moon');
+        icon.classList.add('fa-sun');
+    } else {
+        html.removeAttribute('theme');
+        icon.classList.remove('fa-sun');
+        icon.classList.add('fa-moon');
+    }
     $('body').cloudLang();
     $('body').on('click', 'li[lang]', function () {
         $('#languagemenu').attr('lang', $(this).attr('lang'));
@@ -263,5 +276,23 @@ function showMsg(text, type = 'success', dur = 1500, cb) {
         w.parentNode.removeChild(w);
         if (typeof cb === 'function') cb();
     }, dur);
+}
+
+function toggleTheme() {
+    const html = document.documentElement;
+    const icon = document.querySelector('#theme-toggle i');
+    const isDark = html.getAttribute('theme') === 'dark-mode';
+
+    if (isDark) {
+        html.removeAttribute('theme');
+        icon.classList.remove('fa-sun');
+        icon.classList.add('fa-moon');
+        localStorage.setItem('nps-theme', 'light');
+    } else {
+        html.setAttribute('theme', 'dark-mode');
+        icon.classList.remove('fa-moon');
+        icon.classList.add('fa-sun');
+        localStorage.setItem('nps-theme', 'dark');
+    }
 }
 

@@ -412,6 +412,50 @@
     $("#overview_send").text(changeunit({{.data.io_send}}) + "/s")
     $("#overview_recv").text(changeunit({{.data.io_recv}}) + "/s")
 
+    const chartTextColor = getComputedStyle(document.documentElement)
+        .getPropertyValue('--text').trim();
+    const chartBgColor   = getComputedStyle(document.documentElement)
+        .getPropertyValue('--bg').trim();
+
+    echarts.registerTheme('nps-theme', {
+        textStyle: {
+            color: chartTextColor,
+            textBorderColor: chartBgColor,
+            textBorderWidth: 0
+        },
+        axisPointer:  { label: { color: chartTextColor, textBorderColor: chartBgColor } },
+        tooltip:      { textStyle: { color: chartTextColor, textBorderColor: chartBgColor } },
+        legend:       { textStyle: { color: chartTextColor, textBorderColor: chartBgColor } },
+        xAxis:        { axisLabel: { color: chartTextColor, textBorderColor: chartBgColor } },
+        yAxis:        { axisLabel: { color: chartTextColor, textBorderColor: chartBgColor } },
+        series: [{
+            label: {
+                color: chartTextColor,
+                textBorderColor: chartBgColor,
+                textBorderWidth: 0
+            },
+            emphasis: {
+                label: {
+                    color: chartTextColor,
+                    textBorderColor: chartBgColor,
+                    textBorderWidth: 0
+                }
+            }
+        }],
+        pie: {
+            label: {
+                color: chartTextColor,
+                textBorderColor: chartBgColor,
+                textBorderWidth: 0
+            },
+            labelLine: {
+                lineStyle: {
+                    color: chartTextColor
+                }
+            }
+        }
+    });
+
     chartdatas['load'] = {
         tooltip: {
             trigger: 'axis',
@@ -737,6 +781,15 @@
             }
         ]
     };
+
+    window.charts = window.charts || {};
+    Object.keys(chartdatas).forEach(key => {
+        const dom = document.getElementById(key);
+        if (dom) {
+            window.charts[key] = echarts.init(dom, 'nps-theme');
+            window.charts[key].setOption(chartdatas[key]);
+        }
+    });
 
     window.addEventListener('resize', () => {
         for (var key in charts) {

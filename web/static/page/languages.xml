@@ -11,15 +11,15 @@
 	</languages>
 
 	<lang id="title-admin">
-		<zh-CN>NPS - 管理</zh-CN>
+		<zh-CN>NPS 管理</zh-CN>
 		<en-US>NPS Admin</en-US>
 	</lang>
 	<lang id="title-login">
-		<zh-CN>NPS - 登录</zh-CN>
-		<en-US>NPS login</en-US>
+		<zh-CN>NPS 登录</zh-CN>
+		<en-US>NPS Login</en-US>
 	</lang>
 	<lang id="title-register">
-		<zh-CN>NPS - 注册</zh-CN>
+		<zh-CN>NPS 注册</zh-CN>
 		<en-US>NPS Register</en-US>
 	</lang>
 
