@@ -41,24 +41,32 @@ nps.exe -conf_path=D:\test\nps
 | `web_key_file`  | Web HTTPS 证书密钥文件路径                    |
 | `web_base_url`  | Web 管理主路径（默认 `/`，适用于 Web 反向代理时调整路径）   |
 | `open_captcha`  | 是否启用验证码                               |
+| `totp_secret`   | 两步验证密钥 开启后 `web_password` 失效          |
 
 ---
 
 ## 3. 代理端口相关
-| 名称                 | 说明                                |
-|--------------------|-----------------------------------|
-| `bridge_port`      | 客户端与服务端通信端口（默认 `8024`）            |
-| `bridge_ip`        | 监听地址（默认 `0.0.0.0`，监听所有 IP）        |
-| `bridge_type`      | 连接方式（`tcp`、`kcp`、`both`，默认 `tcp`） |
-| `http_proxy_ip`    | HTTP 代理监听地址（默认 `0.0.0.0`）         |
-| `http_proxy_port`  | HTTP 代理监听端口（默认 `80`，留空不启用）        |
-| `https_proxy_port` | HTTPS 代理监听端口（默认 `443`，留空不启用）      |
-| `bridge_tls_port`  | 客户端与服务端通信 TLS 端口（默认 `8025`，留空不启用） |
-| `bridge_ws_port`   | 客户端与服务端通信 WS 端口（默认 `8026`，留空不启用）  |
-| `bridge_wss_port`  | 客户端与服务端通信 WSS 端口（默认 `8027`，留空不启用） |
-| `bridge_host`      | 客户端与服务端通信域名 （端口复用时使用）             |
-| `bridge_cert_file` | 客户端与服务端通信 TLS 证书文件路径              |
-| `bridge_key_file`  | 客户端与服务端通信 TLS 证书密钥文件路径            |
+| 名称                 | 说明                                               |
+|--------------------|--------------------------------------------------|
+| `bridge_port`      | 客户端与服务端通信端口（默认 `8024`）                           |
+| `bridge_ip`        | 监听地址（默认 `0.0.0.0`，监听所有 IP）                       |
+| `bridge_type`      | 连接方式（`tcp`、`kcp`、`both`，默认 `tcp`）                |
+| `http_proxy_ip`    | HTTP 代理监听地址（默认 `0.0.0.0`）                        |
+| `http_proxy_port`  | HTTP 代理监听端口（默认 `80`，留空不启用）                       |
+| `https_proxy_port` | HTTPS 代理监听端口（默认 `443`，留空不启用）                     |
+| `bridge_tcp_port`  | 客户端与服务端通信 TCP 端口（可选，优先级高于 `bridge_port`）         |
+| `bridge_kcp_port`  | 客户端与服务端通信 KCP 端口（可选，优先级高于 `bridge_port`）         |
+| `bridge_tls_port`  | 客户端与服务端通信 TLS 端口（默认 `8025`，留空不启用）                |
+| `bridge_ws_port`   | 客户端与服务端通信 WS 端口（默认 `8026`，留空不启用）                 |
+| `bridge_wss_port`  | 客户端与服务端通信 WSS 端口（默认 `8027`，留空不启用）                |
+| `bridge_tcp_ip`    | 客户端与服务端通信 TCP 监听IP（可选，只有和 `bridge_ip` 不一样时才需要配置） |
+| `bridge_kcp_ip`    | 客户端与服务端通信 KCP 监听IP（可选，只有和 `bridge_ip` 不一样时才需要配置） |
+| `bridge_tls_ip`    | 客户端与服务端通信 TLS 监听IP（可选，只有和 `bridge_ip` 不一样时才需要配置） |
+| `bridge_ws_ip`     | 客户端与服务端通信 WS 监听IP（可选，只有和 `bridge_ip` 不一样时才需要配置）  |
+| `bridge_wss_ip`    | 客户端与服务端通信 WSS 监听IP（可选，只有和 `bridge_ip` 不一样时才需要配置） |
+| `bridge_host`      | 客户端与服务端通信域名 （端口复用时使用）                            |
+| `bridge_cert_file` | 客户端与服务端通信 TLS 证书文件路径                             |
+| `bridge_key_file`  | 客户端与服务端通信 TLS 证书密钥文件路径                           |
 
 ---
 
