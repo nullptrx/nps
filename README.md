@@ -136,7 +136,7 @@ npc start
 
 - **v0.29.0 (2025-05-19)**
   - 合并HTTP代理和Socks5代理为混合代理
-  - 美化Web界面 （参考 [#76](https://github.com/djylb/nps/issues/76)）
+  - 美化Web界面 （参考 [#76](https://github.com/djylb/nps/issues/76) 感谢 [arch3rPro](https://github.com/arch3rPro)）
   - 支持明暗主题切换
   - 修复注册验证码校验
   - 优化TCP释放逻辑
