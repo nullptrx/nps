@@ -134,7 +134,7 @@ npc start
 
 ### Stable
 
-- **v0.29.0 (2025-05-18)**
+- **v0.29.0 (2025-05-19)**
   - 合并HTTP代理和Socks5代理为混合代理
   - 美化Web界面 （参考 [#76](https://github.com/djylb/nps/issues/76)）
   - 支持明暗主题切换
