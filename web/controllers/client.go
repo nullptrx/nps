@@ -1,6 +1,9 @@
 package controllers
 
 import (
+	"github.com/djylb/nps/bridge"
+	"github.com/djylb/nps/server/connection"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,13 +36,33 @@ func (s *ClientController) List() {
 	list, cnt := server.GetClientList(start, length, s.getEscapeString("search"), s.getEscapeString("sort"), s.getEscapeString("order"), clientId)
 	cmd := make(map[string]interface{})
 	ip := s.Ctx.Request.Host
-	cmd["ip"] = common.GetIpByAddr(ip)
+	bridgeAddr := beego.AppConfig.DefaultString("bridge_addr", common.GetIpByAddr(ip))
 	bridgeType := beego.AppConfig.String("bridge_type")
+	bridgePort := server.Bridge.TunnelPort
 	if bridgeType == "both" {
 		bridgeType = "tcp"
 	}
+	if bridge.ServerTlsEnable {
+		bridgeType = "tls"
+		bridgePort, _ = strconv.Atoi(connection.BridgeTlsPort)
+	} else if bridge.ServerWssEnable {
+		bridgeType = "wss"
+		bridgePort, _ = strconv.Atoi(connection.BridgeWssPort)
+		bridgeAddr = bridgeAddr + connection.BridgePath
+	} else if bridge.ServerTcpEnable {
+		bridgeType = "tcp"
+		bridgePort, _ = strconv.Atoi(connection.BridgeTcpPort)
+	} else if bridge.ServerKcpEnable {
+		bridgeType = "kcp"
+		bridgePort, _ = strconv.Atoi(connection.BridgeKcpPort)
+	} else if bridge.ServerWsEnable {
+		bridgeType = "ws"
+		bridgePort, _ = strconv.Atoi(connection.BridgeWsPort)
+		bridgeAddr = bridgeAddr + connection.BridgePath
+	}
+	cmd["ip"] = bridgeAddr
 	cmd["bridgeType"] = bridgeType
-	cmd["bridgePort"] = server.Bridge.TunnelPort
+	cmd["bridgePort"] = bridgePort
 	s.AjaxTable(list, cnt, cnt, cmd)
 }
 

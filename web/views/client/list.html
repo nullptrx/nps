@@ -76,7 +76,7 @@
                 {{else}}
                 + row.Flow.FlowLimit
                 {{end}}
-                + 'm&emsp;'
+                + 'MB&emsp;'
                 + '<b langtag="word-timelimit"></b>: '
                 {{if eq true .isAdmin}}
                 + '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/client/clear\', {\'id\':' + row.Id + ', \'mode\': \'time_limit\'})">' + row.Flow.TimeLimit + '</span>'
@@ -154,7 +154,10 @@
                 title: '<span langtag="word-scheme"></span>',//标题
                 halign: 'center',
                 visible: true,//false表示不显示
-                sortable: true//启用排序
+                sortable: true,//启用排序
+                formatter: function (value, row, index) {
+                    return getBridgeMode(value)
+                }
             },
             {
                 field: 'VerifyKey',//域值

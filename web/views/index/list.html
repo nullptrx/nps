@@ -75,10 +75,10 @@
         detailFormatter: function (index, row, element) {
             tmp = '<b langtag="word-exportflow"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.ExportFlow) + '</span>&emsp;'
                 + '<b langtag="word-inletflow"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.InletFlow) + '</span>&emsp;'
-                + '<b langtag="word-crypt"></b>: ' + row.Client.Cnf.Crypt + '&emsp;'
-                + '<b langtag="word-compress"></b>: ' + row.Client.Cnf.Compress + '&emsp;'
-                + '<b langtag="word-ishttp"></b>: ' + row.IsHttp + '&emsp;<br/><br>'
-                + '<b langtag="word-flowlimit"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow_limit\'})">' + row.Flow.FlowLimit + 'm</span>&emsp;'
+                + '<b langtag="word-crypt"></b>: <span langtag="word-' + row.Client.Cnf.Crypt + '"></span>&emsp;'
+                + '<b langtag="word-compress"></b>: <span langtag="word-' + row.Client.Cnf.Compress + '></span>&emsp;'
+                + '<b langtag="word-ishttp"></b>: <span langtag="word-' + row.IsHttp + '></span>&emsp;<br/><br>'
+                + '<b langtag="word-flowlimit"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow_limit\'})">' + row.Flow.FlowLimit + 'MB</span>&emsp;'
                 + '<b langtag="word-timelimit"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'time_limit\'})">' + row.Flow.TimeLimit + '</span>&emsp;'
             if (row.Mode == "mixProxy") {
                 return tmp + "<br/><br>"
@@ -213,11 +213,15 @@
                 visible: true, //false表示不显示
                 sortable: true, //启用排序
                 formatter: function (value, row, index) {
+                    btn_group = '<div class="btn-group">'
                     if (value) {
-                        return '<span onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stop\', {\'id\':' + row.Id + ', \'mode\': \'http\'})" class="badge badge-primary" langtag="word-open"></span>'
+                        btn_group += '<a onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stop\', {\'id\':' + row.Id + ', \'mode\': \'http\'})" class="btn btn-outline btn-warning"><i class="fa fa-pause"></i></a>'
                     } else {
-                        return '<span onclick="submitform(\'start\', \'{{.web_base_url}}/index/start\', {\'id\':' + row.Id + ', \'mode\': \'http\'})" class="badge badge-badge" langtag="word-close"></span>'
+                        btn_group += '<a onclick="submitform(\'start\', \'{{.web_base_url}}/index/start\', {\'id\':' + row.Id + ', \'mode\': \'http\'})" class="btn btn-outline btn-primary"><i class="fa fa-play"></i></a>'
                     }
+                    btn_group += '</div>'
+                    return btn_group
+
                 }
             },
             {
@@ -228,11 +232,14 @@
                 visible: true, //false表示不显示
                 sortable: true, //启用排序
                 formatter: function (value, row, index) {
+                    btn_group = '<div class="btn-group">'
                     if (value) {
-                        return '<span onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stop\', {\'id\':' + row.Id + ', \'mode\': \'socks5\'})" class="badge badge-primary" langtag="word-open"></span>'
+                        btn_group += '<a onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stop\', {\'id\':' + row.Id + ', \'mode\': \'socks5\'})" class="btn btn-outline btn-warning"><i class="fa fa-pause"></i></a>'
                     } else {
-                        return '<span onclick="submitform(\'start\', \'{{.web_base_url}}/index/start\', {\'id\':' + row.Id + ', \'mode\': \'socks5\'})" class="badge badge-badge" langtag="word-close"></span>'
+                        btn_group += '<a onclick="submitform(\'start\', \'{{.web_base_url}}/index/start\', {\'id\':' + row.Id + ', \'mode\': \'socks5\'})" class="btn btn-outline btn-primary"><i class="fa fa-play"></i></a>'
                     }
+                    btn_group += '</div>'
+                    return btn_group
                 }
             },
             {{ end }}

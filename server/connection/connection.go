@@ -11,39 +11,43 @@ import (
 )
 
 var pMux *pmux.PortMux
-var bridgeIp string
-var bridgeTcpIp string
-var bridgeTlsIp string
-var bridgeWsIp string
-var bridgeWssIp string
-var bridgePort string
-var bridgeTcpPort string
-var bridgeTlsPort string
-var bridgeWsPort string
-var bridgeWssPort string
-var bridgePath string
-var httpsPort string
-var httpPort string
-var webPort string
+var BridgeIp string
+var BridgeTcpIp string
+var BridgeKcpIp string
+var BridgeTlsIp string
+var BridgeWsIp string
+var BridgeWssIp string
+var BridgePort string
+var BridgeTcpPort string
+var BridgeKcpPort string
+var BridgeTlsPort string
+var BridgeWsPort string
+var BridgeWssPort string
+var BridgePath string
+var HttpsPort string
+var HttpPort string
+var WebPort string
 
 func InitConnectionService() {
-	bridgeIp = beego.AppConfig.String("bridge_ip")
-	bridgeTcpIp = beego.AppConfig.DefaultString("bridge_tcp_ip", bridgeIp)
-	bridgeTlsIp = beego.AppConfig.DefaultString("bridge_tls_ip", bridgeIp)
-	bridgeWsIp = beego.AppConfig.DefaultString("bridge_ws_ip", bridgeIp)
-	bridgeWssIp = beego.AppConfig.DefaultString("bridge_wss_ip", bridgeIp)
-	bridgePort = beego.AppConfig.String("bridge_port")
-	bridgeTcpPort = beego.AppConfig.DefaultString("bridge_tcp_port", bridgePort)
-	bridgeTlsPort = beego.AppConfig.DefaultString("bridge_tls_port", beego.AppConfig.String("tls_bridge_port"))
-	bridgeWsPort = beego.AppConfig.String("bridge_ws_port")
-	bridgeWssPort = beego.AppConfig.String("bridge_wss_port")
-	bridgePath = beego.AppConfig.String("bridge_path")
-	httpsPort = beego.AppConfig.String("https_proxy_port")
-	httpPort = beego.AppConfig.String("http_proxy_port")
-	webPort = beego.AppConfig.String("web_port")
+	BridgeIp = beego.AppConfig.String("bridge_ip")
+	BridgeTcpIp = beego.AppConfig.DefaultString("bridge_tcp_ip", BridgeIp)
+	BridgeKcpIp = beego.AppConfig.DefaultString("bridge_kcp_ip", BridgeIp)
+	BridgeTlsIp = beego.AppConfig.DefaultString("bridge_tls_ip", BridgeIp)
+	BridgeWsIp = beego.AppConfig.DefaultString("bridge_ws_ip", BridgeIp)
+	BridgeWssIp = beego.AppConfig.DefaultString("bridge_wss_ip", BridgeIp)
+	BridgePort = beego.AppConfig.String("bridge_port")
+	BridgeTcpPort = beego.AppConfig.DefaultString("bridge_tcp_port", BridgePort)
+	BridgeKcpPort = beego.AppConfig.DefaultString("bridge_kcp_port", BridgePort)
+	BridgeTlsPort = beego.AppConfig.DefaultString("bridge_tls_port", beego.AppConfig.String("tls_bridge_port"))
+	BridgeWsPort = beego.AppConfig.String("bridge_ws_port")
+	BridgeWssPort = beego.AppConfig.String("bridge_wss_port")
+	BridgePath = beego.AppConfig.String("bridge_path")
+	HttpsPort = beego.AppConfig.String("https_proxy_port")
+	HttpPort = beego.AppConfig.String("http_proxy_port")
+	WebPort = beego.AppConfig.String("web_port")
 
-	if httpPort == bridgePort || httpsPort == bridgePort || webPort == bridgePort || bridgeTlsPort == bridgePort {
-		port, err := strconv.Atoi(bridgePort)
+	if HttpPort == BridgePort || HttpsPort == BridgePort || WebPort == BridgePort || BridgeTlsPort == BridgePort {
+		port, err := strconv.Atoi(BridgePort)
 		if err != nil {
 			logs.Error("%v", err)
 			os.Exit(0)
@@ -53,82 +57,82 @@ func InitConnectionService() {
 }
 
 func GetBridgeTcpListener() (net.Listener, error) {
-	logs.Info("server start, the bridge type is tcp, the bridge port is %s", bridgeTcpPort)
+	logs.Info("server start, the bridge type is tcp, the bridge port is %s", BridgeTcpPort)
 	var p int
 	var err error
-	if p, err = strconv.Atoi(bridgeTcpPort); err != nil {
+	if p, err = strconv.Atoi(BridgeTcpPort); err != nil {
 		return nil, err
 	}
-	if pMux != nil && bridgeTcpPort == bridgePort {
+	if pMux != nil && BridgeTcpPort == BridgePort {
 		return pMux.GetClientListener(), nil
 	}
-	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(bridgeTcpIp), p, ""})
+	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(BridgeTcpIp), p, ""})
 }
 
 func GetBridgeTlsListener() (net.Listener, error) {
-	logs.Info("server start, the bridge type is tls, the bridge port is %s", bridgeTlsPort)
+	logs.Info("server start, the bridge type is tls, the bridge port is %s", BridgeTlsPort)
 	var p int
 	var err error
-	if p, err = strconv.Atoi(bridgeTlsPort); err != nil {
+	if p, err = strconv.Atoi(BridgeTlsPort); err != nil {
 		return nil, err
 	}
-	if pMux != nil && bridgeTlsPort == bridgePort {
+	if pMux != nil && BridgeTlsPort == BridgePort {
 		return pMux.GetClientTlsListener(), nil
 	}
-	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(bridgeTlsIp), p, ""})
+	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(BridgeTlsIp), p, ""})
 }
 
 func GetBridgeWsListener() (net.Listener, error) {
-	logs.Info("server start, the bridge type is ws, the bridge port is %s, the bridge path is %s", bridgeWsPort, bridgePath)
+	logs.Info("server start, the bridge type is ws, the bridge port is %s, the bridge path is %s", BridgeWsPort, BridgePath)
 	var p int
 	var err error
-	if p, err = strconv.Atoi(bridgeWsPort); err != nil {
+	if p, err = strconv.Atoi(BridgeWsPort); err != nil {
 		return nil, err
 	}
-	if pMux != nil && bridgeWsPort == bridgePort {
+	if pMux != nil && BridgeWsPort == BridgePort {
 		return pMux.GetClientWsListener(), nil
 	}
-	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(bridgeWsIp), p, ""})
+	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(BridgeWsIp), p, ""})
 }
 
 func GetBridgeWssListener() (net.Listener, error) {
-	logs.Info("server start, the bridge type is wss, the bridge port is %s, the bridge path is %s", bridgeWssPort, bridgePath)
+	logs.Info("server start, the bridge type is wss, the bridge port is %s, the bridge path is %s", BridgeWssPort, BridgePath)
 	var p int
 	var err error
-	if p, err = strconv.Atoi(bridgeWssPort); err != nil {
+	if p, err = strconv.Atoi(BridgeWssPort); err != nil {
 		return nil, err
 	}
-	if pMux != nil && bridgeWssPort == bridgePort {
+	if pMux != nil && BridgeWssPort == BridgePort {
 		return pMux.GetClientWssListener(), nil
 	}
-	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(bridgeWssIp), p, ""})
+	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(BridgeWssIp), p, ""})
 }
 
 func GetHttpListener() (net.Listener, error) {
-	if pMux != nil && httpPort == bridgePort {
-		logs.Info("start http listener, port is %s", bridgePort)
+	if pMux != nil && HttpPort == BridgePort {
+		logs.Info("start http listener, port is %s", BridgePort)
 		return pMux.GetHttpListener(), nil
 	}
-	logs.Info("start http listener, port is %s", httpPort)
-	return getTcpListener(beego.AppConfig.String("http_proxy_ip"), httpPort)
+	logs.Info("start http listener, port is %s", HttpPort)
+	return getTcpListener(beego.AppConfig.String("http_proxy_ip"), HttpPort)
 }
 
 func GetHttpsListener() (net.Listener, error) {
-	if pMux != nil && httpsPort == bridgePort {
-		logs.Info("start https listener, port is %s", bridgePort)
+	if pMux != nil && HttpsPort == BridgePort {
+		logs.Info("start https listener, port is %s", BridgePort)
 		return pMux.GetHttpsListener(), nil
 	}
-	logs.Info("start https listener, port is %s", httpsPort)
-	return getTcpListener(beego.AppConfig.String("http_proxy_ip"), httpsPort)
+	logs.Info("start https listener, port is %s", HttpsPort)
+	return getTcpListener(beego.AppConfig.String("http_proxy_ip"), HttpsPort)
 }
 
 func GetWebManagerListener() (net.Listener, error) {
-	if pMux != nil && webPort == bridgePort {
-		logs.Info("Web management start, access port is %s", bridgePort)
+	if pMux != nil && WebPort == BridgePort {
+		logs.Info("Web management start, access port is %s", BridgePort)
 		return pMux.GetManagerListener(), nil
 	}
-	logs.Info("web management start, access port is %s", webPort)
-	return getTcpListener(beego.AppConfig.String("web_ip"), webPort)
+	logs.Info("web management start, access port is %s", WebPort)
+	return getTcpListener(beego.AppConfig.String("web_ip"), WebPort)
 }
 
 func getTcpListener(ip, p string) (net.Listener, error) {

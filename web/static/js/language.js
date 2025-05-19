@@ -297,3 +297,21 @@ function toggleTheme() {
     }
 }
 
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (s) {
+        return ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[s];
+    });
+}
+
+function getBridgeMode(data) {
+    if (typeof data !== 'string') return '';
+    const parts = data.split(',', 2);
+    const first = parts[0] || '';
+    const second = parts[1] || '';
+    const escapedFirst = escapeHtml(first).toUpperCase();
+    const escapedSecond = escapeHtml(second).toUpperCase();
+    if (!second || first === second) {
+        return escapedFirst;
+    }
+    return escapedSecond + ' → ' + escapedFirst;
+}
