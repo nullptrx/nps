@@ -489,6 +489,16 @@ func GetClientList(start, length int, search, sortField, order string, clientId 
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].VerifyKey > list[j].VerifyKey })
 		}
+	} else if sortField == "TotalFlow" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool {
+				return list[i].Flow.InletFlow+list[i].Flow.ExportFlow < list[j].Flow.InletFlow+list[j].Flow.ExportFlow
+			})
+		} else {
+			sort.SliceStable(list, func(i, j int) bool {
+				return list[i].Flow.InletFlow+list[i].Flow.ExportFlow > list[j].Flow.InletFlow+list[j].Flow.ExportFlow
+			})
+		}
 	} else if sortField == "Version" {
 		if order == "asc" {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].Version < list[j].Version })

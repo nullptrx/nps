@@ -76,8 +76,8 @@
             tmp = '<b langtag="word-exportflow"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.ExportFlow) + '</span>&emsp;'
                 + '<b langtag="word-inletflow"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.InletFlow) + '</span>&emsp;'
                 + '<b langtag="word-crypt"></b>: <span langtag="word-' + row.Client.Cnf.Crypt + '"></span>&emsp;'
-                + '<b langtag="word-compress"></b>: <span langtag="word-' + row.Client.Cnf.Compress + '></span>&emsp;'
-                + '<b langtag="word-ishttp"></b>: <span langtag="word-' + row.IsHttp + '></span>&emsp;<br/><br>'
+                + '<b langtag="word-compress"></b>: <span langtag="word-' + row.Client.Cnf.Compress + '"></span>&emsp;'
+                + '<b langtag="word-ishttp"></b>: <span langtag="word-' + row.IsHttp + '"></span>&emsp;<br/><br>'
                 + '<b langtag="word-flowlimit"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow_limit\'})">' + row.Flow.FlowLimit + 'MB</span>&emsp;'
                 + '<b langtag="word-timelimit"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'time_limit\'})">' + row.Flow.TimeLimit + '</span>&emsp;'
             if (row.Mode == "mixProxy") {
@@ -114,6 +114,9 @@
                 halign: 'center',
                 visible: true, //false表示不显示
                 sortable: true, //启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="oCopy(this)">' + value + '</span>'
+                }
             },
             {
                 field: 'Client.Id', //域值
@@ -122,9 +125,8 @@
                 visible: true, //false表示不显示
                 sortable: true, //启用排序
                 formatter: function (value, row, index) {
-                    return row.Client.Remark 
-                        ? row.Client.Id + ' · ' + row.Client.Remark
-                        : row.Client.Id;
+                    var text = row.Client.Remark ? (row.Client.Id + ' · ' + row.Client.Remark) : row.Client.Id
+                    return '<span onclick="copyText(\'' + row.Client.VerifyKey + '\')">' + text + '</span>'
                 }
             },
             {
@@ -132,13 +134,16 @@
                 title: '<span langtag="word-remark"></span>', //标题
                 halign: 'center',
                 visible: true, //false表示不显示
-                sortable: true //启用排序
+                sortable: true, //启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="oCopy(this)">' + value + '</span>'
+                }
             },
             {
                 field: 'Client.VerifyKey', //域值
                 title: '<span langtag="word-verifykey"></span>', //标题
                 halign: 'center',
-                visible: true, //false表示不显示
+                visible: false, //false表示不显示
                 sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     return '<span onclick="oCopy(this)">' + value + '</span>'
@@ -248,7 +253,7 @@
                 title: '<span langtag="word-status"></span>', //内容
                 align: 'center',
                 halign: 'center',
-                visible: true, //false表示不显示
+                visible: false, //false表示不显示
                 sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     if (value) {
@@ -267,7 +272,11 @@
                 sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     if (value) {
-                        return '<span class="badge badge-primary" langtag="word-open"></span>'
+                        if (row.Mode && row.Mode == "tcp") {
+                            return '<a href="' + 'http://{{.ip}}:' + row.Port + '" target="_blank"><span class="badge badge-primary" langtag="word-open"></span></a>'
+                        } else {
+                            return '<span class="badge badge-primary" langtag="word-open"></span>'
+                        }
                     } else {
                         return '<span class="badge badge-badge" langtag="word-close"></span>'
                     }
@@ -282,7 +291,11 @@
                 sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     if (value) {
-                        return '<span class="badge badge-primary" langtag="word-online"></span>'
+                        if (row.Mode && row.Mode == "tcp") {
+                            return '<a href="' + (row.IsHttp ? 'http://' : 'https://') + '{{.ip}}:' + row.Port + '" target="_blank"><span class="badge badge-primary" langtag="word-online"></span></a>'
+                        } else {
+                            return '<span class="badge badge-primary" langtag="word-online"></span>'
+                        }
                     } else {
                         return '<span class="badge badge-badge" langtag="word-offline"></span>'
                     }

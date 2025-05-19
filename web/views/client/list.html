@@ -133,21 +133,30 @@
                 title: '<span langtag="word-id"></span>',//标题
                 halign: 'center',
                 visible: true,//false表示不显示
-                sortable: true//启用排序
+                sortable: true,//启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="oCopy(this)">' + value + '</span>'
+                }
             },
             {
                 field: 'Remark',//域值
                 title: '<span langtag="word-remark"></span>',//标题
                 halign: 'center',
                 visible: true,//false表示不显示
-                sortable: true//启用排序
+                sortable: true,//启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="oCopy(this)">' + value + '</span>'
+                }
             },
             {
                 field: 'Version',//域值
                 title: '<span langtag="word-version"></span>',//标题
                 halign: 'center',
                 visible: true,//false表示不显示
-                sortable: true//启用排序
+                sortable: true,//启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="oCopy(this)">' + escapeHtml(value) + '</span>'
+                }
             },
             {
                 field: 'Mode',//域值
@@ -156,7 +165,7 @@
                 visible: true,//false表示不显示
                 sortable: true,//启用排序
                 formatter: function (value, row, index) {
-                    return getBridgeMode(value)
+                    return '<span onclick="oCopy(this)">' + getBridgeMode(value) + '</span>'
                 }
             },
             {
@@ -197,7 +206,7 @@
                 field: 'InletFlow',//域值
                 title: '<span langtag="word-inletflow"></span>',//标题
                 halign: 'center',
-                visible: true,//false表示不显示
+                visible: false,//false表示不显示
                 sortable: true,//启用排序
                 formatter: function (value, row, index) {
                     {{if eq true .isAdmin}}
@@ -211,7 +220,7 @@
                 field: 'ExportFlow',//域值
                 title: '<span langtag="word-exportflow"></span>',//标题
                 halign: 'center',
-                visible: true,//false表示不显示
+                visible: false,//false表示不显示
                 sortable: true,//启用排序
                 formatter: function (value, row, index) {
                     {{if eq true .isAdmin}}
@@ -222,13 +231,27 @@
                 }
             },
             {
+                field: 'TotalFlow',//域值
+                title: '<span langtag="word-totalflow"></span>',//标题
+                halign: 'center',
+                visible: true,//false表示不显示
+                sortable: true,//启用排序
+                formatter: function (value, row, index) {
+                    {{if eq true .isAdmin}}
+                    return '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/client/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.InletFlow + row.Flow.ExportFlow) + '</span>'
+                    {{else}}
+                    return changeunit(row.Flow.InletFlow + row.Flow.ExportFlow)
+                    {{end}}
+                }
+            },
+            {
                 field: 'Rate.NowRate',//域值
                 title: '<span langtag="word-speed"></span>',//内容
                 halign: 'center',
                 visible: true,//false表示不显示
                 sortable: true,//启用排序
                 formatter: function (value, row, index) {
-                    return changeunit(value) + "/S"
+                    return changeunit(value) + "/s"
                 }
             },
             {

@@ -73,7 +73,7 @@
             return '<b langtag="word-exportflow"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.ExportFlow) + '</span>&emsp;'
                 + '<b langtag="word-inletflow"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.InletFlow) + '</span>&emsp;'
                 + '<b langtag="word-crypt"></b>: <span langtag="word-' + row.Client.Cnf.Crypt + '"></span>&emsp;'
-                + '<b langtag="word-compress"></b>: <span langtag="word-' + row.Client.Cnf.Compress + '"></span>&emsp;<br/><br>'
+                + '<b langtag="word-compress"></b>: <span langtag="word-' + row.Client.Cnf.Compress + '"></span>&emsp;'
                 + '<b langtag="word-flowlimit"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'flow_limit\'})">' + row.Flow.FlowLimit + 'MB</span>&emsp;'
                 + '<b langtag="word-timelimit"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'time_limit\'})">' + row.Flow.TimeLimit + '</span>&emsp;<br/><br>'
                 + '<b langtag="word-autocors"></b>: <span langtag="word-' + row.AutoCORS + '"></span>&emsp;'
@@ -95,7 +95,10 @@
                 title: '<span langtag="word-id"></span>', //标题
                 halign: 'center',
                 visible: true, //false表示不显示
-                sortable: true //启用排序
+                sortable: true,//启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="oCopy(this)">' + value + '</span>'
+                }
             },
             {
                 field: 'Client.Id', //域值
@@ -104,9 +107,8 @@
                 visible: true, //false表示不显示
                 sortable: true,//启用排序
                 formatter: function (value, row, index) {
-                    return row.Client.Remark 
-                        ? row.Client.Id + ' · ' + row.Client.Remark 
-                        : row.Client.Id;
+                    var text = row.Client.Remark ? (row.Client.Id + ' · ' + row.Client.Remark) : row.Client.Id
+                    return '<span onclick="copyText(\'' + row.Client.VerifyKey + '\')">' + text + '</span>'
                 }
             },
             {
@@ -114,13 +116,16 @@
                 title: '<span langtag="word-remark"></span>', //标题
                 halign: 'center',
                 visible: true, //false表示不显示
-                sortable: true //启用排序
+                sortable: true,//启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="oCopy(this)">' + value + '</span>'
+                }
             },
             {
                 field: 'Client.VerifyKey', //域值
                 title: '<span langtag="word-verifykey"></span>', //标题
                 halign: 'center',
-                visible: true, //false表示不显示
+                visible: false, //false表示不显示
                 sortable: true,//启用排序
                 formatter: function (value, row, index) {
                     return '<span onclick="oCopy(this)">' + value + '</span>'
@@ -152,14 +157,20 @@
                 title: '<span langtag="word-target"></span>', //标题
                 halign: 'center',
                 visible: true, //false表示不显示
-                sortable: true //启用排序
+                sortable: true,//启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="oCopy(this)">' + value + '</span>'
+                }
             },
             {
                 field: 'Location', //域值
                 title: '<span langtag="word-location"></span>', //标题
                 halign: 'center',
                 visible: true, //false表示不显示
-                sortable: true //启用排序
+                sortable: true,//启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="oCopy(this)">' + value + '</span>'
+                }
             },
             {
                 field: 'IsClose', //域值

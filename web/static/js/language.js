@@ -252,6 +252,16 @@ function oCopy(obj){
     showMsg(langreply('Copied'));
 }
 
+function copyText(text) {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+    showMsg(langreply('Copied'));
+}
+
 function showMsg(text, type = 'success', dur = 1500, cb) {
     var old = document.getElementById('wangmarket_loading');
     if (old) old.parentNode.removeChild(old);

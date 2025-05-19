@@ -1208,10 +1208,16 @@ h5 {
 }
 
 .nav > li > a {
+    display: flex;
+    align-items: center;
     color: var(--nav-text-color);
     font-weight: 600;
     padding: 14px 20px 14px 25px;
     display: block;
+}
+
+.nav > li > a .nav-label {
+    margin-left: 8px;
 }
 
 .nav.metismenu > li {
@@ -1738,6 +1744,17 @@ body.mini-navbar .navbar-default .nav > li > .nav-second-level li a {
 
 .footer {
     transition: margin 0s;
+}
+
+@media (max-height: 600px) {
+    .footer {
+        margin-top: auto;
+        bottom: auto !important;
+        left: auto !important;
+        width: 100%;
+        position: relative;
+        z-index: -1;
+    }
 }
 
 .pace-done .navbar-static-side,
@@ -5817,6 +5834,7 @@ video {
 .page-content {
     flex: 1;
     position: relative;
+    z-index: 0;
 }
 
 .wrapper-content {
@@ -7283,9 +7301,10 @@ body.mini-navbar.fixed-sidebar .logo-element {
     height: 36px;
 }
 
-.centered {
+.login-page {
     min-height: 100vh;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     background-color: var(--bg-mid);
@@ -7303,6 +7322,7 @@ body.mini-navbar.fixed-sidebar .logo-element {
 .login-card {
     width: 100%;
     max-width: 380px;
+    margin: auto 1rem;
     border-radius: 0.8rem;
     overflow: hidden;
 }
@@ -7398,6 +7418,36 @@ body.mini-navbar.fixed-sidebar .logo-element {
     font-weight: 800;
     letter-spacing: -10px;
     margin-bottom: 0;
+}
+
+@media (max-width: 576px) {
+    .login-card {
+        max-width: 100%;
+        width: auto;
+        margin: 0 1rem;
+        border-radius: 0.5rem;
+    }
+
+    .login-card .login-header {
+        padding: 1.5rem;
+    }
+    .login-card .login-header h1 {
+        font-size: 1.25rem;
+    }
+
+    .login-card .login-body {
+        padding: 1.5rem;
+    }
+    .login-card .form-control {
+        height: 3.5rem;
+        font-size: 1rem;
+        padding: 1rem 1rem 1rem 3rem;
+    }
+
+    .login-card .btn {
+        padding: 0.75rem;
+        font-size: 1rem;
+    }
 }
 
 .middle-box h1 {

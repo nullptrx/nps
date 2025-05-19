@@ -362,6 +362,10 @@
 		<zh-CN>入口流量</zh-CN>
 		<en-US>Inlet Flow</en-US>
 	</lang>
+	<lang id="word-totalflow">
+		<zh-CN>总流量</zh-CN>
+		<en-US>Total Flow</en-US>
+	</lang>
 	<lang id="word-iprestriction">
 		<zh-CN>IP 限制</zh-CN>
 		<en-US>IP Restriction</en-US>
@@ -375,8 +379,8 @@
 		<en-US>Local Path</en-US>
 	</lang>
 	<lang id="word-location">
-		<zh-CN>位置</zh-CN>
-		<en-US>Location</en-US>
+		<zh-CN>路径</zh-CN>
+		<en-US>Path</en-US>
 	</lang>
 	<lang id="word-login">
 		<zh-CN>登录</zh-CN>
