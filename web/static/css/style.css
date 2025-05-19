@@ -7333,6 +7333,10 @@ body.mini-navbar.fixed-sidebar .logo-element {
     text-align: center;
 }
 
+.login-card .login-header.register {
+    background: linear-gradient(87deg, #f6d365 0%, #fda085 100%);
+}
+
 .login-card .login-header img {
     width: 36px;
     height: 36px;

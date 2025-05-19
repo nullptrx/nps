@@ -350,7 +350,7 @@
 	</lang>
 	<lang id="word-identificationkey">
 		<zh-CN>唯一标识密钥</zh-CN>
-		<en-US>Unique identification  Key</en-US>
+		<en-US>Unique identification Key</en-US>
 	</lang>
 	<lang id="word-id">ID
 	</lang>
@@ -981,6 +981,18 @@
 		<lang id="theverificationcodeiswrongpleasegetitagainandtryagain">
 			<zh-CN>验证码错误，请重新获取并重试</zh-CN>
 			<en-US>The verification code is wrong, please get it again and try again</en-US>
+		</lang>
+		<lang id="decrypterror">
+			<zh-CN>解密错误</zh-CN>
+			<en-US>Decrypt Error</en-US>
+		</lang>
+		<lang id="invalidnonce">
+			<zh-CN>无效的随机值</zh-CN>
+			<en-US>Invalid Nonce</en-US>
+		</lang>
+		<lang id="timestampexpired">
+			<zh-CN>时间戳已过期</zh-CN>
+			<en-US>Timestamp Expired</en-US>
 		</lang>
 		<lang id="loginsuccess">
 			<zh-CN>登录成功</zh-CN>

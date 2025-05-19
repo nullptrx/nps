@@ -41,7 +41,12 @@ func (self *LoginController) Index() {
 	webBaseUrl := beego.AppConfig.String("web_base_url")
 	if self.doLogin("", "", false) {
 		self.Redirect(webBaseUrl+"/index/index", 302)
+		return
 	}
+	nonce := crypt.GetRandomString(16)
+	self.SetSession("login_nonce", nonce)
+	self.Data["login_nonce"] = nonce
+	self.Data["public_key"], _ = crypt.GetPublicKeyPEM()
 	self.Data["web_base_url"] = webBaseUrl
 	self.Data["version"] = server.GetVersion()
 	self.Data["year"] = server.GetCurrentYear()
@@ -51,8 +56,6 @@ func (self *LoginController) Index() {
 }
 
 func (self *LoginController) Verify() {
-	username := self.GetString("username")
-	password := self.GetString("password")
 	captchaOpen, _ := beego.AppConfig.Bool("open_captcha")
 	if captchaOpen {
 		if !cpt.VerifyReq(self.Ctx.Request) {
@@ -60,7 +63,26 @@ func (self *LoginController) Verify() {
 			self.ServeJSON()
 		}
 	}
-	if self.doLogin(username, password, true) {
+	pl, err := crypt.ParseLoginPayload(self.GetString("password"))
+	if err != nil {
+		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error"}
+		self.ServeJSON()
+		return
+	}
+	stored := self.GetSession("login_nonce")
+	self.DelSession("login_nonce")
+	if stored == nil || stored.(string) != pl.Nonce {
+		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "invalid nonce"}
+		self.ServeJSON()
+		return
+	}
+	now := time.Now().UnixMilli()
+	if pl.Timestamp < now-5*60*1000 || pl.Timestamp > now+60*1000 {
+		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired"}
+		self.ServeJSON()
+		return
+	}
+	if self.doLogin(self.GetString("username"), pl.Password, true) {
 		self.Data["json"] = map[string]interface{}{"status": 1, "msg": "login success"}
 	} else {
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "username or password incorrect"}
@@ -130,6 +152,10 @@ func (self *LoginController) doLogin(username, password string, explicit bool) b
 }
 func (self *LoginController) Register() {
 	if self.Ctx.Request.Method == "GET" {
+		nonce := crypt.GetRandomString(16)
+		self.SetSession("login_nonce", nonce)
+		self.Data["login_nonce"] = nonce
+		self.Data["public_key"], _ = crypt.GetPublicKeyPEM()
 		self.Data["web_base_url"] = beego.AppConfig.String("web_base_url")
 		self.Data["version"] = server.GetVersion()
 		self.Data["year"] = server.GetCurrentYear()
@@ -154,12 +180,31 @@ func (self *LoginController) Register() {
 				return
 			}
 		}
+		pl, err := crypt.ParseLoginPayload(self.GetString("password"))
+		if err != nil {
+			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error"}
+			self.ServeJSON()
+			return
+		}
+		stored := self.GetSession("login_nonce")
+		self.DelSession("login_nonce")
+		if stored == nil || stored.(string) != pl.Nonce {
+			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "invalid nonce"}
+			self.ServeJSON()
+			return
+		}
+		now := time.Now().UnixMilli()
+		if pl.Timestamp < now-5*60*1000 || pl.Timestamp > now+60*1000 {
+			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired"}
+			self.ServeJSON()
+			return
+		}
 		t := &file.Client{
 			Id:          int(file.GetDb().JsonDb.GetClientId()),
 			Status:      true,
 			Cnf:         &file.Config{},
 			WebUserName: self.GetString("username"),
-			WebPassword: self.GetString("password"),
+			WebPassword: pl.Password,
 			Flow:        &file.Flow{},
 		}
 		if err := file.GetDb().NewClient(t); err != nil {

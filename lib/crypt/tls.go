@@ -7,9 +7,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"net"
 	"os"
@@ -50,12 +53,71 @@ func GetCert() tls.Certificate {
 	return cert
 }
 
+func GetPublicKeyPEM() (string, error) {
+	if len(cert.Certificate) == 0 {
+		return "", fmt.Errorf("no certificate available")
+	}
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return "", fmt.Errorf("failed to parse certificate: %w", err)
+	}
+	pubDER, err := x509.MarshalPKIXPublicKey(leaf.PublicKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal public key: %w", err)
+	}
+	pemBlock := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
+	return string(pem.EncodeToMemory(pemBlock)), nil
+}
+
+func DecryptWithPrivateKey(base64Cipher string) ([]byte, error) {
+	// Decode base64
+	cipherBytes, err := base64.StdEncoding.DecodeString(base64Cipher)
+	if err != nil {
+		return nil, fmt.Errorf("base64 decode error: %w", err)
+	}
+	privKey, ok := cert.PrivateKey.(*rsa.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("private key is not RSA")
+	}
+	// Decrypt using PKCS#1 v1.5
+	plain, err := rsa.DecryptPKCS1v15(rand.Reader, privKey, cipherBytes)
+	if err != nil {
+		return nil, fmt.Errorf("RSA decrypt error: %w", err)
+	}
+	return plain, nil
+}
+
+func DecryptStringWithPrivateKey(base64Cipher string) (string, error) {
+	plain, err := DecryptWithPrivateKey(base64Cipher)
+	if err != nil {
+		return "", err
+	}
+	return string(plain), nil
+}
+
+type LoginPayload struct {
+	Nonce     string `json:"n"`
+	Timestamp int64  `json:"t"`
+	Password  string `json:"p"`
+}
+
+func ParseLoginPayload(base64Cipher string) (*LoginPayload, error) {
+	jsonStr, err := DecryptStringWithPrivateKey(base64Cipher)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt login payload: %w", err)
+	}
+	var lp LoginPayload
+	if err := json.Unmarshal([]byte(jsonStr), &lp); err != nil {
+		return nil, fmt.Errorf("unmarshal login payload: %w", err)
+	}
+	return &lp, nil
+}
+
 func GetCertFingerprint() []byte {
-	c := GetCert()
-	if len(c.Certificate) == 0 {
+	if len(cert.Certificate) == 0 {
 		return nil
 	}
-	sum := sha256.Sum256(c.Certificate[0])
+	sum := sha256.Sum256(cert.Certificate[0])
 	return sum[:]
 }
 

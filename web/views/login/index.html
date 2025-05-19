@@ -13,6 +13,7 @@
     <!-- Latest compiled and minified JavaScript -->
     <script src="{{.web_base_url}}/static/js/jquery-3.7.1.min.js"></script>
     <script src="{{.web_base_url}}/static/js/bootstrap.min.js"></script>
+    <script src="{{.web_base_url}}/static/js/jsencrypt.min.js"></script>
     <!-- Latest compiled and minified Locales -->
     <script src="{{.web_base_url}}/static/js/language.js?v={{.version}}" type="text/javascript"></script>
 </head>
@@ -78,26 +79,45 @@
 
     <script type="text/javascript">
         window.nps = {
-            "web_base_url": "{{.web_base_url}}",
-            "version": "{{.version}}"
+            web_base_url: "{{.web_base_url}}",
+            version: "{{.version}}",
+            publicKey: `{{.public_key}}`,
+            loginNonce: "{{.login_nonce}}"
+        };
+        function encryptWithRSA(plain) {
+            const crypt = new JSEncrypt();
+            crypt.setPublicKey(window.nps.publicKey);
+            return crypt.encrypt(plain);
         }
-
         function login() {
+            const data = {};
+            $("form").serializeArray().forEach(item => {
+                data[item.name] = item.value;
+            });
+            const ts = Date.now();
+            const payload = JSON.stringify({
+                n: window.nps.loginNonce,
+                t: ts,
+                p: data.password
+            });
+            data.password = encryptWithRSA(payload);
             $.ajax({
                 type: "POST",
-                url: "{{.web_base_url}}/login/verify",
-                data: $("form").serializeArray(),
+                url: window.nps.web_base_url + "/login/verify",
+                data: data,
                 success: function (res) {
                     if (res.status) {
                         showMsg(langreply(res.msg), 'success', 1000, function() {
-                            window.location.href = "{{.web_base_url}}/index/index"
-                        })
+                            window.location.href = window.nps.web_base_url + "/index/index";
+                        });
                     } else {
-                        showMsg(langreply(res.msg), 'error', 3000)
+                        showMsg(langreply(res.msg), 'error', 3000, function() {
+                            window.location.reload();
+                        });
                     }
                 }
-            })
-            return false
+            });
+            return false;
         }
     </script>
 </body>
