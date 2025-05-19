@@ -1,12 +1,16 @@
 package common
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"time"
 )
 
 var ConfPath string
+var StartTime = time.Now()
 
 // Get the currently selected configuration file directory
 // For non-Windows systems, select the /etc/nps as config directory if exist, or select ./
@@ -103,4 +107,28 @@ func GetConfigPath() string {
 		path = "conf/npc.conf"
 	}
 	return path
+}
+
+func GetRunTime() string {
+	totalSecs := int64(time.Since(StartTime).Seconds())
+	days := totalSecs / 86400
+	totalSecs %= 86400
+	hours := totalSecs / 3600
+	totalSecs %= 3600
+	mins := totalSecs / 60
+	secs := totalSecs % 60
+	parts := []string{}
+	if days > 0 {
+		parts = append(parts, fmt.Sprintf("%dd", days))
+	}
+	if hours > 0 {
+		parts = append(parts, fmt.Sprintf("%dh", hours))
+	}
+	if mins > 0 {
+		parts = append(parts, fmt.Sprintf("%dm", mins))
+	}
+	if secs > 0 || len(parts) == 0 {
+		parts = append(parts, fmt.Sprintf("%ds", secs))
+	}
+	return strings.Join(parts, " ")
 }

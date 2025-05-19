@@ -43,3 +43,11 @@ const (
 	ConnectionFailBytes = "HTTP/1.1 404 Not Found\r\n" +
 		"\r\n"
 )
+
+var DefaultPort = map[string]string{
+	"tcp": "8024",
+	"kcp": "8024",
+	"tls": "8026",
+	"ws":  "80",
+	"wss": "443",
+}

@@ -197,16 +197,16 @@
 		<en-US>Close</en-US>
 	</lang>
 	<lang id="word-commandaccessp2ps">
-		<zh-CN>访问端命令 (SOCKS 5)</zh-CN>
-		<en-US>Access Command (SOCKS 5)</en-US>
+		<zh-CN>访问端命令 (HTTP|Socks5)</zh-CN>
+		<en-US>Access Command (HTTP|Socks5)</en-US>
 	</lang>
 	<lang id="word-commandaccessp2pt">
 		<zh-CN>访问端命令 (透明代理)</zh-CN>
 		<en-US>Access Command (Transparent proxy)</en-US>
 	</lang>
 	<lang id="word-commandaccessp2p">
-		<zh-CN>访问端命令 (TCP)</zh-CN>
-		<en-US>Access Command (TCP)</en-US>
+		<zh-CN>访问端命令 (TCP|UDP)</zh-CN>
+		<en-US>Access Command (TCP|UDP)</en-US>
 	</lang>
 	<lang id="word-commandaccess">
 		<zh-CN>访问端命令</zh-CN>
@@ -239,6 +239,42 @@
 	<lang id="word-commandclient-wss">
 		<zh-CN>WSS 启动命令</zh-CN>
 		<en-US>WSS Command</en-US>
+	</lang>
+	<lang id="word-tcpport">
+		<zh-CN>TCP 端口</zh-CN>
+		<en-US>TCP Port</en-US>
+	</lang>
+	<lang id="word-kcpport">
+		<zh-CN>KCP 端口</zh-CN>
+		<en-US>KCP Port</en-US>
+	</lang>
+	<lang id="word-tlsport">
+		<zh-CN>TLS 端口</zh-CN>
+		<en-US>TLS Port</en-US>
+	</lang>
+	<lang id="word-wsport">
+		<zh-CN>WS 端口</zh-CN>
+		<en-US>WS Port</en-US>
+	</lang>
+	<lang id="word-wssport">
+		<zh-CN>WSS 端口</zh-CN>
+		<en-US>WSS Port</en-US>
+	</lang>
+	<lang id="word-tcpports">
+		<zh-CN>TCP / TLS 端口</zh-CN>
+		<en-US>TCP / TLS Port</en-US>
+	</lang>
+	<lang id="word-wsports">
+		<zh-CN>WS / WSS 端口</zh-CN>
+		<en-US>WS / WSS Port</en-US>
+	</lang>
+	<lang id="word-wspath">
+		<zh-CN>WebSocket 路径</zh-CN>
+		<en-US>WebSocket Path</en-US>
+	</lang>
+	<lang id="word-uptime">
+		<zh-CN>在线时间</zh-CN>
+		<en-US>Uptime</en-US>
 	</lang>
 	<lang id="word-compress">
 		<zh-CN>压缩</zh-CN>
@@ -294,7 +330,7 @@
 	</lang>
 	<lang id="word-false">
 		<zh-CN>否</zh-CN>
-		<en-US>Flase</en-US>
+		<en-US>False</en-US>
 	</lang>
 	<lang id="word-flowlimit">
 		<zh-CN>流量限制</zh-CN>
@@ -320,7 +356,11 @@
 	</lang>
 	<lang id="word-httpport">
 		<zh-CN>HTTP 端口</zh-CN>
-		<en-US>HTTP port</en-US>
+		<en-US>HTTP Port</en-US>
+	</lang>
+	<lang id="word-httpports">
+		<zh-CN>HTTP / HTTPS 端口</zh-CN>
+		<en-US>HTTP / HTTPS Port</en-US>
 	</lang>
 	<lang id="word-httpscert">
 		<zh-CN>HTTPS 证书（pem格式）</zh-CN>
@@ -440,7 +480,11 @@
 	</lang>
 	<lang id="word-p2pport">
 		<zh-CN>P2P 端口</zh-CN>
-		<en-US>P2P port</en-US>
+		<en-US>P2P Port</en-US>
+	</lang>
+	<lang id="word-p2paddr">
+		<zh-CN>P2P 地址</zh-CN>
+		<en-US>P2P Address</en-US>
 	</lang>
 	<lang id="word-password">
 		<zh-CN>密码</zh-CN>
@@ -526,6 +570,14 @@
 		<zh-CN>服务端 IP</zh-CN>
 		<en-US>Server IP</en-US>
 	</lang>
+	<lang id="word-serveripv4">
+		<zh-CN>服务端 IPv4</zh-CN>
+		<en-US>Server IPv4</en-US>
+	</lang>
+	<lang id="word-serveripv6">
+		<zh-CN>服务端 IPv6</zh-CN>
+		<en-US>Server IPv6</en-US>
+	</lang>
 	<lang id="word-serverport">
 		<zh-CN>服务端端口(留空自动生成)</zh-CN>
 		<en-US>Server Port</en-US>
@@ -533,6 +585,10 @@
 	<lang id="word-serverversion">
 		<zh-CN>服务端版本</zh-CN>
 		<en-US>Server Version</en-US>
+	</lang>
+	<lang id="word-minsupportversion">
+		<zh-CN>最低支持版本</zh-CN>
+		<en-US>Minimum Supported Version</en-US>
 	</lang>
 	<lang id="word-show">
 		<zh-CN>查看</zh-CN>

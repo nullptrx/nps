@@ -634,6 +634,7 @@ func DelClientConnect(clientId int) {
 func GetDashboardData() map[string]interface{} {
 	data := make(map[string]interface{})
 	data["version"] = version.VERSION
+	data["minVersion"] = GetMinVersion()
 	data["hostCount"] = common.GeSynctMapLen(file.GetDb().JsonDb.Hosts)
 	data["clientCount"] = common.GeSynctMapLen(file.GetDb().JsonDb.Clients)
 	if beego.AppConfig.String("public_vkey") != "" { //remove public vkey
@@ -697,8 +698,13 @@ func GetDashboardData() map[string]interface{} {
 	data["flowStoreInterval"] = beego.AppConfig.String("flow_store_interval")
 	//data["serverIp"] = beego.AppConfig.String("p2p_ip")
 	data["serverIp"] = common.GetServerIp()
+	data["serverIpv4"] = common.GetOutboundIP().String()
+	data["serverIpv6"] = common.GetOutboundIPv6().String()
+	data["p2pIp"] = beego.AppConfig.String("p2p_ip")
 	data["p2pPort"] = beego.AppConfig.String("p2p_port")
+	data["p2pAddr"] = common.JoinHostPort(common.GetServerIp(), beego.AppConfig.String("p2p_port"))
 	data["logLevel"] = beego.AppConfig.String("log_level")
+	data["upTime"] = common.GetRunTime()
 	tcpCount := 0
 
 	file.GetDb().JsonDb.Clients.Range(func(key, value interface{}) bool {
@@ -743,6 +749,13 @@ func GetDashboardData() map[string]interface{} {
 // 获取服务端版本号
 func GetVersion() string {
 	return version.VERSION
+}
+
+func GetMinVersion() string {
+	if bridge.ServerSecureMode {
+		return version.GetLatest()
+	}
+	return version.GetVersion(0)
 }
 
 // 获取年份

@@ -236,6 +236,17 @@ func VerifyTLS(connection net.Conn, host string) (fingerprint []byte, verified b
 	return fingerprint, verified
 }
 
+func EnsurePort(server string, tp string) string {
+	_, port, err := net.SplitHostPort(server)
+	if err == nil && port != "" {
+		return server
+	}
+	if p, ok := common.DefaultPort[tp]; ok {
+		return net.JoinHostPort(server, p)
+	}
+	return server
+}
+
 // Create a new connection with the server and verify it
 func NewConn(tp string, vkey string, server string, connType string, proxyUrl string) (*conn.Conn, error) {
 	//logs.Debug("NewConn: %s %s %s %s %s", tp, vkey, server, connType, proxyUrl)
@@ -250,6 +261,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 	timeout := time.Second * 10
 	dialer := net.Dialer{Timeout: timeout}
 	server, path = common.SplitServerAndPath(server)
+	server = EnsurePort(server, tp)
 	host := common.GetIpByAddr(server)
 	if common.IsDomain(host) {
 		host = ""

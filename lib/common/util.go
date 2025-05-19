@@ -847,6 +847,14 @@ func GetOutboundIP() net.IP {
 	return localAddr.IP
 }
 
+func GetOutboundIPv6() net.IP {
+	tmpConn, err := GetLocalUdp6Addr()
+	if err == nil {
+		return tmpConn.LocalAddr().(*net.UDPAddr).IP
+	}
+	return nil
+}
+
 func IsValidIP(ip string) bool {
 	parsedIP := net.ParseIP(ip)
 	return parsedIP != nil
@@ -929,6 +937,10 @@ func DecodeIP(data []byte) net.IP {
 	default:
 		return nil
 	}
+}
+
+func JoinHostPort(host string, port string) string {
+	return net.JoinHostPort(host, port)
 }
 
 func RandomBytes(maxLen int) ([]byte, error) {

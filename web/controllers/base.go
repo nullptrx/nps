@@ -13,6 +13,7 @@ import (
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/server"
+	"github.com/djylb/nps/server/connection"
 )
 
 type BaseController struct {
@@ -84,30 +85,18 @@ func (s *BaseController) display(tpl ...string) {
 		tplname = s.controllerName + "/" + s.actionName + ".html"
 	}
 	ip := s.Ctx.Request.Host
-	s.Data["ip"] = common.GetIpByAddr(ip)
-	bridgeType := beego.AppConfig.String("bridge_type")
-	if bridgeType == "both" {
-		bridgeType = "tcp"
-	}
-	s.Data["bridgeType"] = bridgeType
+	s.Data["bridgeType"], s.Data["addr"], s.Data["ip"], s.Data["p"] = GetBestBridge(ip)
 	if common.IsWindows() {
 		s.Data["win"] = ".exe"
 	}
-
-	s.Data["p"] = strconv.Itoa(server.Bridge.TunnelPort)
-
 	if bridge.ServerTcpEnable {
-		s.Data["tcp_p"] = beego.AppConfig.DefaultString("bridge_tcp_port", beego.AppConfig.String("bridge_port"))
+		s.Data["tcp_p"] = connection.BridgeTcpPort
 	}
 	if bridge.ServerKcpEnable {
-		s.Data["kcp_p"] = beego.AppConfig.DefaultString("bridge_kcp_port", beego.AppConfig.String("bridge_port"))
+		s.Data["kcp_p"] = connection.BridgeKcpPort
 	}
 	if bridge.ServerTlsEnable {
-		tlsPort := strconv.Itoa(beego.AppConfig.DefaultInt("bridge_tls_port", 8025))
-		s.Data["tls_p"] = tlsPort
-		s.Data["p1"] = strconv.Itoa(server.Bridge.TunnelPort) + " / " + tlsPort
-	} else {
-		s.Data["p1"] = strconv.Itoa(server.Bridge.TunnelPort)
+		s.Data["tls_p"] = connection.BridgeTlsPort
 	}
 	if wsPath := beego.AppConfig.String("bridge_path"); wsPath != "" {
 		s.Data["ws_path"] = wsPath
@@ -118,8 +107,8 @@ func (s *BaseController) display(tpl ...string) {
 			s.Data["wss_p"] = beego.AppConfig.String("bridge_wss_port")
 		}
 	}
-
 	s.Data["proxyPort"] = beego.AppConfig.String("hostPort")
+
 	s.Layout = "public/layout.html"
 	s.TplName = tplname
 }
@@ -260,4 +249,36 @@ func (s *BaseController) CheckUserAuth() {
 			}
 		}
 	}
+}
+
+func GetBestBridge(ip string) (bridgeType, bridgeAddr, bridgeIp, bridgePort string) {
+	bridgeIp = beego.AppConfig.DefaultString("bridge_addr", common.GetIpByAddr(ip))
+	bridgeType = beego.AppConfig.String("bridge_type")
+	bridgePort = strconv.Itoa(server.Bridge.TunnelPort)
+	bridgeAddr = bridgeIp + ":" + bridgePort
+	if bridgeType == "both" {
+		bridgeType = "tcp"
+	}
+	if bridge.ServerTlsEnable {
+		bridgeType = "tls"
+		bridgePort = connection.BridgeTlsPort
+		bridgeAddr = bridgeIp + ":" + bridgePort
+	} else if bridge.ServerWssEnable {
+		bridgeType = "wss"
+		bridgePort = connection.BridgeWssPort
+		bridgeAddr = bridgeIp + ":" + bridgePort + connection.BridgePath
+	} else if bridge.ServerTcpEnable {
+		bridgeType = "tcp"
+		bridgePort = connection.BridgeTcpPort
+		bridgeAddr = bridgeIp + ":" + bridgePort
+	} else if bridge.ServerKcpEnable {
+		bridgeType = "kcp"
+		bridgePort = connection.BridgeKcpPort
+		bridgeAddr = bridgeIp + ":" + bridgePort
+	} else if bridge.ServerWsEnable {
+		bridgeType = "ws"
+		bridgePort = connection.BridgeWsPort
+		bridgeAddr = bridgeIp + ":" + bridgePort + connection.BridgePath
+	}
+	return
 }

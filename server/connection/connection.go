@@ -1,13 +1,12 @@
 package connection
 
 import (
-	"net"
-	"os"
-	"strconv"
-
 	"github.com/beego/beego"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/pmux"
+	"net"
+	"os"
+	"strconv"
 )
 
 var pMux *pmux.PortMux

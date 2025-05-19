@@ -1,16 +1,94 @@
 <div class="wrapper wrapper-content">
+    {{if eq false .isAdmin}}
     <div class="row">
         <div class="col-lg-3">
             <div class="ibox float-e-margins">
                 <div class="ibox-title">
-                    <h5 langtag="word-connectionport"></h5>
+                    <h5 langtag="word-tcpports"></h5>
                 </div>
                 <div class="ibox-content">
-                    <h1 class="no-margins">{{.p1}}</h1>
+                    <h1 class="no-margins">{{or .tcp_p "0"}} / {{or .tls_p "0"}}</h1>
                 </div>
             </div>
         </div>
-        {{if eq true .isAdmin}}
+        <div class="col-lg-3">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5 langtag="word-kcpport"></h5>
+                </div>
+                <div class="ibox-content">
+                    <h1 class="no-margins">{{or .kcp_p "0"}}</h1>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5 langtag="word-wsports"></h5>
+                </div>
+                <div class="ibox-content">
+                    <h1 class="no-margins">{{or .ws_p "0"}} / {{or .wss_p "0"}}</h1>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5 langtag="word-wspath"></h5>
+                </div>
+                <div class="ibox-content">
+                    <h1 class="no-margins">{{or .ws_path "/ws"}}</h1>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-3">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5 langtag="word-serverip"></h5>
+                </div>
+                <div class="ibox-content">
+                    <h1 class="no-margins">{{.ip}}</h1>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5 langtag="word-serverversion"></h5>
+                </div>
+                <div class="ibox-content">
+                    <h1 class="no-margins">{{.data.version}}</h1>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5 langtag="word-minsupportversion"></h5>
+                </div>
+                <div class="ibox-content">
+                    <h1 class="no-margins">{{.data.minVersion}}</h1>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5 langtag="word-iprestriction"></h5>
+                </div>
+                <div class="ibox-content">
+                    <h1 class="no-margins" langtag="word-{{or .data.ipLimit "false"}}"></h1>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{end}}
+
+    {{if eq true .isAdmin}}
+    <div class="row">
         <div class="col-lg-3">
             <div class="ibox float-e-margins">
                 <div class="ibox-title">
@@ -44,9 +122,17 @@
                 </div>
             </div>
         </div>
-        {{end}}
+        <div class="col-lg-3">
+            <div class="ibox float-e-margins">
+                <div class="ibox-title">
+                    <h5 langtag="word-uptime"></h5>
+                </div>
+                <div class="ibox-content">
+                    <h1 class="no-margins">{{or .data.upTime ""}}</h1>
+                </div>
+            </div>
+        </div>
     </div>
-
 
     <div class="row">
         <div class="col-lg-6">
@@ -67,31 +153,21 @@
                     <ul class="list-group">
                         <li class="list-group-item">
                             <div class="row">
-                                <div class="col-sm-6">
+                                <div class="col-sm-2">
                                     <strong langtag="word-bridgingmode"></strong>
                                 </div>
-                                <div class="col-sm-6 text-right">
-                                    <strong>{{.data.bridgeType}}</strong>
+                                <div class="col-sm-10 text-right">
+                                    <strong>{{if index . "tcp_p"}}TCP:{{.tcp_p}} {{end}}{{if index . "kcp_p"}}KCP:{{.kcp_p}} {{end}}{{if index . "tls_p"}}TLS:{{.tls_p}} {{end}}{{if index . "ws_p"}}WS:{{.ws_p}} {{end}}{{if index . "wss_p"}}WSS:{{.wss_p}} {{end}}{{if index . "ws_path"}}Path:{{.ws_path}}{{end}}</strong>
                                 </div>
                             </div>
                         </li>
                         <li class="list-group-item">
                             <div class="row">
                                 <div class="col-sm-6">
-                                    <strong langtag="word-httpport"></strong>
+                                    <strong langtag="word-httpports"></strong>
                                 </div>
                                 <div class="col-sm-6 text-right">
-                                    <strong>{{.data.httpProxyPort}}</strong>
-                                </div>
-                            </div>
-                        </li>
-                        <li class="list-group-item">
-                            <div class="row">
-                                <div class="col-sm-6">
-                                    <strong langtag="word-httpsport"></strong>
-                                </div>
-                                <div class="col-sm-6 text-right">
-                                    <strong>{{.data.httpsProxyPort}}</strong>
+                                    <strong>{{or .data.httpProxyPort "0"}} / {{or .data.httpsProxyPort "0"}}</strong>
                                 </div>
                             </div>
                         </li>
@@ -101,7 +177,7 @@
                                     <strong langtag="word-iprestriction"></strong>
                                 </div>
                                 <div class="col-sm-6 text-right">
-                                    <strong langtag="word-{{.data.ipLimit}}"></strong>
+                                    <strong langtag="word-{{or .data.ipLimit "false"}}"></strong>
                                 </div>
                             </div>
                         </li>
@@ -127,21 +203,21 @@
                         </li>
                         <li class="list-group-item ">
                             <div class="row">
-                                <div class="col-sm-6">
-                                    <strong langtag="word-p2pport"></strong>
+                                <div class="col-sm-4">
+                                    <strong langtag="word-p2paddr"></strong>
                                 </div>
-                                <div class="col-sm-6 text-right">
-                                    <strong>{{.data.p2pPort}}</strong>
+                                <div class="col-sm-8 text-right">
+                                    <strong>{{.data.p2pAddr}}</strong>
                                 </div>
                             </div>
                         </li>
                         <li class="list-group-item ">
                             <div class="row">
-                                <div class="col-sm-6">
+                                <div class="col-sm-2">
                                     <strong langtag="word-serverip"></strong>
                                 </div>
-                                <div class="col-sm-6 text-right">
-                                    <strong>{{.data.serverIp}}</strong>
+                                <div class="col-sm-10 text-right">
+                                    <strong>{{.data.p2pIp}} | {{.data.serverIpv4}} | {{.data.serverIpv6}}</strong>
                                 </div>
                             </div>
                         </li>
@@ -151,7 +227,7 @@
                                     <strong langtag="word-serverversion"></strong>
                                 </div>
                                 <div class="col-sm-6 text-right">
-                                    <strong>{{.data.version}}</strong>
+                                    <strong>{{.data.version}} ({{.data.minVersion}})</strong>
                                 </div>
                             </div>
                         </li>
@@ -159,7 +235,7 @@
                 </div>
             </div>
         </div>
-        {{if eq true .isAdmin}}
+
         <div class="col-lg-6">
             <div class="ibox float-e-margins">
                 <div class="ibox-title">
