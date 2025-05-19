@@ -143,9 +143,10 @@ npc start
   - 修复XSS漏洞
   - 对齐网页文字和图标
   - 优化移动设备页面显示
-  - TCP状态图标可点击
+  - TCP列表状态图标可点击访问网页
   - 调整列表显示题目（在右上角配置）
-
+  - 隧道页面点击客户端ID复制vkey
+    
 - **v0.29.0 (2025-05-19)**
   - 合并HTTP代理和Socks5代理为混合代理
   - 美化Web界面 （参考 [#76](https://github.com/djylb/nps/issues/76) 感谢 [arch3rPro](https://github.com/arch3rPro)）
