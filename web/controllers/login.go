@@ -56,22 +56,22 @@ func (self *LoginController) Index() {
 }
 
 func (self *LoginController) Verify() {
+	nonce := crypt.GetRandomString(16)
+	stored := self.GetSession("login_nonce")
+	self.SetSession("login_nonce", nonce)
 	captchaOpen, _ := beego.AppConfig.Bool("open_captcha")
 	if captchaOpen {
 		if !cpt.VerifyReq(self.Ctx.Request) {
-			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "the verification code is wrong, please get it again and try again"}
+			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "the verification code is wrong, please get it again and try again", "nonce": nonce}
 			self.ServeJSON()
 		}
 	}
 	pl, err := crypt.ParseLoginPayload(self.GetString("password"))
 	if err != nil {
-		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error"}
+		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error", "nonce": nonce}
 		self.ServeJSON()
 		return
 	}
-	nonce := crypt.GetRandomString(16)
-	stored := self.GetSession("login_nonce")
-	self.SetSession("login_nonce", nonce)
 	if stored == nil || stored.(string) != pl.Nonce {
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "invalid nonce", "nonce": nonce}
 		self.ServeJSON()
@@ -169,28 +169,28 @@ func (self *LoginController) Register() {
 			self.ServeJSON()
 			return
 		}
+		nonce := crypt.GetRandomString(16)
+		stored := self.GetSession("login_nonce")
+		self.SetSession("login_nonce", nonce)
 		if self.GetString("username") == "" || self.GetString("password") == "" || self.GetString("username") == beego.AppConfig.String("web_username") {
-			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "please check your input"}
+			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "please check your input", "nonce": nonce}
 			self.ServeJSON()
 			return
 		}
 		captchaOpen, _ := beego.AppConfig.Bool("open_captcha")
 		if captchaOpen {
 			if !cpt.VerifyReq(self.Ctx.Request) {
-				self.Data["json"] = map[string]interface{}{"status": 0, "msg": "the verification code is wrong, please get it again and try again"}
+				self.Data["json"] = map[string]interface{}{"status": 0, "msg": "the verification code is wrong, please get it again and try again", "nonce": nonce}
 				self.ServeJSON()
 				return
 			}
 		}
 		pl, err := crypt.ParseLoginPayload(self.GetString("password"))
 		if err != nil {
-			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error"}
+			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error", "nonce": nonce}
 			self.ServeJSON()
 			return
 		}
-		nonce := crypt.GetRandomString(16)
-		stored := self.GetSession("login_nonce")
-		self.SetSession("login_nonce", nonce)
 		if stored == nil || stored.(string) != pl.Nonce {
 			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "invalid nonce", "nonce": nonce}
 			self.ServeJSON()
