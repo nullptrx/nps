@@ -29,19 +29,19 @@ nps.exe -conf_path=D:\test\nps
 
 ---
 ## 2. Web 管理面板相关
-| 名称              | 说明                                    |
-|-----------------|---------------------------------------|
-| `web_port`      | Web 管理端口（默认 `8081`）                   |
-| `web_ip`        | Web 管理界面监听地址（默认 `0.0.0.0`，监听所有 IP）    |
-| `web_host`      | Web 界面域名（默认 `a.o.com`，端口复用时访问管理页面的地址） |
-| `web_username`  | Web 管理员账号（默认 `admin`）                 |
-| `web_password`  | Web 管理员密码（默认 `123`，建议修改！）             |
-| `web_open_ssl`  | 是否启用 Web 面板 HTTPS（默认 `false`，启用需配置证书） |
-| `web_cert_file` | Web HTTPS 证书文件路径                      |
-| `web_key_file`  | Web HTTPS 证书密钥文件路径                    |
-| `web_base_url`  | Web 管理主路径（默认 `/`，适用于 Web 反向代理时调整路径）   |
-| `open_captcha`  | 是否启用验证码                               |
-| `totp_secret`   | 两步验证密钥 开启后 `web_password` 失效          |
+| 名称              | 说明                                     |
+|-----------------|----------------------------------------|
+| `web_port`      | Web 管理端口（默认 `8081`）                    |
+| `web_ip`        | Web 管理界面监听地址（默认 `0.0.0.0`，监听所有 IP）     |
+| `web_host`      | Web 界面域名（默认 `a.o.com`，端口复用时访问管理页面的地址）  |
+| `web_username`  | Web 管理员账号（默认 `admin`）                  |
+| `web_password`  | Web 管理员密码（默认 `123`，建议修改！）              |
+| `web_open_ssl`  | 是否启用 Web 面板 HTTPS（默认 `false`，启用需配置证书）  |
+| `web_cert_file` | Web HTTPS 证书文件路径                       |
+| `web_key_file`  | Web HTTPS 证书密钥文件路径                     |
+| `web_base_url`  | Web 管理主路径（默认 `/`，适用于 Web 反向代理时调整路径）    |
+| `open_captcha`  | 是否启用验证码                                |
+| `totp_secret`   | 两步验证密钥 开启后 `web_password` 失效 使用动态验证码登录 |
 
 ---
 
