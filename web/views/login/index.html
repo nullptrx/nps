@@ -115,6 +115,13 @@
                             if (res.nonce) {
                                 window.nps.loginNonce = res.nonce;
                             }
+                            {{if eq true .captcha_open}}
+                            var $img = $('.captcha-img');
+                            if ($img.length) {
+                                $img.trigger('click');
+                            }
+                            $('input[name="captcha"]').val('');
+                            {{end}}
                         });
                     }
                 }
