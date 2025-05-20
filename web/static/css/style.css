@@ -25,7 +25,7 @@
     --nav-text-color: #2c2c2c;
     --nav-hover-color: #535d6d;
     --icon-saturate: 0.8;
-    --icon-brightness: 0.8;  
+    --icon-brightness: 0.8;
 }
 
 html[theme="dark-mode"] {
@@ -7435,6 +7435,7 @@ body.mini-navbar.fixed-sidebar .logo-element {
     .login-card .login-header {
         padding: 1.5rem;
     }
+
     .login-card .login-header h1 {
         font-size: 1.25rem;
     }
@@ -7442,6 +7443,7 @@ body.mini-navbar.fixed-sidebar .logo-element {
     .login-card .login-body {
         padding: 1.5rem;
     }
+
     .login-card .form-control {
         height: 3.5rem;
         font-size: 1rem;
