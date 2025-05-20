@@ -112,7 +112,9 @@
                         });
                     } else {
                         showMsg(langreply(res.msg), 'error', 3000, function() {
-                            window.location.reload();
+                            if (res.nonce) {
+                                window.nps.loginNonce = res.nonce;
+                            }
                         });
                     }
                 }

@@ -69,23 +69,25 @@ func (self *LoginController) Verify() {
 		self.ServeJSON()
 		return
 	}
+	nonce := crypt.GetRandomString(16)
 	stored := self.GetSession("login_nonce")
-	self.DelSession("login_nonce")
+	self.SetSession("login_nonce", nonce)
 	if stored == nil || stored.(string) != pl.Nonce {
-		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "invalid nonce"}
+		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "invalid nonce", "nonce": nonce}
 		self.ServeJSON()
 		return
 	}
 	now := time.Now().UnixMilli()
 	if pl.Timestamp < now-5*60*1000 || pl.Timestamp > now+60*1000 {
-		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired"}
+		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired", "nonce": nonce}
 		self.ServeJSON()
 		return
 	}
 	if self.doLogin(self.GetString("username"), pl.Password, true) {
+		self.DelSession("login_nonce")
 		self.Data["json"] = map[string]interface{}{"status": 1, "msg": "login success"}
 	} else {
-		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "username or password incorrect"}
+		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "username or password incorrect", "nonce": nonce}
 	}
 	self.ServeJSON()
 }
@@ -186,16 +188,17 @@ func (self *LoginController) Register() {
 			self.ServeJSON()
 			return
 		}
+		nonce := crypt.GetRandomString(16)
 		stored := self.GetSession("login_nonce")
-		self.DelSession("login_nonce")
+		self.SetSession("login_nonce", nonce)
 		if stored == nil || stored.(string) != pl.Nonce {
-			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "invalid nonce"}
+			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "invalid nonce", "nonce": nonce}
 			self.ServeJSON()
 			return
 		}
 		now := time.Now().UnixMilli()
 		if pl.Timestamp < now-5*60*1000 || pl.Timestamp > now+60*1000 {
-			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired"}
+			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired", "nonce": nonce}
 			self.ServeJSON()
 			return
 		}
@@ -208,8 +211,9 @@ func (self *LoginController) Register() {
 			Flow:        &file.Flow{},
 		}
 		if err := file.GetDb().NewClient(t); err != nil {
-			self.Data["json"] = map[string]interface{}{"status": 0, "msg": err.Error()}
+			self.Data["json"] = map[string]interface{}{"status": 0, "msg": err.Error(), "nonce": nonce}
 		} else {
+			self.DelSession("login_nonce")
 			self.Data["json"] = map[string]interface{}{"status": 1, "msg": "register success"}
 		}
 		self.ServeJSON()
