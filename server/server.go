@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/beego/beego"
@@ -107,6 +108,7 @@ func StartNewServer(bridgePort int, cnf *file.Tunnel, bridgeType string, bridgeD
 	}
 	go DealBridgeTask()
 	go dealClientFlow()
+	InitDashboardData()
 	if svr := NewMode(Bridge, cnf); svr != nil {
 		if err := svr.Start(); err != nil {
 			logs.Error("%v", err)
@@ -536,7 +538,6 @@ func GetClientList(start, length int, search, sortField, order string, clientId 
 
 func dealClientData() {
 	//logs.Info("dealClientData.........")
-
 	file.GetDb().JsonDb.Clients.Range(func(key, value interface{}) bool {
 		v := value.(*file.Client)
 		if vv, ok := Bridge.Client.Load(v.Id); ok {
@@ -561,34 +562,28 @@ func dealClientData() {
 		} else {
 			v.IsConnect = false
 		}
-		//v.Flow.InletFlow = 0
-		//v.Flow.ExportFlow = 0
-		//if len(file.GetDb().JsonDb.Hosts) == 0 {
-		//
-		//}
-		//var inflow int64 = 0
-		//var outflow int64 = 0
-		//file.GetDb().JsonDb.Hosts.Range(func(key, value interface{}) bool {
-		//	h := value.(*file.Host)
-		//	if h.Client.Id == v.Id {
-		//		inflow  += h.Flow.InletFlow
-		//		outflow += h.Flow.ExportFlow
-		//	}
-		//	return true
-		//})
-		//file.GetDb().JsonDb.Tasks.Range(func(key, value interface{}) bool {
-		//	t := value.(*file.Tunnel)
-		//	if t.Client.Id == v.Id {
-		//		inflow  += t.Flow.InletFlow
-		//		outflow += t.Flow.ExportFlow
-		//	}
-		//	return true
-		//})
-		//
-		//if inflow >0 || outflow >0{
-		//	v.Flow.InletFlow = inflow
-		//	v.Flow.ExportFlow = outflow
-		//}
+		v.InletFlow = 0
+		v.ExportFlow = 0
+		return true
+	})
+	file.GetDb().JsonDb.Hosts.Range(func(key, value interface{}) bool {
+		h := value.(*file.Host)
+		c, err := file.GetDb().GetClient(h.Client.Id)
+		if err != nil {
+			return true
+		}
+		c.InletFlow += h.Flow.InletFlow
+		c.ExportFlow += h.Flow.ExportFlow
+		return true
+	})
+	file.GetDb().JsonDb.Tasks.Range(func(key, value interface{}) bool {
+		t := value.(*file.Tunnel)
+		c, err := file.GetDb().GetClient(t.Client.Id)
+		if err != nil {
+			return true
+		}
+		c.InletFlow += t.Flow.InletFlow
+		c.ExportFlow += t.Flow.ExportFlow
 		return true
 	})
 	return
@@ -631,7 +626,104 @@ func DelClientConnect(clientId int) {
 	Bridge.DelClient(clientId)
 }
 
-func GetDashboardData() map[string]interface{} {
+var (
+	// Cache
+	cacheMu         sync.RWMutex
+	dashboardCache  map[string]interface{}
+	lastRefresh     time.Time
+	lastFullRefresh time.Time
+
+	// Net IO
+	samplerOnce    sync.Once
+	lastBytesSent  uint64
+	lastBytesRecv  uint64
+	lastSampleTime time.Time
+	ioSendRate     atomic.Value // float64
+	ioRecvRate     atomic.Value // float64
+)
+
+func startSpeedSampler() {
+	samplerOnce.Do(func() {
+		if io1, _ := net.IOCounters(false); len(io1) > 0 {
+			lastBytesSent = io1[0].BytesSent
+			lastBytesRecv = io1[0].BytesRecv
+		}
+		lastSampleTime = time.Now()
+
+		go func() {
+			ticker := time.NewTicker(time.Second)
+			for now := range ticker.C {
+				if io2, _ := net.IOCounters(false); len(io2) > 0 {
+					sent := io2[0].BytesSent
+					recv := io2[0].BytesRecv
+					elapsed := now.Sub(lastSampleTime).Seconds()
+
+					// calculate bytes/sec
+					rateSent := float64(sent-lastBytesSent) / elapsed
+					rateRecv := float64(recv-lastBytesRecv) / elapsed
+
+					ioSendRate.Store(rateSent)
+					ioRecvRate.Store(rateRecv)
+
+					lastBytesSent = sent
+					lastBytesRecv = recv
+					lastSampleTime = now
+				}
+			}
+		}()
+	})
+}
+
+func InitDashboardData() {
+	startSpeedSampler()
+	GetDashboardData(true)
+	return
+}
+
+func GetDashboardData(force bool) map[string]interface{} {
+	cacheMu.RLock()
+	cached := dashboardCache
+	lastR := lastRefresh
+	lastFR := lastFullRefresh
+	cacheMu.RUnlock()
+	if cached != nil && !force && time.Since(lastFR) < 5*time.Second {
+		if time.Since(lastR) < 1*time.Second {
+			return cached
+		}
+		cached["upTime"] = common.GetRunTime()
+		tcpCount := 0
+		file.GetDb().JsonDb.Clients.Range(func(key, value interface{}) bool {
+			tcpCount += int(value.(*file.Client).NowConn)
+			return true
+		})
+		cached["tcpCount"] = tcpCount
+		cpuPercet, _ := cpu.Percent(0, true)
+		var cpuAll float64
+		for _, v := range cpuPercet {
+			cpuAll += v
+		}
+		loads, _ := load.Avg()
+		cached["load"] = loads.String()
+		cached["cpu"] = math.Round(cpuAll / float64(len(cpuPercet)))
+		swap, _ := mem.SwapMemory()
+		cached["swap_mem"] = math.Round(swap.UsedPercent)
+		vir, _ := mem.VirtualMemory()
+		cached["virtual_mem"] = math.Round(vir.UsedPercent)
+		conn, _ := net.ProtoCounters(nil)
+		if v, ok := ioSendRate.Load().(float64); ok {
+			cached["io_send"] = v
+		}
+		if v, ok := ioRecvRate.Load().(float64); ok {
+			cached["io_recv"] = v
+		}
+		for _, v := range conn {
+			cached[v.Protocol] = v.Stats["CurrEstab"]
+		}
+		cacheMu.RLock()
+		lastRefresh = time.Now()
+		cacheMu.RUnlock()
+		return cached
+	}
 	data := make(map[string]interface{})
 	data["version"] = version.VERSION
 	data["minVersion"] = GetMinVersion()
@@ -648,8 +740,16 @@ func GetDashboardData() map[string]interface{} {
 		if v.IsConnect {
 			c += 1
 		}
-		in += v.Flow.InletFlow
-		out += v.Flow.ExportFlow
+		clientIn := v.Flow.InletFlow - (v.InletFlow + v.ExportFlow)
+		if clientIn < 0 {
+			clientIn = 0
+		}
+		clientOut := v.Flow.ExportFlow - (v.InletFlow + v.ExportFlow)
+		if clientOut < 0 {
+			clientOut = 0
+		}
+		in += v.InletFlow + clientIn/2
+		out += v.ExportFlow + clientOut/2
 		return true
 	})
 	data["clientOnlineCount"] = c
@@ -680,7 +780,6 @@ func GetDashboardData() map[string]interface{} {
 		}
 		return true
 	})
-
 	data["tcpC"] = tcp
 	data["udpCount"] = udp
 	data["socks5Count"] = socks5
@@ -696,7 +795,6 @@ func GetDashboardData() map[string]interface{} {
 	data["httpsProxyPort"] = beego.AppConfig.String("https_proxy_port")
 	data["ipLimit"] = beego.AppConfig.String("ip_limit")
 	data["flowStoreInterval"] = beego.AppConfig.String("flow_store_interval")
-	//data["serverIp"] = beego.AppConfig.String("p2p_ip")
 	data["serverIp"] = common.GetServerIp()
 	data["serverIpv4"] = common.GetOutboundIP().String()
 	data["serverIpv6"] = common.GetOutboundIPv6().String()
@@ -705,8 +803,9 @@ func GetDashboardData() map[string]interface{} {
 	data["p2pAddr"] = common.JoinHostPort(common.GetServerIp(), beego.AppConfig.String("p2p_port"))
 	data["logLevel"] = beego.AppConfig.String("log_level")
 	data["upTime"] = common.GetRunTime()
+	data["upSecs"] = common.GetRunSecs()
+	data["startTime"] = common.GetStartTime()
 	tcpCount := 0
-
 	file.GetDb().JsonDb.Clients.Range(func(key, value interface{}) bool {
 		tcpCount += int(value.(*file.Client).NowConn)
 		return true
@@ -725,12 +824,11 @@ func GetDashboardData() map[string]interface{} {
 	vir, _ := mem.VirtualMemory()
 	data["virtual_mem"] = math.Round(vir.UsedPercent)
 	conn, _ := net.ProtoCounters(nil)
-	io1, _ := net.IOCounters(false)
-	time.Sleep(time.Millisecond * 500)
-	io2, _ := net.IOCounters(false)
-	if len(io2) > 0 && len(io1) > 0 {
-		data["io_send"] = (io2[0].BytesSent - io1[0].BytesSent) * 2
-		data["io_recv"] = (io2[0].BytesRecv - io1[0].BytesRecv) * 2
+	if v, ok := ioSendRate.Load().(float64); ok {
+		data["io_send"] = v
+	}
+	if v, ok := ioRecvRate.Load().(float64); ok {
+		data["io_recv"] = v
 	}
 	for _, v := range conn {
 		data[v.Protocol] = v.Stats["CurrEstab"]
@@ -743,6 +841,11 @@ func GetDashboardData() map[string]interface{} {
 			data["sys"+strconv.Itoa(i+1)] = tool.ServerStatus[i*fg]
 		}
 	}
+	cacheMu.RLock()
+	dashboardCache = data
+	lastRefresh = time.Now()
+	lastFullRefresh = time.Now()
+	cacheMu.RUnlock()
 	return data
 }
 

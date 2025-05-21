@@ -189,6 +189,24 @@ func clearClientStatus(c *file.Client, name string) {
 	case "flow":
 		c.Flow.ExportFlow = 0
 		c.Flow.InletFlow = 0
+		c.ExportFlow = 0
+		c.InletFlow = 0
+		file.GetDb().JsonDb.Hosts.Range(func(key, value interface{}) bool {
+			h := value.(*file.Host)
+			if h.Client.Id == c.Id {
+				h.Flow.InletFlow = 0
+				h.Flow.ExportFlow = 0
+			}
+			return true
+		})
+		file.GetDb().JsonDb.Tasks.Range(func(key, value interface{}) bool {
+			t := value.(*file.Tunnel)
+			if t.Client.Id == c.Id {
+				t.Flow.InletFlow = 0
+				t.Flow.ExportFlow = 0
+			}
+			return true
+		})
 	case "flow_limit":
 		c.Flow.FlowLimit = 0
 	case "time_limit":

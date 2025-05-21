@@ -138,7 +138,7 @@
                 visible: true, //false表示不显示
                 sortable: true,//启用排序
                 formatter: function (value, row, index) {
-                    hosturl = ((row.Scheme == 'http') ? 'http://' : 'https://') + row.Host + ((row.Scheme == 'http') ? ":{{.data.httpProxyPort}}" : ":{{.data.httpsProxyPort}}") + row.Location
+                    hosturl = ((row.Scheme == 'http') ? 'http://' : 'https://') + row.Host + ((row.Scheme == 'http') ? ":{{.httpProxyPort}}" : ":{{.httpsProxyPort}}") + row.Location
                     return '<a href="' + hosturl + '" target="_blank">' + row.Host + '</a>'
                 }
             },

@@ -63,6 +63,7 @@ func (self *LoginController) Verify() {
 	if captchaOpen {
 		if !cpt.VerifyReq(self.Ctx.Request) {
 			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "the verification code is wrong, please get it again and try again", "nonce": nonce}
+			self.SetSession("login_nonce", nonce)
 			self.ServeJSON()
 		}
 	}
@@ -181,6 +182,7 @@ func (self *LoginController) Register() {
 		if captchaOpen {
 			if !cpt.VerifyReq(self.Ctx.Request) {
 				self.Data["json"] = map[string]interface{}{"status": 0, "msg": "the verification code is wrong, please get it again and try again", "nonce": nonce}
+				self.SetSession("login_nonce", nonce)
 				self.ServeJSON()
 				return
 			}

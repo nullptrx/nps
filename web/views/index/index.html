@@ -95,7 +95,7 @@
                     <h5 langtag="word-totalclients"></h5>
                 </div>
                 <div class="ibox-content">
-                    <h1 class="no-margins">{{.data.clientCount}}</h1>
+                    <h1 class="no-margins" id="stat-clientCount">{{.data.clientCount}}</h1>
                 </div>
             </div>
         </div>
@@ -106,7 +106,7 @@
                     <h5 langtag="word-onlineclients"></h5>
                 </div>
                 <div class="ibox-content">
-                    <h1 class="no-margins">{{.data.clientOnlineCount}}</h1>
+                    <h1 class="no-margins" id="stat-clientOnlineCount">{{.data.clientOnlineCount}}</h1>
                     {{/*<div class="stat-percent font-bold text-navy">44% <i class="fa fa-level-up"></i></div>*/}}
                     {{/*<small>新访客</small>*/}}
                 </div>
@@ -118,7 +118,7 @@
                     <h5 langtag="word-tcpconnections"></h5>
                 </div>
                 <div class="ibox-content">
-                    <h1 class="no-margins">{{.data.tcpCount}}</h1>
+                    <h1 class="no-margins" id="stat-tcpCount">{{.data.tcpCount}}</h1>
                 </div>
             </div>
         </div>
@@ -128,7 +128,7 @@
                     <h5 langtag="word-uptime"></h5>
                 </div>
                 <div class="ibox-content">
-                    <h1 class="no-margins">{{or .data.upTime ""}}</h1>
+                    <h1 class="no-margins" id="stat-upTime">{{or .data.upTime ""}}</h1>
                 </div>
             </div>
         </div>
@@ -871,6 +871,66 @@
         for (var key in charts) {
             charts[key].resize();
         }
+    });
+
+    let upTimeSeconds = 0;
+
+    function formatUpTime(secs) {
+        const d = Math.floor(secs / 86400);
+        secs %= 86400;
+        const h = Math.floor(secs / 3600);
+        secs %= 3600;
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        const parts = [];
+        if (d) parts.push(d + 'd');
+        if (h) parts.push(h + 'h');
+        if (m) parts.push(m + 'm');
+        parts.push(s + 's');
+        return parts.join(' ');
+    }
+
+    function ensureChart(key) {
+        if (!charts[key]) {
+            const dom = document.getElementById(key);
+            if (dom) {
+                charts[key] = echarts.init(dom, 'nps-theme');
+            }
+        }
+    }
+
+    function refreshStats() {
+        $.getJSON('{{.web_base_url}}/index/stats', function(res) {
+            if (res.code !== 1) return;
+            const d = res.data;
+            $('#stat-clientCount').text(d.clientCount);
+            $('#stat-clientOnlineCount').text(d.clientOnlineCount);
+            $('#stat-tcpCount').text(d.tcpCount);
+            const nowSecs = Math.floor(Date.now() / 1000);
+            upTimeSeconds = nowSecs - d.startTime;
+            $('#overview_cpu').text(d.cpu + '%');
+            $('#overview_cpu_bar').width(d.cpu + '%');
+            $('#overview_memory').text(d.virtual_mem + '%');
+            $('#overview_memory_bar').width(d.virtual_mem + '%');
+            const loadObj = JSON.parse(d.load);
+            $('#overview_load')
+                .empty()
+                .append([loadObj.load1, loadObj.load5, loadObj.load15]
+                    .map(v => '&emsp;'+v).join(''));
+            $('#overview_tcp').text(d.tcp);
+            $('#overview_udp').text(d.udp);
+            $('#overview_send').text(changeunit(d.io_send) + '/s');
+            $('#overview_recv').text(changeunit(d.io_recv) + '/s');
+        });
+    }
+
+    $(function() {
+        refreshStats();
+        setInterval(refreshStats, 3000);
+        setInterval(function() {
+            upTimeSeconds++;
+            $('#stat-upTime').text(formatUpTime(upTimeSeconds));
+        }, 1000);
     });
 </script>
 {{end}}

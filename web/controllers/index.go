@@ -16,10 +16,22 @@ type IndexController struct {
 
 func (s *IndexController) Index() {
 	s.Data["web_base_url"] = beego.AppConfig.String("web_base_url")
-	s.Data["data"] = server.GetDashboardData()
+	s.Data["data"] = server.GetDashboardData(true)
 	s.SetInfo("dashboard")
 	s.display("index/index")
 }
+
+func (s *IndexController) Stats() {
+	data := make(map[string]interface{})
+	data["code"] = 0
+	if isAdmin, ok := s.GetSession("isAdmin").(bool); ok && isAdmin {
+		data["code"] = 1
+		data["data"] = server.GetDashboardData(false)
+	}
+	s.Data["json"] = data
+	s.ServeJSON()
+}
+
 func (s *IndexController) Help() {
 	s.SetInfo("about")
 	s.display("index/help")
@@ -154,6 +166,7 @@ func (s *IndexController) Add() {
 		}
 	}
 }
+
 func (s *IndexController) GetOneTunnel() {
 	id := s.GetIntNoErr("id")
 	data := make(map[string]interface{})
@@ -166,6 +179,7 @@ func (s *IndexController) GetOneTunnel() {
 	s.Data["json"] = data
 	s.ServeJSON()
 }
+
 func (s *IndexController) Edit() {
 	id := s.GetIntNoErr("id")
 	if s.Ctx.Request.Method == "GET" {
@@ -323,7 +337,8 @@ func changeStatus(id int, name, action string) (err error) {
 
 func (s *IndexController) HostList() {
 	if s.Ctx.Request.Method == "GET" {
-		s.Data["data"] = server.GetDashboardData()
+		s.Data["httpProxyPort"] = beego.AppConfig.String("http_proxy_port")
+		s.Data["httpsProxyPort"] = beego.AppConfig.String("https_proxy_port")
 		s.Data["client_id"] = s.getEscapeString("client_id")
 		s.Data["menu"] = "host"
 		s.SetInfo("host list")

@@ -132,3 +132,11 @@ func GetRunTime() string {
 	}
 	return strings.Join(parts, " ")
 }
+
+func GetRunSecs() int64 {
+	return int64(time.Since(StartTime).Seconds())
+}
+
+func GetStartTime() int64 {
+	return StartTime.Unix()
+}
