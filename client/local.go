@@ -67,12 +67,20 @@ func (fsm *FileServerManager) StartFileServer(cfg *config.CommonConfig, t *file.
 			remoteConn.Close()
 		}
 	}()
+	fs := http.FileServer(http.Dir(t.LocalPath))
 	davHandler := &webdav.Handler{
 		Prefix:     t.StripPre,
 		FileSystem: webdav.Dir(t.LocalPath),
 		LockSystem: webdav.NewMemLS(),
 	}
-	handler := http.StripPrefix(t.StripPre, davHandler)
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET", "HEAD":
+			http.StripPrefix(t.StripPre, fs).ServeHTTP(w, r)
+		default:
+			davHandler.ServeHTTP(w, r)
+		}
+	})
 	accounts := make(map[string]string)
 	if t.Client != nil && t.Client.Cnf != nil && t.Client.Cnf.U != "" && t.Client.Cnf.P != "" {
 		accounts[t.Client.Cnf.U] = t.Client.Cnf.P
@@ -87,13 +95,13 @@ func (fsm *FileServerManager) StartFileServer(cfg *config.CommonConfig, t *file.
 			accounts[user] = pass
 		}
 	}
+	//logs.Error("%v", accounts)
 	if len(accounts) > 0 {
 		handler = basicAuth(accounts, "WebDAV", handler)
 	}
 	srv := &http.Server{
 		BaseContext: func(_ net.Listener) context.Context { return fsm.ctx },
 		Handler:     handler,
-		//Handler: http.StripPrefix(t.StripPre, http.FileServer(http.Dir(t.LocalPath))),
 	}
 	logs.Info("start WebDAV server, local path %s, strip prefix %s, remote port %s", t.LocalPath, t.StripPre, t.Ports)
 	listener := nps_mux.NewMux(remoteConn.Conn, common.CONN_TCP, cfg.DisconnectTime)

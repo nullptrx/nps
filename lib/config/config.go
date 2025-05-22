@@ -274,14 +274,23 @@ func dealTunnel(s string) *file.Tunnel {
 
 func dealMultiUser(s string) map[string]string {
 	multiUserMap := make(map[string]string)
-	for _, v := range splitStr(s) {
-		item := strings.Split(v, "=")
-		if len(item) == 0 {
+	for _, line := range splitStr(s) {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
-		} else if len(item) == 1 {
-			item = append(item, "")
 		}
-		multiUserMap[strings.TrimSpace(item[0])] = item[1]
+		idx := strings.Index(line, "=")
+		var key, val string
+		if idx >= 0 {
+			key = strings.TrimSpace(line[:idx])
+			val = strings.TrimSpace(line[idx+1:])
+		} else {
+			key = line
+			val = ""
+		}
+		if key != "" {
+			multiUserMap[key] = val
+		}
 	}
 	return multiUserMap
 }
