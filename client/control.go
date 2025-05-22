@@ -3,6 +3,7 @@ package client
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
@@ -95,7 +96,6 @@ func GetTaskStatus(path string) {
 var errAdd = errors.New("The server returned an error, which port or host may have been occupied or not allowed to open.")
 
 func StartFromFile(path string) {
-	first := true
 	cnf, err := config.NewConfig(path)
 	if err != nil || cnf.CommonConfig == nil {
 		logs.Error("Config file %s loading error %v", path, err)
@@ -107,6 +107,7 @@ func StartFromFile(path string) {
 
 	logs.Info("the version of client is %s, the core version of client is %s", version.VERSION, version.GetLatest())
 
+	first := true
 	for {
 		if !first && !cnf.CommonConfig.AutoReconnection {
 			return
@@ -135,15 +136,18 @@ func StartFromFile(path string) {
 			// send global configuration to server and get status of config setting
 			if _, err := c.SendInfo(cnf.CommonConfig.Client, common.NEW_CONF); err != nil {
 				logs.Error("%v", err)
+				c.Close()
 				continue
 			}
 			if !c.GetAddStatus() {
 				logs.Error("the web_user may have been occupied!")
+				c.Close()
 				continue
 			}
 
 			if b, err = c.GetShortContent(16); err != nil {
 				logs.Error("%v", err)
+				c.Close()
 				continue
 			}
 			vkey = string(b)
@@ -151,6 +155,7 @@ func StartFromFile(path string) {
 
 		if err := ioutil.WriteFile(filepath.Join(common.GetTmpPath(), "npc_vkey.txt"), []byte(vkey), 0600); err != nil {
 			logs.Debug("Failed to write vkey file: %v", err)
+			//c.Close()
 			//continue
 		}
 
@@ -166,6 +171,10 @@ func StartFromFile(path string) {
 			}
 		}
 
+		ctx, cancel := context.WithCancel(context.Background())
+		fsm := NewFileServerManager(ctx)
+		p2pm := NewP2PManager(ctx)
+
 		//send  task to server
 		for _, v := range cnf.Tasks {
 			if _, err := c.SendInfo(v, common.NEW_TASK); err != nil {
@@ -178,13 +187,13 @@ func StartFromFile(path string) {
 			}
 			if v.Mode == "file" {
 				//start local file server
-				go startLocalFileServer(cnf.CommonConfig, v, vkey)
+				go fsm.StartFileServer(cnf.CommonConfig, v, vkey)
 			}
 		}
 
 		//create local server secret or p2p
 		for _, v := range cnf.LocalServer {
-			go StartLocalServer(v, cnf.CommonConfig)
+			go p2pm.StartLocalServer(v, cnf.CommonConfig)
 		}
 
 		c.Close()
@@ -195,7 +204,10 @@ func StartFromFile(path string) {
 		}
 
 		NewRPClient(cnf.CommonConfig.Server, vkey, cnf.CommonConfig.Tp, cnf.CommonConfig.ProxyUrl, cnf, cnf.CommonConfig.DisconnectTime).Start()
-		CloseLocalServer()
+		//CloseLocalServer()
+		fsm.CloseAll()
+		p2pm.Close()
+		cancel()
 	}
 }
 
@@ -524,7 +536,9 @@ func getRemoteAddressFromServer(rAddr string, localConn *net.UDPConn, md5Passwor
 	return nil
 }
 
-func handleP2PUdp(localAddr, rAddr, md5Password, role string) (remoteAddress string, c net.PacketConn, err error) {
+func handleP2PUdp(pCtx context.Context, localAddr, rAddr, md5Password, role string) (remoteAddress string, c net.PacketConn, err error) {
+	parentCtx, parentCancel := context.WithCancel(pCtx)
+	defer parentCancel()
 	localConn, err := newUdpConnByAddr(localAddr)
 	if err != nil {
 		return
@@ -546,6 +560,11 @@ func handleP2PUdp(localAddr, rAddr, md5Password, role string) (remoteAddress str
 	}
 	var remoteAddr1, remoteAddr2, remoteAddr3 string
 	for {
+		select {
+		case <-parentCtx.Done():
+			return
+		default:
+		}
 		buf := make([]byte, 1024)
 		if n, addr, er := localConn.ReadFromUDP(buf); er != nil {
 			err = er
@@ -568,18 +587,20 @@ func handleP2PUdp(localAddr, rAddr, md5Password, role string) (remoteAddress str
 			break
 		}
 	}
-	if remoteAddress, err = sendP2PTestMsg(localConn, remoteAddr1, remoteAddr2, remoteAddr3); err != nil {
+	if remoteAddress, err = sendP2PTestMsg(parentCtx, localConn, remoteAddr1, remoteAddr2, remoteAddr3); err != nil {
 		return
 	}
 	c, err = newUdpConnByAddr(localAddr)
 	return
 }
 
-func sendP2PTestMsg(localConn *net.UDPConn, remoteAddr1, remoteAddr2, remoteAddr3 string) (string, error) {
+func sendP2PTestMsg(pCtx context.Context, localConn *net.UDPConn, remoteAddr1, remoteAddr2, remoteAddr3 string) (string, error) {
 	logs.Trace("%s %s %s", remoteAddr3, remoteAddr2, remoteAddr1)
 	defer localConn.Close()
 	isClose := false
 	defer func() { isClose = true }()
+	parentCtx, parentCancel := context.WithCancel(pCtx)
+	defer parentCancel()
 	interval, err := getAddrInterval(remoteAddr1, remoteAddr2, remoteAddr3)
 	if err != nil {
 		return "", err
@@ -598,6 +619,8 @@ func sendP2PTestMsg(localConn *net.UDPConn, remoteAddr1, remoteAddr2, remoteAddr
 		defer ticker.Stop()
 		for {
 			select {
+			case <-parentCtx.Done():
+				return
 			case <-ticker.C:
 				if isClose {
 					return
@@ -622,6 +645,8 @@ func sendP2PTestMsg(localConn *net.UDPConn, remoteAddr1, remoteAddr2, remoteAddr
 			endPort = common.GetPort(endPort)
 			logs.Debug("Start Port: %d, End Port: %d, Interval: %d", startPort, endPort, interval)
 			ports := getRandomPortArr(startPort, endPort)
+			ctx, cancel := context.WithCancel(parentCtx)
+			defer cancel()
 			for i := 0; i <= 50; i++ {
 				go func(port int) {
 					trueAddress := ip + ":" + strconv.Itoa(port)
@@ -634,6 +659,8 @@ func sendP2PTestMsg(localConn *net.UDPConn, remoteAddr1, remoteAddr2, remoteAddr
 					defer ticker.Stop()
 					for {
 						select {
+						case <-ctx.Done():
+							return
 						case <-ticker.C:
 							if isClose {
 								return
@@ -651,7 +678,13 @@ func sendP2PTestMsg(localConn *net.UDPConn, remoteAddr1, remoteAddr2, remoteAddr
 	}
 
 	buf := make([]byte, 10)
+Loop:
 	for {
+		select {
+		case <-parentCtx.Done():
+			break Loop
+		default:
+		}
 		localConn.SetReadDeadline(time.Now().Add(time.Second * 10))
 		n, addr, err := localConn.ReadFromUDP(buf)
 		localConn.SetReadDeadline(time.Time{})

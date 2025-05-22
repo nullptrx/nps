@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -116,13 +117,13 @@ func main() {
 	svcConfig.Arguments = append(svcConfig.Arguments, "-debug=false")
 
 	// 创建服务
-	prg := &npc{
-		exit: make(chan struct{}),
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	prg := NewNpc(ctx)
 	s, err := service.New(prg, svcConfig)
 	if err != nil {
 		logs.Error("service function disabled %v", err)
-		run()
+		run(ctx)
 		// run without service
 		wg := sync.WaitGroup{}
 		wg.Add(1)
@@ -242,24 +243,36 @@ func configureLogging() {
 	logs.Init(*logType, *logLevel, *logPath, *logMaxSize, *logMaxFiles, *logMaxDays, *logCompress, *logColor)
 }
 
-type npc struct {
-	exit chan struct{}
+type Npc struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	exit   chan struct{}
 }
 
-func (p *npc) Start(s service.Service) error {
+func NewNpc(pCtx context.Context) *Npc {
+	ctx, cancel := context.WithCancel(pCtx)
+	return &Npc{
+		ctx:    ctx,
+		exit:   make(chan struct{}),
+		cancel: cancel,
+	}
+}
+
+func (p *Npc) Start(s service.Service) error {
 	go p.run()
 	return nil
 }
 
-func (p *npc) Stop(s service.Service) error {
+func (p *Npc) Stop(s service.Service) error {
 	close(p.exit)
+	p.cancel()
 	if service.Interactive() {
 		os.Exit(0)
 	}
 	return nil
 }
 
-func (p *npc) run() error {
+func (p *Npc) run() error {
 	defer func() {
 		if err := recover(); err != nil {
 			const size = 64 << 10
@@ -268,7 +281,7 @@ func (p *npc) run() error {
 			logs.Warn("npc: panic serving %v: %s", err, buf)
 		}
 	}()
-	run()
+	run(p.ctx)
 	select {
 	case <-p.exit:
 		logs.Warn("stop...")
@@ -277,7 +290,7 @@ func (p *npc) run() error {
 }
 
 // 主运行逻辑
-func run() {
+func run(ctx context.Context) {
 	common.InitPProfFromArg(*pprofAddr)
 	if *tlsEnable {
 		*connType = "tls"
@@ -296,7 +309,8 @@ func run() {
 		localServer.Port = *localPort
 		commonConfig.Client = new(file.Client)
 		commonConfig.Client.Cnf = new(file.Config)
-		go client.StartLocalServer(localServer, commonConfig)
+		p2pm := client.NewP2PManager(ctx)
+		go p2pm.StartLocalServer(localServer, commonConfig)
 		return
 	}
 	env := common.GetEnvMap()
