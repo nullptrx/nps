@@ -2,9 +2,11 @@ package client
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/djylb/nps/lib/nps_mux"
 	"github.com/djylb/nps/server/proxy"
 	"github.com/xtaci/kcp-go/v5"
+	"golang.org/x/net/webdav"
 )
 
 // ------------------------------
@@ -64,13 +67,35 @@ func (fsm *FileServerManager) StartFileServer(cfg *config.CommonConfig, t *file.
 			remoteConn.Close()
 		}
 	}()
-	srv := &http.Server{
-		BaseContext: func(_ net.Listener) context.Context {
-			return fsm.ctx
-		},
-		Handler: http.StripPrefix(t.StripPre, http.FileServer(http.Dir(t.LocalPath))),
+	davHandler := &webdav.Handler{
+		Prefix:     t.StripPre,
+		FileSystem: webdav.Dir(t.LocalPath),
+		LockSystem: webdav.NewMemLS(),
 	}
-	logs.Info("start local file system, local path %s, strip prefix %s, remote port %s", t.LocalPath, t.StripPre, t.Ports)
+	handler := http.StripPrefix(t.StripPre, davHandler)
+	accounts := make(map[string]string)
+	if t.Client != nil && t.Client.Cnf != nil && t.Client.Cnf.U != "" && t.Client.Cnf.P != "" {
+		accounts[t.Client.Cnf.U] = t.Client.Cnf.P
+	}
+	if t.MultiAccount != nil {
+		for user, pass := range t.MultiAccount.AccountMap {
+			accounts[user] = pass
+		}
+	}
+	if t.UserAuth != nil {
+		for user, pass := range t.UserAuth.AccountMap {
+			accounts[user] = pass
+		}
+	}
+	if len(accounts) > 0 {
+		handler = basicAuth(accounts, "WebDAV", handler)
+	}
+	srv := &http.Server{
+		BaseContext: func(_ net.Listener) context.Context { return fsm.ctx },
+		Handler:     handler,
+		//Handler: http.StripPrefix(t.StripPre, http.FileServer(http.Dir(t.LocalPath))),
+	}
+	logs.Info("start WebDAV server, local path %s, strip prefix %s, remote port %s", t.LocalPath, t.StripPre, t.Ports)
 	listener := nps_mux.NewMux(remoteConn.Conn, common.CONN_TCP, cfg.DisconnectTime)
 	fsm.mu.Lock()
 	fsm.servers = append(fsm.servers, struct {
@@ -85,7 +110,7 @@ func (fsm *FileServerManager) StartFileServer(cfg *config.CommonConfig, t *file.
 	go func() {
 		defer fsm.wg.Done()
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
-			logs.Error("file server Serve error: %v", err)
+			logs.Error("WebDAV Serve error: %v", err)
 		}
 	}()
 }
@@ -106,6 +131,32 @@ func (fsm *FileServerManager) CloseAll() {
 		e.remoteConn.Close()
 	}
 	fsm.wg.Wait()
+}
+
+func basicAuth(users map[string]string, realm string, next http.Handler) http.Handler {
+	if len(users) == 0 {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if !strings.HasPrefix(auth, "Basic ") {
+			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		payload, err := base64.StdEncoding.DecodeString(auth[len("Basic "):])
+		if err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		parts := strings.SplitN(string(payload), ":", 2)
+		if len(parts) != 2 || users[parts[0]] != parts[1] {
+			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // ------------------------------
