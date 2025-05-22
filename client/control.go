@@ -340,6 +340,10 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		return nil, err
 	}
 
+	if connection == nil {
+		return nil, fmt.Errorf("NewConn: unexpected nil connection for tp=%q server=%q", tp, server)
+	}
+
 	//logs.Debug("SetDeadline")
 	connection.SetDeadline(time.Now().Add(timeout))
 	defer connection.SetDeadline(time.Time{})

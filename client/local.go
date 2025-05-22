@@ -1,10 +1,10 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/http"
-	"runtime"
 	"sync"
 	"time"
 
@@ -20,45 +20,60 @@ import (
 )
 
 var (
-	LocalServer   []*net.TCPListener
-	udpConn       net.Conn
-	muxSession    *nps_mux.Mux
-	fileServer    []*http.Server
-	p2pNetBridge  *p2pBridge
-	lock          sync.RWMutex
-	udpConnStatus bool
+	ctxLocal, cancelLocal = context.WithCancel(context.Background())
+	muGlobal              sync.Mutex
+	LocalServer           []*net.TCPListener
+	udpConn               net.Conn
+	muxSession            *nps_mux.Mux
+	fileServer            []*http.Server
+	p2pNetBridge          *p2pBridge
+	lock                  sync.RWMutex
+	udpConnStatus         bool
 )
 
-type p2pBridge struct {
-}
+type p2pBridge struct{}
 
 func (p2pBridge *p2pBridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (target net.Conn, err error) {
 	for i := 0; muxSession == nil; i++ {
 		if i >= 20 {
-			err = errors.New("p2pBridge:too many times to get muxSession")
+			err = errors.New("p2pBridge: too many retries waiting for muxSession")
 			logs.Error("%v", err)
 			return
 		}
-		runtime.Gosched() // waiting for another goroutine establish the mux connection
+		//runtime.Gosched() // waiting for another goroutine establish the mux connection
+		time.Sleep(10 * time.Millisecond)
 	}
 	nowConn, err := muxSession.NewConn()
 	if err != nil {
+		muGlobal.Lock()
 		udpConn = nil
+		muGlobal.Unlock()
 		return nil, err
 	}
 	if _, err := conn.NewConn(nowConn).SendInfo(link, ""); err != nil {
+		muGlobal.Lock()
 		udpConnStatus = false
+		muGlobal.Unlock()
 		return nil, err
 	}
 	return nowConn, nil
 }
 
 func CloseLocalServer() {
-	for _, v := range LocalServer {
-		v.Close()
+	cancelLocal()
+	muGlobal.Lock()
+	defer muGlobal.Unlock()
+	for _, ln := range LocalServer {
+		ln.Close()
 	}
-	for _, v := range fileServer {
-		v.Close()
+	for _, srv := range fileServer {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		srv.Shutdown(ctx)
+		cancel()
+	}
+	if udpConn != nil {
+		udpConn.Close()
+		udpConn = nil
 	}
 }
 
@@ -72,11 +87,13 @@ func startLocalFileServer(config *config.CommonConfig, t *file.Tunnel, vkey stri
 		Handler: http.StripPrefix(t.StripPre, http.FileServer(http.Dir(t.LocalPath))),
 	}
 	logs.Info("start local file system, local path %s, strip prefix %s ,remote port %s ", t.LocalPath, t.StripPre, t.Ports)
+	muGlobal.Lock()
 	fileServer = append(fileServer, srv)
+	muGlobal.Unlock()
 	listener := nps_mux.NewMux(remoteConn.Conn, common.CONN_TCP, config.DisconnectTime)
 	err = srv.Serve(listener)
 	if err != nil {
-		logs.Error("%v", err)
+		logs.Error("serve mux failed: remote=%s proto=TCP timeout=%s error=%v", remoteConn.Conn.RemoteAddr(), config.DisconnectTime, err)
 		return
 	}
 }
@@ -104,18 +121,20 @@ func StartLocalServer(l *config.LocalServer, config *config.CommonConfig) error 
 	}
 	switch l.Type {
 	case "p2ps":
-		logs.Info("successful start-up of local socks5 monitoring, port %d", l.Port)
+		logs.Info("start http/socks5 monitor port %d", l.Port)
 		return proxy.NewTunnelModeServer(proxy.ProcessMix, p2pNetBridge, task).Start()
 	case "p2pt":
-		logs.Info("successful start-up of local tcp trans monitoring, port %d", l.Port)
+		logs.Info("start tcp trans monitor port %d", l.Port)
 		return proxy.NewTunnelModeServer(proxy.HandleTrans, p2pNetBridge, task).Start()
 	case "p2p", "secret":
-		listenTCP, errTCP := net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP("0.0.0.0"), l.Port, ""})
+		listenTCP, errTCP := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4zero, Port: l.Port})
 		if errTCP != nil {
 			logs.Error("local listen TCP startup failed port %d, error %v", l.Port, errTCP)
 			return errTCP
 		}
+		muGlobal.Lock()
 		LocalServer = append(LocalServer, listenTCP)
+		muGlobal.Unlock()
 		logs.Info("successful start-up of local tcp monitoring, port %d", l.Port)
 		if l.Type == "p2p" {
 			task.Target.TargetStr = l.Target
@@ -139,10 +158,16 @@ func handleUdpMonitor(config *config.CommonConfig, l *config.LocalServer) {
 	defer ticker.Stop()
 	for {
 		select {
+		case <-ctxLocal.Done():
+			return
 		case <-ticker.C:
-			if !udpConnStatus {
+			muGlobal.Lock()
+			status := udpConnStatus
+			muGlobal.Unlock()
+			if !status {
+				muGlobal.Lock()
 				udpConn = nil
-
+				muGlobal.Unlock()
 				tmpConnV4, errV4 := common.GetLocalUdp4Addr()
 				if errV4 != nil {
 					logs.Warn("Failed to get local IPv4 address: %v", errV4)
@@ -166,17 +191,23 @@ func handleUdpMonitor(config *config.CommonConfig, l *config.LocalServer) {
 					logs.Debug("try to connect to the server %d", i+1)
 					if errV4 == nil {
 						newUdpConn(tmpConnV4.LocalAddr().String(), config, l)
+						muGlobal.Lock()
 						if udpConn != nil {
 							udpConnStatus = true
+							muGlobal.Unlock()
 							break
 						}
+						muGlobal.Unlock()
 					}
 					if errV6 == nil {
 						newUdpConn(tmpConnV6.LocalAddr().String(), config, l)
+						muGlobal.Lock()
 						if udpConn != nil {
 							udpConnStatus = true
+							muGlobal.Unlock()
 							break
 						}
+						muGlobal.Unlock()
 					}
 				}
 			}
@@ -187,73 +218,85 @@ func handleUdpMonitor(config *config.CommonConfig, l *config.LocalServer) {
 func handleSecret(localTcpConn net.Conn, config *config.CommonConfig, l *config.LocalServer) {
 	remoteConn, err := NewConn(config.Tp, config.VKey, config.Server, common.WORK_SECRET, config.ProxyUrl)
 	if err != nil {
-		logs.Error("Local connection server failed %v", err)
+		logs.Error("secret connect failed: %v", err)
 		return
 	}
+	defer remoteConn.Close()
 	if _, err := remoteConn.Write([]byte(crypt.Md5(l.Password))); err != nil {
-		logs.Error("Local connection server failed %v", err)
+		logs.Error("secret write failed: %v", err)
 		return
 	}
 	conn.CopyWaitGroup(remoteConn.Conn, localTcpConn, false, false, nil, nil, false, 0, nil, nil)
 }
 
 func handleP2PVisitor(localTcpConn net.Conn, config *config.CommonConfig, l *config.LocalServer) {
-	if udpConn == nil {
-		logs.Warn("new conn, P2P can not penetrate successfully, traffic will be transferred through the server")
+	muGlobal.Lock()
+	tunnel := udpConn
+	muGlobal.Unlock()
+	if tunnel == nil {
+		logs.Warn("P2P not ready, fallback to secret")
 		handleSecret(localTcpConn, config, l)
 		return
 	}
-	logs.Trace("start trying to connect with the server")
+	logs.Trace("attempting P2P Visit")
 	//TODO just support compress now because there is not tls file in client packages
 	link := conn.NewLink(common.CONN_TCP, l.Target, false, config.Client.Cnf.Compress, localTcpConn.LocalAddr().String(), false)
-	if target, err := p2pNetBridge.SendLinkInfo(0, link, nil); err != nil {
-		logs.Error("%v", err)
+	target, err := p2pNetBridge.SendLinkInfo(0, link, nil)
+	if err != nil {
+		logs.Error("SendLinkInfo failed: %v", err)
+		muGlobal.Lock()
 		udpConnStatus = false
+		muGlobal.Unlock()
 		return
-	} else {
-		conn.CopyWaitGroup(target, localTcpConn, false, config.Client.Cnf.Compress, nil, nil, false, 0, nil, nil)
 	}
+	defer target.Close()
+	conn.CopyWaitGroup(target, localTcpConn, false, config.Client.Cnf.Compress, nil, nil, false, 0, nil, nil)
 }
 
 func newUdpConn(localAddr string, config *config.CommonConfig, l *config.LocalServer) {
-	lock.Lock()
-	defer lock.Unlock()
+	muGlobal.Lock()
+	defer muGlobal.Unlock()
+	if udpConn != nil {
+		udpConn.Close()
+		udpConn = nil
+	}
 	remoteConn, err := NewConn(config.Tp, config.VKey, config.Server, common.WORK_P2P, config.ProxyUrl)
 	if err != nil {
-		logs.Error("Local connection server failed %v", err)
+		logs.Error("newUdpConn NewConn failed: %v", err)
 		return
 	}
+	defer remoteConn.Close()
 	if _, err := remoteConn.Write([]byte(crypt.Md5(l.Password))); err != nil {
-		logs.Error("Local connection server failed %v", err)
+		logs.Error("newUdpConn write failed: %v", err)
 		return
 	}
-	var rAddr []byte
-	//读取服务端地址、密钥 继续做处理
-	if rAddr, err = remoteConn.GetShortLenContent(); err != nil {
-		logs.Error("%v", err)
+	rAddrBuf, err := remoteConn.GetShortLenContent()
+	if err != nil {
+		logs.Error("newUdpConn GetShortLenContent: %v", err)
 		return
 	}
+	rAddr := string(rAddrBuf)
 
-	if !common.IsSameIPType(localAddr, string(rAddr)) {
-		logs.Debug("IP type mismatch: localAddr is %s, rAddr is %s", localAddr, rAddr)
+	if !common.IsSameIPType(localAddr, rAddr) {
+		logs.Debug("IP type mismatch local=%s remote=%s", localAddr, rAddr)
 		return
 	}
 	//logs.Debug("localAddr is %s, rAddr is %s", localAddr, rAddr)
 
-	var localConn net.PacketConn
-	var remoteAddress string
-	if remoteAddress, localConn, err = handleP2PUdp(localAddr, string(rAddr), crypt.Md5(l.Password), common.WORK_P2P_VISITOR); err != nil {
-		logs.Error("%v", err)
+	remoteAddress, localConn, err := handleP2PUdp(localAddr, rAddr, crypt.Md5(l.Password), common.WORK_P2P_VISITOR)
+	if err != nil {
+		logs.Error("handleP2PUdp failed: %v", err)
 		return
 	}
+	defer localConn.Close()
 	//logs.Debug("remoteAddress: %s", remoteAddress)
 
 	udpTunnel, err := kcp.NewConn(remoteAddress, nil, 150, 3, localConn)
 	if err != nil || udpTunnel == nil {
-		logs.Warn("%v", err)
+		logs.Warn("kcp NewConn failed: %v", err)
 		return
 	}
-	logs.Info("successful create a connection with server %s", remoteAddress)
+	logs.Info("P2P UDP tunnel established to %s", remoteAddress)
 	conn.SetUdpSession(udpTunnel)
 	udpConn = udpTunnel
 	muxSession = nps_mux.NewMux(udpConn, "kcp", config.DisconnectTime)

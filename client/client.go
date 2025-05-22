@@ -3,6 +3,8 @@ package client
 import (
 	"bufio"
 	"bytes"
+	"context"
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -30,6 +32,9 @@ type TRPClient struct {
 	ticker         *time.Ticker
 	cnf            *config.Config
 	disconnectTime int
+	ctx            context.Context
+	cancel         context.CancelFunc
+	healthChecker  *HealthChecker
 	once           sync.Once
 }
 
@@ -48,52 +53,59 @@ func NewRPClient(svraddr string, vKey string, bridgeConnType string, proxyUrl st
 }
 
 var NowStatus int
-var CloseClient bool
 var HasFailed = false
 
 // start
 func (s *TRPClient) Start() {
-	CloseClient = false
-retry:
-	if CloseClient {
-		return
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	defer s.cancel()
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
+		}
+		NowStatus = 0
+		c, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_MAIN, s.proxyUrl)
+		if err != nil {
+			HasFailed = true
+			logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
+			select {
+			case <-time.After(5 * time.Second):
+				continue
+			case <-s.ctx.Done():
+				return
+			}
+		}
+		logs.Info("Successful connection with server %s", s.svrAddr)
+		s.signal = c
+		//start a channel connection
+		go s.newChan()
+		//monitor the connection
+		go s.ping()
+		//start health check if it's open
+		if s.cnf != nil && len(s.cnf.Healths) > 0 {
+			s.healthChecker = NewHealthChecker(s.ctx, s.cnf.Healths, s.signal)
+			s.healthChecker.Start()
+		}
+		NowStatus = 1
+		//msg connection, eg udp
+		s.handleMain()
 	}
-	NowStatus = 0
-	c, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_MAIN, s.proxyUrl)
-	if err != nil {
-		HasFailed = true
-		logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
-		time.Sleep(time.Second * 5)
-		goto retry
-	}
-	if c == nil {
-		HasFailed = true
-		logs.Error("Error data from server, and will be reconnected in five seconds")
-		time.Sleep(time.Second * 5)
-		goto retry
-	}
-	logs.Info("Successful connection with server %s", s.svrAddr)
-	//monitor the connection
-	go s.ping()
-	s.signal = c
-	//start a channel connection
-	go s.newChan()
-	//start health check if the it's open
-	if s.cnf != nil && len(s.cnf.Healths) > 0 {
-		go heathCheck(s.cnf.Healths, s.signal)
-	}
-	NowStatus = 1
-	//msg connection, eg udp
-	s.handleMain()
 }
 
 // handle main connection
 func (s *TRPClient) handleMain() {
 	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
+		}
 		flags, err := s.signal.ReadFlag()
 		if err != nil {
 			logs.Error("Accept server data error %v, end this service", err)
-			break
+			return
 		}
 		switch flags {
 		case common.NEW_UDP_CONN:
@@ -139,17 +151,23 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 		logs.Error("%v", err)
 		return
 	}
+	defer localConn.Close()
 	l, err := kcp.ServeConn(nil, 150, 3, localConn)
 	if err != nil {
 		logs.Error("%v", err)
 		return
 	}
+	defer l.Close()
 	logs.Trace("start local p2p udp listen, local address %v", localConn.LocalAddr())
 	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
+		}
 		udpTunnel, err := l.AcceptKCP()
 		if err != nil {
-			logs.Error("%v", err)
-			l.Close()
+			logs.Error("acceptKCP failed on listener %v waiting for remote %s: %v", localConn.LocalAddr(), remoteAddress, err)
 			return
 		}
 		if udpTunnel.RemoteAddr().String() == string(remoteAddress) {
@@ -159,7 +177,7 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 			conn.Accept(nps_mux.NewMux(udpTunnel, s.bridgeConnType, s.disconnectTime), func(c net.Conn) {
 				go s.handleChan(c)
 			})
-			break
+			return
 		}
 	}
 }
@@ -173,11 +191,16 @@ func (s *TRPClient) newChan() {
 	}
 	s.tunnel = nps_mux.NewMux(tunnel.Conn, s.bridgeConnType, s.disconnectTime)
 	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
+		}
 		src, err := s.tunnel.Accept()
 		if err != nil {
 			logs.Warn("%v", err)
 			s.Close()
-			break
+			return
 		}
 		go s.handleChan(src)
 	}
@@ -205,11 +228,18 @@ func (s *TRPClient) handleChan(src net.Conn) {
 				targetConn.Close()
 			}()
 			for {
+				select {
+				case <-s.ctx.Done():
+					srcConn.Close()
+					targetConn.Close()
+					return
+				default:
+				}
 				if r, err := http.ReadRequest(bufio.NewReader(srcConn)); err != nil {
 					logs.Error("http read error: %v", err)
 					srcConn.Close()
 					targetConn.Close()
-					break
+					return
 				} else {
 					remoteAddr := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
 					if len(remoteAddr) == 0 {
@@ -250,9 +280,24 @@ func (s *TRPClient) handleUdp(serverConn net.Conn) {
 		b := common.BufPoolUdp.Get().([]byte)
 		defer common.BufPoolUdp.Put(b)
 		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+			}
 			n, raddr, err := local.ReadFrom(b)
 			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					logs.Info("local UDP closed, exiting goroutine")
+					return
+				}
+				if ne, ok := err.(net.Error); ok && (ne.Temporary() || ne.Timeout()) {
+					logs.Warn("temporary UDP read error, retrying: %v", err)
+					time.Sleep(1 * time.Millisecond)
+					continue
+				}
 				logs.Error("read data from remote server error %v", err)
+				return
 			}
 			buf := bytes.Buffer{}
 			dgram := common.NewUDPDatagram(common.NewUDPHeader(0, 0, common.ToSocksAddr(raddr)), b[:n])
@@ -271,12 +316,16 @@ func (s *TRPClient) handleUdp(serverConn net.Conn) {
 	b := common.BufPoolUdp.Get().([]byte)
 	defer common.BufPoolUdp.Put(b)
 	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
+		}
 		n, err := serverConn.Read(b)
 		if err != nil {
 			logs.Error("read udp data from server error %v", err)
 			return
 		}
-
 		udpData, err := common.ReadUDPDatagram(bytes.NewReader(b[:n]))
 		if err != nil {
 			logs.Error("unpack data error %v", err)
@@ -298,14 +347,15 @@ func (s *TRPClient) handleUdp(serverConn net.Conn) {
 // Whether the monitor channel is closed
 func (s *TRPClient) ping() {
 	s.ticker = time.NewTicker(time.Second * 5)
-loop:
 	for {
 		select {
 		case <-s.ticker.C:
-			if s.tunnel != nil && s.tunnel.IsClose {
+			if s.tunnel == nil || s.tunnel.IsClose {
 				s.Close()
-				break loop
+				return
 			}
+		case <-s.ctx.Done():
+			return
 		}
 	}
 }
@@ -315,8 +365,11 @@ func (s *TRPClient) Close() {
 }
 
 func (s *TRPClient) closing() {
-	CloseClient = true
 	NowStatus = 0
+	if s.healthChecker != nil {
+		s.healthChecker.Stop()
+	}
+	s.cancel()
 	if s.tunnel != nil {
 		_ = s.tunnel.Close()
 	}

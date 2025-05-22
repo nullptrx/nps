@@ -2,9 +2,11 @@ package client
 
 import (
 	"container/heap"
+	"context"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/djylb/nps/lib/conn"
@@ -14,89 +16,117 @@ import (
 	"github.com/pkg/errors"
 )
 
-var isStart bool
-var serverConn *conn.Conn
-
-func heathCheck(healths []*file.Health, c *conn.Conn) bool {
-	serverConn = c
-	if isStart {
-		for _, v := range healths {
-			v.HealthMap = make(map[string]int)
-		}
-		return true
-	}
-	isStart = true
-	h := &sheap.IntHeap{}
-	for _, v := range healths {
-		if v.HealthMaxFail > 0 && v.HealthCheckTimeout > 0 && v.HealthCheckInterval > 0 {
-			v.HealthNextTime = time.Now().Add(time.Duration(v.HealthCheckInterval) * time.Second)
-			heap.Push(h, v.HealthNextTime.Unix())
-			v.HealthMap = make(map[string]int)
-		}
-	}
-	go session(healths, h)
-	return true
+type HealthChecker struct {
+	ctx        context.Context
+	cancel     context.CancelFunc
+	healths    []*file.Health
+	serverConn *conn.Conn
+	heap       *sheap.IntHeap
+	mu         sync.Mutex
 }
 
-func session(healths []*file.Health, h *sheap.IntHeap) {
+func NewHealthChecker(parentCtx context.Context, healths []*file.Health, c *conn.Conn) *HealthChecker {
+	ctx, cancel := context.WithCancel(parentCtx)
+	hq := &sheap.IntHeap{}
+	heap.Init(hq)
+
+	now := time.Now()
+	for _, hc := range healths {
+		if hc.HealthMaxFail > 0 && hc.HealthCheckInterval > 0 && hc.HealthCheckTimeout > 0 {
+			next := now.Add(time.Duration(hc.HealthCheckInterval) * time.Second)
+			hc.HealthNextTime = next
+			heap.Push(hq, next.Unix())
+			hc.HealthMap = make(map[string]int)
+		}
+	}
+
+	return &HealthChecker{
+		ctx:        ctx,
+		cancel:     cancel,
+		healths:    healths,
+		serverConn: c,
+		heap:       hq,
+	}
+}
+
+func (hc *HealthChecker) Start() {
+	go hc.loop()
+}
+
+func (hc *HealthChecker) Stop() {
+	hc.cancel()
+}
+
+func (hc *HealthChecker) loop() {
 	for {
-		if h.Len() == 0 {
-			logs.Error("health check error")
-			break
+		if hc.heap.Len() == 0 {
+			logs.Error("health check list empty, exiting")
+			return
 		}
-		rs := heap.Pop(h).(int64) - time.Now().Unix()
-		if rs <= 0 {
-			continue
-		}
-		timer := time.NewTimer(time.Duration(rs) * time.Second)
+		nextTs := (*hc.heap)[0]
+		delay := time.Until(time.Unix(nextTs, 0))
 		select {
-		case <-timer.C:
-			for _, v := range healths {
-				if v.HealthNextTime.Before(time.Now()) {
-					v.HealthNextTime = time.Now().Add(time.Duration(v.HealthCheckInterval) * time.Second)
-					//check
-					go check(v)
-					//reset time
-					heap.Push(h, v.HealthNextTime.Unix())
-				}
-			}
+		case <-hc.ctx.Done():
+			return
+		case <-time.After(delay):
+			hc.runChecks()
 		}
 	}
 }
 
-// work when just one port and many target
-func check(t *file.Health) {
-	arr := strings.Split(t.HealthCheckTarget, ",")
-	var err error
-	var rs *http.Response
-	for _, v := range arr {
-		if t.HealthCheckType == "tcp" {
-			var c net.Conn
-			c, err = net.DialTimeout("tcp", v, time.Duration(t.HealthCheckTimeout)*time.Second)
-			if err == nil {
+func (hc *HealthChecker) runChecks() {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+	now := time.Now()
+	for _, h := range hc.healths {
+		if !h.HealthNextTime.After(now) {
+			hc.doCheck(h)
+			h.HealthNextTime = now.Add(time.Duration(h.HealthCheckInterval) * time.Second)
+		}
+	}
+	newHeap := &sheap.IntHeap{}
+	heap.Init(newHeap)
+	for _, h := range hc.healths {
+		heap.Push(newHeap, h.HealthNextTime.Unix())
+	}
+	hc.heap = newHeap
+}
+
+func (hc *HealthChecker) doCheck(h *file.Health) {
+	for _, target := range strings.Split(h.HealthCheckTarget, ",") {
+		var err error
+		timeout := time.Duration(h.HealthCheckTimeout) * time.Second
+		if h.HealthCheckType == "tcp" {
+			c, errDial := net.DialTimeout("tcp", target, timeout)
+			if errDial == nil {
 				c.Close()
+			} else {
+				err = errDial
 			}
 		} else {
-			client := &http.Client{}
-			client.Timeout = time.Duration(t.HealthCheckTimeout) * time.Second
-			rs, err = client.Get("http://" + v + t.HttpHealthUrl)
-			if err == nil && rs.StatusCode != 200 {
-				err = errors.New("status code is not match")
+			client := http.Client{Timeout: timeout}
+			resp, errGet := client.Get("http://" + target + h.HttpHealthUrl)
+			if errGet == nil {
+				defer resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					err = errors.Errorf("unexpected status %d", resp.StatusCode)
+				}
+			} else {
+				err = errGet
 			}
 		}
-		t.Lock()
+		h.Lock()
 		if err != nil {
-			t.HealthMap[v] += 1
-		} else if t.HealthMap[v] >= t.HealthMaxFail {
-			//send recovery add
-			serverConn.SendHealthInfo(v, "1")
-			t.HealthMap[v] = 0
+			h.HealthMap[target]++
+			if h.HealthMap[target]%h.HealthMaxFail == 0 {
+				hc.serverConn.SendHealthInfo(target, "0")
+			}
+		} else {
+			if h.HealthMap[target] >= h.HealthMaxFail {
+				hc.serverConn.SendHealthInfo(target, "1")
+			}
+			h.HealthMap[target] = 0
 		}
-
-		if t.HealthMap[v] > 0 && t.HealthMap[v]%t.HealthMaxFail == 0 {
-			//send fail remove
-			serverConn.SendHealthInfo(v, "0")
-		}
-		t.Unlock()
+		h.Unlock()
 	}
 }
