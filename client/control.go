@@ -530,7 +530,7 @@ func getRemoteAddressFromServer(rAddr string, localConn *net.UDPConn, md5Passwor
 	if err != nil {
 		return err
 	}
-	if _, err := localConn.WriteTo(common.GetWriteStr(md5Password, role), addr); err != nil {
+	if _, err := localConn.WriteTo(common.GetWriteStr(md5Password, role, localConn.LocalAddr().String()), addr); err != nil {
 		return err
 	}
 	return nil
@@ -558,7 +558,8 @@ func handleP2PUdp(pCtx context.Context, localAddr, rAddr, md5Password, role stri
 		logs.Error("%v", err)
 		return
 	}
-	var remoteAddr1, remoteAddr2, remoteAddr3 string
+	var remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal string
+Loop:
 	for {
 		select {
 		case <-parentCtx.Done():
@@ -566,115 +567,141 @@ func handleP2PUdp(pCtx context.Context, localAddr, rAddr, md5Password, role stri
 		default:
 		}
 		buf := make([]byte, 1024)
-		if n, addr, er := localConn.ReadFromUDP(buf); er != nil {
+		n, addr, er := localConn.ReadFromUDP(buf)
+		if er != nil {
 			err = er
 			return
-		} else {
-			rAddr2, _ := getNextAddr(rAddr, 1)
-			rAddr3, _ := getNextAddr(rAddr, 2)
-			switch addr.String() {
-			case rAddr:
-				remoteAddr1 = string(buf[:n])
-			case rAddr2:
-				remoteAddr2 = string(buf[:n])
-			case rAddr3:
-				remoteAddr3 = string(buf[:n])
-			}
+		}
+		parts := strings.Split(string(buf[:n]), common.CONN_DATA_SEQ)
+		payload := parts[0]
+		if len(parts) >= 2 {
+			remoteLocal = parts[1]
+		}
+		rAddr2, _ := getNextAddr(rAddr, 1)
+		rAddr3, _ := getNextAddr(rAddr, 2)
+		switch addr.String() {
+		case rAddr:
+			remoteAddr1 = payload
+		case rAddr2:
+			remoteAddr2 = payload
+		case rAddr3:
+			remoteAddr3 = payload
 		}
 		//logs.Debug("buf: %s", buf)
-		logs.Debug("remoteAddr1: %s remoteAddr2: %s remoteAddr3: %s", remoteAddr1, remoteAddr2, remoteAddr3)
+		if string(buf[:n]) == common.WORK_P2P_CONNECT {
+			break Loop
+		}
+		//logs.Debug("addr: %s", addr.String())
+		//logs.Debug("rAddr1: %s rAddr2: %s rAddr3: %s", rAddr, rAddr2, rAddr3)
+		//logs.Debug("remoteAddr1: %s remoteAddr2: %s remoteAddr3: %s remoteLocal: %s", remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal)
 		if remoteAddr1 != "" && remoteAddr2 != "" && remoteAddr3 != "" {
+			logs.Debug("remoteAddr1: %s remoteAddr2: %s remoteAddr3: %s remoteLocal: %s", remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal)
 			break
 		}
 	}
-	if remoteAddress, err = sendP2PTestMsg(parentCtx, localConn, remoteAddr1, remoteAddr2, remoteAddr3); err != nil {
+	if remoteAddress, err = sendP2PTestMsg(parentCtx, localConn, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal); err != nil {
 		return
 	}
 	c, err = newUdpConnByAddr(localAddr)
 	return
 }
 
-func sendP2PTestMsg(pCtx context.Context, localConn *net.UDPConn, remoteAddr1, remoteAddr2, remoteAddr3 string) (string, error) {
-	logs.Trace("%s %s %s", remoteAddr3, remoteAddr2, remoteAddr1)
+func sendP2PTestMsg(pCtx context.Context, localConn *net.UDPConn, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal string) (string, error) {
 	defer localConn.Close()
 	isClose := false
 	defer func() { isClose = true }()
 	parentCtx, parentCancel := context.WithCancel(pCtx)
 	defer parentCancel()
-	interval, err := getAddrInterval(remoteAddr1, remoteAddr2, remoteAddr3)
-	if err != nil {
-		return "", err
-	}
-	go func() {
-		addr, err := getNextAddr(remoteAddr3, interval)
-		if err != nil {
-			return
-		}
-		remoteUdpAddr, err := net.ResolveUDPAddr("udp", addr)
-		if err != nil {
-			return
-		}
-		logs.Trace("try send test packet to target %s", addr)
-		ticker := time.NewTicker(time.Millisecond * 500)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-parentCtx.Done():
-				return
-			case <-ticker.C:
-				if isClose {
-					return
-				}
-				if _, err := localConn.WriteTo([]byte(common.WORK_P2P_CONNECT), remoteUdpAddr); err != nil {
-					return
-				}
-			}
-		}
-	}()
-	if interval != 0 {
-		ip := common.RemovePortFromHost(remoteAddr2)
-		p1 := common.GetPortByAddr(remoteAddr1)
-		p2 := common.GetPortByAddr(remoteAddr2)
-		p3 := common.GetPortByAddr(remoteAddr3)
+	//logs.Trace("%s %s %s %s", remoteAddr3, remoteAddr2, remoteAddr1, remoteLocal)
+	if remoteLocal != "" {
 		go func() {
-			startPort := p3
-			endPort := startPort + (interval * 50)
-			if (p1 < p3 && p3 < p2) || (p1 > p3 && p3 > p2) {
-				endPort = endPort + (p2 - p3)
+			remoteUdpLocal, err := net.ResolveUDPAddr("udp", remoteLocal)
+			if err != nil {
+				return
 			}
-			endPort = common.GetPort(endPort)
-			logs.Debug("Start Port: %d, End Port: %d, Interval: %d", startPort, endPort, interval)
-			ports := getRandomPortArr(startPort, endPort)
-			ctx, cancel := context.WithCancel(parentCtx)
-			defer cancel()
-			for i := 0; i <= 50; i++ {
-				go func(port int) {
-					trueAddress := ip + ":" + strconv.Itoa(port)
-					logs.Trace("try send test packet to target %s", trueAddress)
-					remoteUdpAddr, err := net.ResolveUDPAddr("udp", trueAddress)
-					if err != nil {
-						return
-					}
-					ticker := time.NewTicker(time.Second * 2)
-					defer ticker.Stop()
-					for {
-						select {
-						case <-ctx.Done():
-							return
-						case <-ticker.C:
-							if isClose {
-								return
-							}
-							if _, err := localConn.WriteTo([]byte(common.WORK_P2P_CONNECT), remoteUdpAddr); err != nil {
-								return
-							}
-						}
-					}
-				}(ports[i])
-				time.Sleep(time.Millisecond * 10)
+			for i := 20; i > 0; i-- {
+				if _, err := localConn.WriteTo([]byte(common.WORK_P2P_CONNECT), remoteUdpLocal); err != nil {
+					return
+				}
+				time.Sleep(time.Millisecond * 100)
 			}
 		}()
-
+	}
+	if remoteAddr1 != "" && remoteAddr2 != "" && remoteAddr3 != "" {
+		interval, err := getAddrInterval(remoteAddr1, remoteAddr2, remoteAddr3)
+		if err != nil {
+			return "", err
+		}
+		go func() {
+			addr, err := getNextAddr(remoteAddr3, interval)
+			if err != nil {
+				return
+			}
+			remoteUdpAddr, err := net.ResolveUDPAddr("udp", addr)
+			if err != nil {
+				return
+			}
+			logs.Trace("try send test packet to target %s", addr)
+			ticker := time.NewTicker(time.Millisecond * 500)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-parentCtx.Done():
+					return
+				case <-ticker.C:
+					if isClose {
+						return
+					}
+					if _, err := localConn.WriteTo([]byte(common.WORK_P2P_CONNECT), remoteUdpAddr); err != nil {
+						return
+					}
+				}
+			}
+		}()
+		if interval != 0 {
+			ip := common.RemovePortFromHost(remoteAddr2)
+			p1 := common.GetPortByAddr(remoteAddr1)
+			p2 := common.GetPortByAddr(remoteAddr2)
+			p3 := common.GetPortByAddr(remoteAddr3)
+			go func() {
+				startPort := p3
+				endPort := startPort + (interval * 50)
+				if (p1 < p3 && p3 < p2) || (p1 > p3 && p3 > p2) {
+					endPort = endPort + (p2 - p3)
+				}
+				endPort = common.GetPort(endPort)
+				logs.Debug("Start Port: %d, End Port: %d, Interval: %d", startPort, endPort, interval)
+				ports := getRandomPortArr(startPort, endPort)
+				ctx, cancel := context.WithCancel(parentCtx)
+				defer cancel()
+				for i := 0; i <= 50; i++ {
+					go func(port int) {
+						trueAddress := ip + ":" + strconv.Itoa(port)
+						logs.Trace("try send test packet to target %s", trueAddress)
+						remoteUdpAddr, err := net.ResolveUDPAddr("udp", trueAddress)
+						if err != nil {
+							return
+						}
+						ticker := time.NewTicker(time.Second * 2)
+						defer ticker.Stop()
+						for {
+							select {
+							case <-ctx.Done():
+								return
+							case <-ticker.C:
+								if isClose {
+									return
+								}
+								if _, err := localConn.WriteTo([]byte(common.WORK_P2P_CONNECT), remoteUdpAddr); err != nil {
+									return
+								}
+							}
+						}
+					}(ports[i])
+					time.Sleep(time.Millisecond * 10)
+				}
+			}()
+		}
 	}
 
 	buf := make([]byte, 10)

@@ -51,6 +51,7 @@ var (
 	protoVer       = flag.Int("proto_version", version.GetLatestIndex(), fmt.Sprintf("Protocol version (0-%d)", version.GetLatestIndex()))
 	skipVerify     = flag.Bool("skip_verify", false, "Skip verification of server certificate")
 	disconnectTime = flag.Int("disconnect_timeout", 60, "Disconnect timeout in seconds")
+	p2pTime        = flag.Int("p2p_timeout", 5, "P2P timeout in seconds")
 	dnsServer      = flag.String("dns_server", "8.8.8.8", "DNS server for domain lookup")
 	tlsEnable      = flag.Bool("tls_enable", false, "Enable TLS (Deprecated)")
 	genTOTP        = flag.Bool("gen2fa", false, "Generate TOTP Secret")
@@ -309,6 +310,7 @@ func run(ctx context.Context) {
 		localServer.Port = *localPort
 		commonConfig.Client = new(file.Client)
 		commonConfig.Client.Cnf = new(file.Config)
+		commonConfig.DisconnectTime = *p2pTime
 		p2pm := client.NewP2PManager(ctx)
 		go p2pm.StartLocalServer(localServer, commonConfig)
 		return

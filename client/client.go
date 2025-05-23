@@ -114,10 +114,15 @@ func (s *TRPClient) handleMain() {
 				logs.Warn("%v", err)
 				return
 			} else if pwd, err := s.signal.GetShortLenContent(); err == nil {
+				rAddr := string(lAddr)
+				remoteIP := net.ParseIP(common.GetIpByAddr(s.signal.RemoteAddr().String()))
+				if remoteIP != nil && (remoteIP.IsPrivate() || remoteIP.IsLoopback() || remoteIP.IsLinkLocalUnicast()) {
+					rAddr = common.BuildAddress(remoteIP.String(), strconv.Itoa(common.GetPortByAddr(rAddr)))
+				}
 				var localAddr string
 				//The local port remains unchanged for a certain period of time
 				if v, ok := s.p2pAddr[crypt.Md5(string(pwd)+strconv.Itoa(int(time.Now().Unix()/100)))]; !ok {
-					if strings.Contains(string(lAddr), "]:") {
+					if strings.Contains(rAddr, "]:") {
 						tmpConn, err := common.GetLocalUdp6Addr()
 						if err != nil {
 							logs.Error("%v", err)
@@ -135,7 +140,7 @@ func (s *TRPClient) handleMain() {
 				} else {
 					localAddr = v
 				}
-				go s.newUdpConn(localAddr, string(lAddr), string(pwd))
+				go s.newUdpConn(localAddr, rAddr, string(pwd))
 			}
 		}
 	}

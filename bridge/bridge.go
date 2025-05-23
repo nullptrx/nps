@@ -287,7 +287,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 
 	//read test flag
 	if _, err := c.GetShortContent(3); err != nil {
-		logs.Info("The client %v connect error: %v", c.Conn.RemoteAddr(), err)
+		logs.Trace("The client %v connect error: %v", c.Conn.RemoteAddr(), err)
 		c.Close()
 		return
 	}
@@ -574,28 +574,34 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 		} else if t := file.GetDb().GetTaskByMd5Password(string(b)); t == nil {
 			logs.Error("p2p error, failed to match the key successfully")
 		} else if v, ok := s.Client.Load(t.Client.Id); ok {
-			//向密钥对应的客户端发送与服务端udp建立连接信息，地址，密钥
-			serverIP := common.GetServerIp()
 			serverPort := beego.AppConfig.String("p2p_port")
-
-			svrAddr := common.BuildAddress(serverIP, serverPort)
 			if serverPort == "" {
 				logs.Warn("get local udp addr error")
 				return
 			}
+			serverIP := common.GetServerIp()
+			svrAddr := common.BuildAddress(serverIP, serverPort)
+			signalAddr := common.BuildAddress(serverIP, serverPort)
+			remoteIP := net.ParseIP(common.GetIpByAddr(c.RemoteAddr().String()))
+			if remoteIP != nil && (remoteIP.IsPrivate() || remoteIP.IsLoopback() || remoteIP.IsLinkLocalUnicast()) {
+				svrAddr = common.BuildAddress(common.GetIpByAddr(c.LocalAddr().String()), serverPort)
+			}
 			client := v.(*Client)
+			signalIP := net.ParseIP(common.GetIpByAddr(client.signal.RemoteAddr().String()))
+			if signalIP != nil && (signalIP.IsPrivate() || signalIP.IsLoopback() || signalIP.IsLinkLocalUnicast()) {
+				signalAddr = common.BuildAddress(common.GetIpByAddr(client.signal.LocalAddr().String()), serverPort)
+			}
 			client.signal.Write([]byte(common.NEW_UDP_CONN))
-			client.signal.WriteLenContent([]byte(svrAddr))
+			client.signal.WriteLenContent([]byte(signalAddr))
 			client.signal.WriteLenContent(b)
-			//向该请求者发送建立连接请求,服务器地址
 			c.WriteLenContent([]byte(svrAddr))
-
+			logs.Trace("P2P: remoteIP=%s, svr1Addr=%s, clientIP=%s, svr2Addr=%s", remoteIP, svrAddr, signalIP, signalAddr)
 		} else {
 			return
 		}
 	}
 
-	c.SetAlive() // 设置连接为活动状态，避免超时断开
+	c.SetAlive()
 	return
 }
 

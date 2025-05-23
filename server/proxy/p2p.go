@@ -1,31 +1,36 @@
 package proxy
 
 import (
+	"bytes"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/djylb/nps/lib/common"
+	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/logs"
 )
 
 type P2PServer struct {
 	BaseServer
 	p2pPort  int
-	p2p      map[string]*p2p
+	sessions sync.Map // key string → *session
 	listener *net.UDPConn
 }
 
-type p2p struct {
-	visitorAddr  *net.UDPAddr
-	providerAddr *net.UDPAddr
+type session struct {
+	mu            sync.Mutex
+	visitorAddr   *net.UDPAddr
+	providerAddr  *net.UDPAddr
+	visitorLocal  string
+	providerLocal string
+	timer         *time.Timer
+	once          sync.Once
 }
 
 func NewP2PServer(p2pPort int) *P2PServer {
-	return &P2PServer{
-		p2pPort: p2pPort,
-		p2p:     make(map[string]*p2p),
-	}
+	return &P2PServer{p2pPort: p2pPort}
 }
 
 func (s *P2PServer) Start() error {
@@ -39,42 +44,85 @@ func (s *P2PServer) Start() error {
 		buf := common.BufPoolUdp.Get().([]byte)
 		n, addr, err := s.listener.ReadFromUDP(buf)
 		if err != nil {
+			common.BufPoolUdp.Put(buf)
 			if strings.Contains(err.Error(), "use of closed network connection") {
 				break
 			}
 			continue
 		}
-		go s.handleP2P(addr, string(buf[:n]))
+		data := make([]byte, n)
+		copy(data, buf[:n])
+		common.BufPoolUdp.Put(buf)
+		go s.handleP2P(addr, data)
 	}
 	return nil
 }
 
-func (s *P2PServer) handleP2P(addr *net.UDPAddr, str string) {
-	var (
-		v  *p2p
-		ok bool
-	)
-	arr := strings.Split(str, common.CONN_DATA_SEQ)
-	if len(arr) < 2 {
+func (s *P2PServer) handleP2P(addr *net.UDPAddr, data []byte) {
+	logs.Trace("P2P receive data %s from %v", data, addr)
+	chunks := bytes.Split(data, []byte(common.CONN_DATA_SEQ))
+	if len(chunks) < 2 {
 		return
 	}
-	if v, ok = s.p2p[arr[0]]; !ok {
-		v = new(p2p)
-		s.p2p[arr[0]] = v
+	key := string(chunks[0])
+	role := string(chunks[1])
+	var localStr string
+	if len(chunks) >= 3 {
+		localStr = string(chunks[2])
 	}
-	logs.Trace("new p2p connection ,role %s , password %s ,local address %v", arr[1], arr[0], addr)
-	if arr[1] == common.WORK_P2P_VISITOR {
-		v.visitorAddr = addr
-		for i := 20; i > 0; i-- {
-			if v.providerAddr != nil {
-				s.listener.WriteTo([]byte(v.providerAddr.String()), v.visitorAddr)
-				s.listener.WriteTo([]byte(v.visitorAddr.String()), v.providerAddr)
-				break
-			}
-			time.Sleep(time.Second)
+
+	if t := file.GetDb().GetTaskByMd5Password(key); t == nil {
+		logs.Error("p2p error, failed to match the key successfully")
+		return
+	}
+
+	v, _ := s.sessions.LoadOrStore(key, &session{})
+	sess := v.(*session)
+
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	logs.Trace("P2P %s [%s] from %v (local %q)", role, key, addr, localStr)
+
+	switch role {
+	case common.WORK_P2P_VISITOR:
+		sess.visitorAddr = addr
+		sess.visitorLocal = localStr
+	case common.WORK_P2P_PROVIDER:
+		sess.providerAddr = addr
+		sess.providerLocal = localStr
+	default:
+		sess.providerAddr = addr
+		sess.providerLocal = localStr
+	}
+
+	if sess.visitorAddr != nil && sess.providerAddr != nil {
+		var toVisitor []byte
+		var toProvider []byte
+		if sess.visitorLocal != "" && sess.providerLocal != "" {
+			toVisitor = common.GetWriteStr(sess.providerAddr.String(), sess.providerLocal)
+			toProvider = common.GetWriteStr(sess.visitorAddr.String(), sess.visitorLocal)
+		} else {
+			toVisitor = []byte(sess.providerAddr.String())
+			toProvider = []byte(sess.visitorAddr.String())
 		}
-		delete(s.p2p, arr[0])
+		for i := 0; i < 3; i++ {
+			if _, err := s.listener.WriteTo(toVisitor, sess.visitorAddr); err != nil {
+				logs.Warn("failed to send to visitor %v: %v", sess.visitorAddr, err)
+			}
+			if _, err := s.listener.WriteTo(toProvider, sess.providerAddr); err != nil {
+				logs.Warn("failed to send to provider %v: %v", sess.providerAddr, err)
+			}
+		}
+		logs.Trace("sent P2P addresses visitor=%v (%q) provider=%v (%q)", sess.visitorAddr, sess.visitorLocal, sess.providerAddr, sess.providerLocal)
+		if sess.timer != nil {
+			sess.timer.Stop()
+		}
+		s.sessions.Delete(key)
 	} else {
-		v.providerAddr = addr
+		sess.once.Do(func() {
+			sess.timer = time.AfterFunc(20*time.Second, func() {
+				s.sessions.Delete(key)
+			})
+		})
 	}
 }

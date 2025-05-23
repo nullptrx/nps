@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -205,34 +206,42 @@ func NewP2PManager(parentCtx context.Context) *P2PManager {
 
 func (b *p2pBridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (net.Conn, error) {
 	mgr := b.mgr
-	timer := time.NewTimer(200 * time.Millisecond)
-	defer timer.Stop()
+	ctx, cancel := context.WithTimeout(mgr.ctx, 200*time.Millisecond)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-mgr.ctx.Done():
-			return nil, errors.New("context canceled")
-		case <-timer.C:
+		case <-ctx.Done():
+			mgr.mu.Lock()
+			mgr.statusOK = false
+			mgr.mu.Unlock()
 			return nil, errors.New("timeout waiting muxSession")
 		case <-ticker.C:
 			mgr.mu.Lock()
 			session := mgr.muxSession
 			mgr.mu.Unlock()
-			if session != nil {
-				nowConn, err := session.NewConn()
-				if err != nil {
-					return nil, err
-				}
-				if _, err := conn.NewConn(nowConn).SendInfo(link, ""); err != nil {
-					nowConn.Close()
-					mgr.mu.Lock()
-					mgr.statusOK = false
-					mgr.mu.Unlock()
-					return nil, err
-				}
-				return nowConn, nil
+			if session == nil || session.IsClose {
+				continue
 			}
+			nowConn, err := session.NewConn()
+			if err != nil {
+				mgr.mu.Lock()
+				mgr.statusOK = false
+				mgr.mu.Unlock()
+				return nil, err
+			}
+			if _, err := conn.NewConn(nowConn).SendInfo(link, ""); err != nil {
+				nowConn.Close()
+				mgr.mu.Lock()
+				mgr.statusOK = false
+				mgr.mu.Unlock()
+				return nil, err
+			}
+			mgr.mu.Lock()
+			mgr.statusOK = true
+			mgr.mu.Unlock()
+			return nowConn, nil
 		}
 	}
 }
@@ -262,8 +271,10 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 			RateLimit: 0,
 			Flow:      &file.Flow{},
 		},
-		Flow:   &file.Flow{},
-		Target: &file.Target{},
+		HttpProxy:   true,
+		Socks5Proxy: true,
+		Flow:        &file.Flow{},
+		Target:      &file.Target{},
 	}
 	switch l.Type {
 	case "p2ps":
@@ -321,7 +332,7 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 	go func() {
 		defer mgr.wg.Done()
 		conn.Accept(listenTCP, func(c net.Conn) {
-			logs.Trace("new %s connection", l.Type)
+			logs.Trace("new %s connection, remote address %s", l.Type, c.RemoteAddr().String())
 			if l.Type == "secret" {
 				mgr.handleSecret(c, cfg, l)
 			} else if l.Type == "p2p" {
@@ -344,17 +355,17 @@ func (mgr *P2PManager) handleUdpMonitor(cfg *config.CommonConfig, l *config.Loca
 		case <-ticker.C:
 		}
 		mgr.mu.Lock()
-		ok := mgr.statusOK
-		connOld := mgr.udpConn
+		ok := mgr.statusOK && mgr.udpConn != nil
+		oldConn := mgr.udpConn
 		mgr.mu.Unlock()
 
-		if ok && connOld != nil {
+		if ok {
 			continue
 		}
 
 		mgr.mu.Lock()
-		if mgr.udpConn != nil {
-			mgr.udpConn.Close()
+		if oldConn != nil {
+			oldConn.Close()
 			mgr.udpConn = nil
 		}
 		mgr.mu.Unlock()
@@ -428,6 +439,10 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 		return
 	}
 	rAddr := string(rAddrBuf)
+	remoteIP := net.ParseIP(common.GetIpByAddr(remoteConn.RemoteAddr().String()))
+	if remoteIP != nil && (remoteIP.IsPrivate() || remoteIP.IsLoopback() || remoteIP.IsLinkLocalUnicast()) {
+		rAddr = common.BuildAddress(remoteIP.String(), strconv.Itoa(common.GetPortByAddr(rAddr)))
+	}
 
 	if !common.IsSameIPType(localAddr, rAddr) {
 		logs.Debug("IP type mismatch local=%s remote=%s", localAddr, rAddr)
