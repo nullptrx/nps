@@ -718,12 +718,10 @@ func (s *Bridge) ping() {
 				clientID := key.(int)
 				client := value.(*Client)
 
-				// 跳过虚拟客户端的健康检查
 				if clientID <= 0 {
 					return true
 				}
 
-				// 处理正常客户端
 				if client == nil || client.tunnel == nil || client.signal == nil || client.tunnel.IsClose {
 					client.retryTime++
 					if client.retryTime >= 3 {
