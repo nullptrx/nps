@@ -64,20 +64,25 @@ func IsReplay(key string) bool {
 }
 
 type Client struct {
-	tunnel    *nps_mux.Mux // WORK_CHAN connection
 	signal    *conn.Conn   // WORK_MAIN connection
+	tunnel    *nps_mux.Mux // WORK_CHAN connection
 	file      *nps_mux.Mux // WORK_FILE connection
 	Version   string
-	retryTime int // it will add 1 when ping not ok until to 3 will close the client
+	retryTime int      // it will add 1 when ping not ok until to 3 will close the client
+	signals   sync.Map // map[*conn.Conn]struct{}
+	tunnels   sync.Map // map[*nps_mux.Mux]struct{}
 }
 
 func NewClient(t, f *nps_mux.Mux, s *conn.Conn, vs string) *Client {
-	return &Client{
+	cli := &Client{
 		signal:  s,
 		tunnel:  t,
 		file:    f,
 		Version: vs,
+		signals: sync.Map{},
+		tunnels: sync.Map{},
 	}
+	return cli
 }
 
 type Bridge struct {
@@ -282,6 +287,7 @@ func (s *Bridge) verifySuccess(c *conn.Conn) {
 func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 	if c.Conn == nil || c.Conn.RemoteAddr() == nil {
 		logs.Warn("Invalid connection")
+		c.Close()
 		return
 	}
 
@@ -490,6 +496,20 @@ func (s *Bridge) DelClient(id int) {
 			client.file.Close()
 		}
 
+		client.signals.Range(func(key, _ interface{}) bool {
+			c := key.(*conn.Conn)
+			c.Close()
+			client.signals.Delete(key)
+			return true
+		})
+
+		client.tunnels.Range(func(key, _ interface{}) bool {
+			t := key.(*nps_mux.Mux)
+			t.Close()
+			client.tunnels.Delete(key)
+			return true
+		})
+
 		s.Client.Delete(id)
 
 		if file.GetDb().IsPubClient(id) {
@@ -527,6 +547,9 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 			if client.signal != nil {
 				client.signal.WriteClose()
 			}
+			if client.signal != nil {
+				client.signals.LoadOrStore(client.signal, struct{}{})
+			}
 			client.signal = c
 			client.Version = vs
 		}
@@ -538,6 +561,9 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 		muxConn := nps_mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime)
 		if v, loaded := s.Client.LoadOrStore(id, NewClient(muxConn, nil, nil, vs)); loaded {
 			client := v.(*Client)
+			if client.tunnel != nil {
+				client.tunnels.LoadOrStore(client.tunnel, struct{}{})
+			}
 			client.tunnel = muxConn
 		}
 
@@ -564,6 +590,9 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 		muxConn := nps_mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime)
 		if v, loaded := s.Client.LoadOrStore(id, NewClient(nil, muxConn, nil, vs)); loaded {
 			client := v.(*Client)
+			if client.file != nil {
+				client.tunnels.LoadOrStore(client.file, struct{}{})
+			}
 			client.file = muxConn
 		}
 
