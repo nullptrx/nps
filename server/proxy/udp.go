@@ -29,7 +29,6 @@ func NewUdpModeServer(bridge NetBridge, task *file.Tunnel) *UdpModeServer {
 	return s
 }
 
-// 开始
 func (s *UdpModeServer) Start() error {
 	var err error
 	if s.task.ServerIp == "" {
@@ -49,13 +48,8 @@ func (s *UdpModeServer) Start() error {
 			continue
 		}
 
-		// 判断访问地址是否在全局黑名单内
-		if IsGlobalBlackIp(addr.String()) {
-			break
-		}
-
-		// 判断访问地址是否在黑名单内
-		if common.IsBlackIp(addr.String(), s.task.Client.VerifyKey, s.task.Client.BlackIpList) {
+		// IP Black
+		if IsGlobalBlackIp(addr.String()) || common.IsBlackIp(addr.String(), s.task.Client.VerifyKey, s.task.Client.BlackIpList) {
 			break
 		}
 

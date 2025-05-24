@@ -3,6 +3,7 @@ package client
 import (
 	"container/heap"
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -158,26 +159,32 @@ func (hc *HealthChecker) doCheck(h *file.Health) {
 	timeout := time.Duration(h.HealthCheckTimeout) * time.Second
 	for _, target := range strings.Split(h.HealthCheckTarget, ",") {
 		var err error
-		if h.HealthCheckType == "tcp" {
+		switch h.HealthCheckType {
+		case "tcp":
 			c, errDial := net.DialTimeout("tcp", target, timeout)
 			if errDial == nil {
 				c.Close()
 			} else {
 				err = errDial
 			}
-		} else {
+		case "http", "https":
+			// HTTP/HTTPS Check
+			scheme := h.HealthCheckType // "http" or "https"
+			url := fmt.Sprintf("%s://%s%s", scheme, target, h.HttpHealthUrl)
 			ctx, cancel := context.WithTimeout(hc.ctx, timeout)
-			req, _ := http.NewRequestWithContext(ctx, "GET", "http://"+target+h.HttpHealthUrl, nil)
-			resp, errGet := hc.client.Do(req)
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+			resp, getErr := hc.client.Do(req)
 			cancel()
-			if errGet == nil {
+			if getErr != nil {
+				err = getErr
+			} else {
 				defer resp.Body.Close()
 				if resp.StatusCode != http.StatusOK {
 					err = errors.Errorf("unexpected status %d", resp.StatusCode)
 				}
-			} else {
-				err = errGet
 			}
+		default:
+			err = errors.Errorf("unsupported health check type: %s", h.HealthCheckType)
 		}
 		h.Lock()
 		if err != nil {

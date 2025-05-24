@@ -42,7 +42,6 @@ func (s *ClientController) List() {
 	s.AjaxTable(list, cnt, cnt, cmd)
 }
 
-// 添加客户端
 func (s *ClientController) Add() {
 	if s.Ctx.Request.Method == "GET" {
 		s.Data["menu"] = "client"
@@ -97,7 +96,6 @@ func (s *ClientController) GetClient() {
 	}
 }
 
-// 修改客户端
 func (s *ClientController) Edit() {
 	id := s.GetIntNoErr("id")
 	if s.Ctx.Request.Method == "GET" {
@@ -264,7 +262,6 @@ func (s *ClientController) Clear() {
 	s.AjaxErr("modified fail")
 }
 
-// 更改状态
 func (s *ClientController) ChangeStatus() {
 	id := s.GetIntNoErr("id")
 	if client, err := file.GetDb().GetClient(id); err == nil {
@@ -277,7 +274,6 @@ func (s *ClientController) ChangeStatus() {
 	s.AjaxErr("modified fail")
 }
 
-// 删除客户端
 func (s *ClientController) Del() {
 	id := s.GetIntNoErr("id")
 	if err := file.GetDb().DelClient(id); err != nil {

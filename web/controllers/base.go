@@ -22,7 +22,6 @@ type BaseController struct {
 	actionName     string
 }
 
-// 初始化参数
 func (s *BaseController) Prepare() {
 	s.Data["web_base_url"] = beego.AppConfig.String("web_base_url")
 	controllerName, actionName := s.GetControllerAndAction()
@@ -70,7 +69,6 @@ func (s *BaseController) Prepare() {
 	s.Data["allow_user_change_username"], _ = beego.AppConfig.Bool("allow_user_change_username")
 }
 
-// 加载模板
 func (s *BaseController) display(tpl ...string) {
 	s.Data["web_base_url"] = beego.AppConfig.String("web_base_url")
 	s.Data["version"] = server.GetVersion()
@@ -113,7 +111,6 @@ func (s *BaseController) display(tpl ...string) {
 	s.TplName = tplname
 }
 
-// 错误
 func (s *BaseController) error() {
 	s.Data["web_base_url"] = beego.AppConfig.String("web_base_url")
 	s.Data["version"] = server.GetVersion()
@@ -122,12 +119,10 @@ func (s *BaseController) error() {
 	s.TplName = "public/error.html"
 }
 
-// getEscapeString
 func (s *BaseController) getEscapeString(key string) string {
 	return html.EscapeString(s.GetString(key))
 }
 
-// 去掉没有err返回值的int
 func (s *BaseController) GetIntNoErr(key string, def ...int) int {
 	strv := s.Ctx.Input.Query(key)
 	if len(strv) == 0 && len(def) > 0 {
@@ -137,7 +132,6 @@ func (s *BaseController) GetIntNoErr(key string, def ...int) int {
 	return val
 }
 
-// 获取去掉错误的bool值
 func (s *BaseController) GetBoolNoErr(key string, def ...bool) bool {
 	strv := s.Ctx.Input.Query(key)
 	if len(strv) == 0 && len(def) > 0 {
@@ -147,28 +141,24 @@ func (s *BaseController) GetBoolNoErr(key string, def ...bool) bool {
 	return val
 }
 
-// ajax正确返回
 func (s *BaseController) AjaxOk(str string) {
 	s.Data["json"] = ajax(str, 1)
 	s.ServeJSON()
 	s.StopRun()
 }
 
-// ajax正确返回
 func (s *BaseController) AjaxOkWithId(str string, id int) {
 	s.Data["json"] = ajaxWithId(str, 1, id)
 	s.ServeJSON()
 	s.StopRun()
 }
 
-// ajax错误返回
 func (s *BaseController) AjaxErr(str string) {
 	s.Data["json"] = ajax(str, 0)
 	s.ServeJSON()
 	s.StopRun()
 }
 
-// 组装ajax
 func ajax(str string, status int) map[string]interface{} {
 	json := make(map[string]interface{})
 	json["status"] = status
@@ -176,7 +166,6 @@ func ajax(str string, status int) map[string]interface{} {
 	return json
 }
 
-// 组装ajax
 func ajaxWithId(str string, status int, id int) map[string]interface{} {
 	json := make(map[string]interface{})
 	json["status"] = status
@@ -185,7 +174,6 @@ func ajaxWithId(str string, status int, id int) map[string]interface{} {
 	return json
 }
 
-// ajax table返回
 func (s *BaseController) AjaxTable(list interface{}, cnt int, recordsTotal int, kwargs map[string]interface{}) {
 	json := make(map[string]interface{})
 	json["rows"] = list
@@ -202,7 +190,6 @@ func (s *BaseController) AjaxTable(list interface{}, cnt int, recordsTotal int, 
 	s.StopRun()
 }
 
-// ajax table参数
 func (s *BaseController) GetAjaxParams() (start, limit int) {
 	return s.GetIntNoErr("offset"), s.GetIntNoErr("limit")
 }

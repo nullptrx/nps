@@ -441,6 +441,12 @@ func GetHostList(start, length, clientId int, search, sortField, order string) (
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].Location > list[j].Location })
 		}
+	} else if sortField == "PathRewrite" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].PathRewrite < list[j].PathRewrite })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].PathRewrite > list[j].PathRewrite })
+		}
 	} else if sortField == "IsClose" {
 		if order == "asc" {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].IsClose && !list[j].IsClose })
@@ -550,9 +556,8 @@ func dealClientData() {
 				v.Version = version.VERSION
 				v.Mode = "local"
 				v.LocalAddr = common.GetOutboundIP().String()
-				// 如果客户端 ID 小于等于 0 且允许本地代理，插入虚拟客户端
+				// Add Local Client
 				if _, exists := Bridge.Client.Load(v.Id); !exists {
-					// 创建虚拟客户端并插入
 					Bridge.Client.Store(v.Id, bridge.NewClient(nil, nil, nil, version.VERSION))
 					logs.Debug("Inserted virtual client for ID %d", v.Id)
 				}
@@ -849,7 +854,6 @@ func GetDashboardData(force bool) map[string]interface{} {
 	return data
 }
 
-// 获取服务端版本号
 func GetVersion() string {
 	return version.VERSION
 }
@@ -861,12 +865,10 @@ func GetMinVersion() string {
 	return version.GetVersion(0)
 }
 
-// 获取年份
 func GetCurrentYear() int {
 	return time.Now().Year()
 }
 
-// 实例化流量数据到文件
 func flowSession(m time.Duration) {
 	file.GetDb().JsonDb.StoreHostToJsonFile()
 	file.GetDb().JsonDb.StoreTasksToJsonFile()

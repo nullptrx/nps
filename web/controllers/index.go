@@ -435,6 +435,7 @@ func (s *IndexController) AddHost() {
 			HostChange:   s.getEscapeString("hostchange"),
 			Remark:       s.getEscapeString("remark"),
 			Location:     s.getEscapeString("location"),
+			PathRewrite:  s.getEscapeString("path_rewrite"),
 			Flow: &file.Flow{
 				FlowLimit: int64(s.GetIntNoErr("flow_limit")),
 				TimeLimit: common.GetTimeNoErrByStr(s.getEscapeString("time_limit")),
@@ -482,7 +483,7 @@ func (s *IndexController) EditHost() {
 		if h, err := file.GetDb().GetHostById(id); err != nil {
 			s.error()
 		} else {
-			if h.Host != s.getEscapeString("host") {
+			if h.Host != s.getEscapeString("host") || h.Location != s.getEscapeString("location") || h.Scheme != s.getEscapeString("scheme") {
 				tmpHost := new(file.Host)
 				tmpHost.Host = s.getEscapeString("host")
 				tmpHost.Location = s.getEscapeString("location")
@@ -505,6 +506,7 @@ func (s *IndexController) EditHost() {
 			h.HostChange = s.getEscapeString("hostchange")
 			h.Remark = s.getEscapeString("remark")
 			h.Location = s.getEscapeString("location")
+			h.PathRewrite = s.getEscapeString("path_rewrite")
 			h.Scheme = s.getEscapeString("scheme")
 			h.HttpsJustProxy = s.GetBoolNoErr("https_just_proxy")
 			h.KeyFilePath = s.getEscapeString("key_file_path")

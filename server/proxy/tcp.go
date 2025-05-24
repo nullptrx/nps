@@ -37,7 +37,7 @@ type TunnelModeServer struct {
 	activeConnections sync.Map
 }
 
-// tcp|http|host
+// tcp|host|mixproxy
 func NewTunnelModeServer(process process, bridge NetBridge, task *file.Tunnel) *TunnelModeServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
 	s := new(TunnelModeServer)

@@ -86,7 +86,7 @@ func NewClient(t, f *nps_mux.Mux, s *conn.Conn, vs string) *Client {
 }
 
 type Bridge struct {
-	TunnelPort     int //通信隧道端口
+	TunnelPort     int
 	Client         *sync.Map
 	Register       *sync.Map
 	tunnelType     string //bridge type kcp or tcp
@@ -204,7 +204,6 @@ func (s *Bridge) StartTunnel() error {
 
 // get health information form client
 func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
-	// 跳过虚拟客户端
 	if id <= 0 {
 		return
 	}
@@ -218,7 +217,7 @@ func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 				if v.Client.Id == id && v.Mode == "tcp" && strings.Contains(v.Target.TargetStr, info) {
 					v.Lock()
 					if v.Target.TargetArr == nil || (len(v.Target.TargetArr) == 0 && len(v.HealthRemoveArr) == 0) {
-						v.Target.TargetArr = common.TrimArr(strings.Split(v.Target.TargetStr, "\n"))
+						v.Target.TargetArr = common.TrimArr(strings.Split(strings.ReplaceAll(v.Target.TargetStr, "\r\n", "\n"), "\n"))
 					}
 					v.Target.TargetArr = common.RemoveArrVal(v.Target.TargetArr, info)
 					if v.HealthRemoveArr == nil {
@@ -234,7 +233,7 @@ func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 				if v.Client.Id == id && strings.Contains(v.Target.TargetStr, info) {
 					v.Lock()
 					if v.Target.TargetArr == nil || (len(v.Target.TargetArr) == 0 && len(v.HealthRemoveArr) == 0) {
-						v.Target.TargetArr = common.TrimArr(strings.Split(v.Target.TargetStr, "\n"))
+						v.Target.TargetArr = common.TrimArr(strings.Split(strings.ReplaceAll(v.Target.TargetStr, "\r\n", "\n"), "\n"))
 					}
 					v.Target.TargetArr = common.RemoveArrVal(v.Target.TargetArr, info)
 					if v.HealthRemoveArr == nil {
@@ -272,7 +271,6 @@ func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 	s.DelClient(id)
 }
 
-// 验证失败，返回错误验证flag，并且关闭连接
 func (s *Bridge) verifyError(c *conn.Conn) {
 	if !ServerSecureMode {
 		c.Write([]byte(common.VERIFY_EER))
@@ -546,8 +544,6 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 			client := v.(*Client)
 			if client.signal != nil {
 				client.signal.WriteClose()
-			}
-			if client.signal != nil {
 				client.signals.LoadOrStore(client.signal, struct{}{})
 			}
 			client.signal = c

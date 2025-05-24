@@ -418,9 +418,13 @@
 		<zh-CN>本地路径</zh-CN>
 		<en-US>Local Path</en-US>
 	</lang>
-	<lang id="word-location">
+	<lang id="word-path">
 		<zh-CN>路径</zh-CN>
 		<en-US>Path</en-US>
+	</lang>
+	<lang id="word-pathrewrite">
+		<zh-CN>路径重写</zh-CN>
+		<en-US>Path Rewrite</en-US>
 	</lang>
 	<lang id="word-login">
 		<zh-CN>登录</zh-CN>
@@ -686,6 +690,10 @@
 		<zh-CN>URL 路由</zh-CN>
 		<en-US>URL Router</en-US>
 	</lang>
+	<lang id="word-urlrewrite">
+		<zh-CN>URL 重写</zh-CN>
+		<en-US>URL Rewrite</en-US>
+	</lang>
 	<lang id="word-usecase">
 		<zh-CN>使用场景</zh-CN>
 		<en-US>Use Case</en-US>
@@ -896,6 +904,10 @@
 	<lang id="info-unrestricted">
 		<zh-CN>留空表示不受限制</zh-CN>
 		<en-US>Empty means to be unrestricted</en-US>
+	</lang>
+	<lang id="info-urlrewrite">
+		<zh-CN>路径重写（留空关闭）</zh-CN>
+		<en-US>Path rewrite prefix (leave blank to disable)</en-US>
 	</lang>
 	<lang id="word-blackiplist">
 		<zh-CN>IP黑名单（防暴力破解）</zh-CN>

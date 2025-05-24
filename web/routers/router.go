@@ -8,10 +8,9 @@ import (
 )
 
 func Init() {
-	// 配置 404 错误处理
+	// Handle 404
 	beego.ErrorHandler("404", func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusNotFound)
-		// 返回空内容
 	})
 
 	web_base_url := beego.AppConfig.String("web_base_url")

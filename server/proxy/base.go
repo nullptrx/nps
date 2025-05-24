@@ -102,26 +102,15 @@ func in(target string, str_array []string) bool {
 	return false
 }
 
-// 处理客户端连接
 func (s *BaseServer) DealClient(c *conn.Conn, client *file.Client, addr string,
 	rb []byte, tp string, f func(), flows []*file.Flow, proxyProtocol int, localProxy bool, task *file.Tunnel) error {
 
-	// 判断访问地址是否在全局黑名单内
-	if IsGlobalBlackIp(c.RemoteAddr().String()) {
+	if IsGlobalBlackIp(c.RemoteAddr().String()) || common.IsBlackIp(c.RemoteAddr().String(), client.VerifyKey, client.BlackIpList) {
 		c.Close()
 		return nil
 	}
 
-	// 判断访问地址是否在黑名单内
-	if common.IsBlackIp(c.RemoteAddr().String(), client.VerifyKey, client.BlackIpList) {
-		c.Close()
-		return nil
-	}
-
-	// 创建连接链接
 	link := conn.NewLink(tp, addr, client.Cnf.Crypt, client.Cnf.Compress, c.Conn.RemoteAddr().String(), s.allowLocalProxy && localProxy)
-
-	// 获取目标连接
 	target, err := s.bridge.SendLinkInfo(client.Id, link, s.task)
 	if err != nil {
 		logs.Warn("get connection from client id %d  error %v", client.Id, err)
@@ -129,19 +118,15 @@ func (s *BaseServer) DealClient(c *conn.Conn, client *file.Client, addr string,
 		return err
 	}
 
-	// 执行回调函数
 	if f != nil {
 		f()
 	}
 
-	// 开始数据转发
 	conn.CopyWaitGroup(target, c.Conn, link.Crypt, link.Compress, client.Rate, flows, true, proxyProtocol, rb, task)
 	return nil
 }
 
-// 判断访问地址是否在全局黑名单内
 func IsGlobalBlackIp(ipPort string) bool {
-	// 判断访问地址是否在全局黑名单内
 	global := file.GetDb().GetGlobal()
 	if global != nil {
 		ip := common.GetIpByAddr(ipPort)

@@ -110,7 +110,7 @@ func (s *httpServer) Close() error {
 }
 
 func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
-	// 获取 host 配置
+	// Get host
 	host, err := file.GetDb().GetInfoByHost(r.Host, r)
 	if err != nil {
 		//http.Error(w, "404 Host not found", http.StatusNotFound)
@@ -125,7 +125,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// IP 黑名单检查
+	// IP Black List
 	clientIP := common.GetIpByAddr(r.RemoteAddr)
 	if IsGlobalBlackIp(clientIP) || common.IsBlackIp(clientIP, host.Client.VerifyKey, host.Client.BlackIpList) {
 		//http.Error(w, "403 Forbidden", http.StatusForbidden)
@@ -137,13 +137,19 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// HTTP-Only 请求处理
+	// Path Rewrite
+	if host.PathRewrite != "" && strings.HasPrefix(r.URL.Path, host.Location) {
+		r.Header.Set("X-Original-Path", r.URL.Path)
+		r.URL.Path = host.PathRewrite + r.URL.Path[len(host.Location):]
+	}
+
+	// HTTP-Only
 	isHttpOnlyRequest := (s.httpOnlyPass != "" && r.Header.Get("X-NPS-Http-Only") == s.httpOnlyPass)
 	if isHttpOnlyRequest {
 		r.Header.Del("X-NPS-Http-Only")
 	}
 
-	// 自动 301 跳转 HTTPS
+	// Auto 301 to HTTPS
 	if !isHttpOnlyRequest && host.AutoHttps && r.TLS == nil {
 		redirectHost := common.RemovePortFromHost(r.Host)
 		if s.httpsPort != 443 {
@@ -153,7 +159,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 连接数和流量控制
+	// Check flow and conn
 	if err := s.CheckFlowAndConnNum(host.Client); err != nil {
 		http.Error(w, "Access denied: "+err.Error(), http.StatusTooManyRequests)
 		logs.Warn("Connection limit exceeded, client id %d, host id %d, error %v", host.Client.Id, host.Id, err)
@@ -161,7 +167,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 	defer host.Client.CutConn()
 
-	// HTTP 认证
+	// HTTP Auth
 	if r.Header.Get("Upgrade") == "" {
 		if err := s.auth(r, nil, host.Client.Cnf.U, host.Client.Cnf.P, s.task.MultiAccount, host.UserAuth); err != nil {
 			logs.Warn("Unauthorized request from %s", r.RemoteAddr)
@@ -171,7 +177,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 获取目标地址
+	// Get target addr
 	targetAddr, err := host.Target.GetRandomTarget()
 	if err != nil {
 		logs.Warn("No backend found for host: %s Err: %v", r.Host, err)
@@ -184,13 +190,12 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	logs.Debug("%s request, method %s, host %s, url %s, remote address %s, target %s", r.URL.Scheme, r.Method, r.Host, r.URL.Path, r.RemoteAddr, targetAddr)
 
-	// WebSocket 请求单独处理
+	// WebSocket
 	if r.Method == "CONNECT" || r.Header.Get("Upgrade") != "" || r.Header.Get(":protocol") != "" {
 		s.handleWebsocket(w, r, host, targetAddr, isHttpOnlyRequest)
 		return
 	}
 
-	// 创建 HTTP 反向代理
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			//req = req.WithContext(context.WithValue(req.Context(), "origReq", r))
@@ -234,7 +239,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		ModifyResponse: func(resp *http.Response) error {
-			// 处理 CORS
+			// CORS
 			if host.AutoCORS {
 				origin := resp.Request.Header.Get("Origin")
 				if origin != "" && resp.Header.Get("Access-Control-Allow-Origin") == "" {

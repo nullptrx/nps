@@ -113,6 +113,12 @@
                             <input class="form-control" langtag="info-unrestricted" name="location" placeholder="" type="text" value="{{.h.Location}}">
                         </div>
                     </div>
+                    <div class="form-group">
+                        <label class="control-label font-bold" langtag="word-urlrewrite"></label>
+                        <div class="col-sm-12">
+                            <input class="form-control" langtag="info-urlrewrite" name="path_rewrite" placeholder="" type="text" value="{{.h.PathRewrite}}">
+                        </div>
+                    </div>
                     {{if eq true .allow_local_proxy}}
                     <div class="form-group" id="local_proxy">
                         <label class="control-label font-bold" langtag="word-proxytolocal"></label>

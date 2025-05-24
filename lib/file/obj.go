@@ -195,6 +195,7 @@ type Host struct {
 	HeaderChange   string //header change
 	HostChange     string //host change
 	Location       string //url router
+	PathRewrite    string //url rewrite
 	Remark         string //remark
 	Scheme         string //http https all
 	HttpsJustProxy bool
