@@ -444,6 +444,19 @@ func LoadCert(certFile, keyFile string) (tls.Certificate, bool) {
 	return tls.Certificate{}, false
 }
 
+func GetCertType(s string) string {
+	if s == "" {
+		return "empty"
+	}
+	if strings.Contains(s, "-----BEGIN ") || strings.Contains(s, "\n") {
+		return "text"
+	}
+	if _, err := os.Stat(s); err == nil {
+		return "file"
+	}
+	return "invalid"
+}
+
 // FileExists reports whether the named file or directory exists.
 func FileExists(name string) bool {
 	if _, err := os.Stat(name); err != nil {

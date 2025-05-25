@@ -375,7 +375,8 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			return
 		}
 		//verify
-		id, err := file.GetDb().GetIdByVerifyKey(string(keyBuf), c.Conn.RemoteAddr().String(), "", crypt.Blake2b)
+		//id, err := file.GetDb().GetIdByVerifyKey(string(keyBuf), c.Conn.RemoteAddr().String(), "", crypt.Blake2b)
+		id, err := file.GetDb().GetClientIdByBlake2bVkey(string(keyBuf))
 		if err != nil {
 			logs.Error("Validation error for client %v (proto-ver %d, vKey %x): %v", c.Conn.RemoteAddr(), ver, keyBuf, err)
 			s.verifyError(c)
@@ -387,6 +388,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			c.Close()
 			return
 		}
+		client.Addr = common.GetIpByAddr(c.Conn.RemoteAddr().String())
 		infoBuf, err := c.GetShortLenContent()
 		if err != nil {
 			logs.Error("Failed to read encrypted IP from %v: %v", c.Conn.RemoteAddr(), err)
@@ -457,7 +459,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		}
 		if ver > 1 {
 			// --- protocol 0.28.0+ path ---
-			fpBuf, err := crypt.EncryptBytes(crypt.GetCertFingerprint(), client.VerifyKey)
+			fpBuf, err := crypt.EncryptBytes(crypt.GetCertFingerprint(crypt.GetCert()), client.VerifyKey)
 			if err != nil {
 				logs.Error("Failed to encrypt cert fingerprint for %v: %v", c.Conn.RemoteAddr(), err)
 				c.Close()
@@ -749,12 +751,12 @@ loop:
 
 		switch flag {
 		case common.WORK_STATUS:
-			b, err := c.GetShortContent(32)
+			b, err := c.GetShortContent(64)
 			if err != nil {
 				break loop
 			}
 
-			id, err := file.GetDb().GetClientIdByMd5Vkey(string(b))
+			id, err := file.GetDb().GetClientIdByBlake2bVkey(string(b))
 			if err != nil {
 				break loop
 			}

@@ -52,7 +52,7 @@ func GetTaskStatus(path string) {
 	//read now vKey and write to server
 	if f, err := common.ReadAllFromFile(filepath.Join(common.GetTmpPath(), "npc_vkey.txt")); err != nil {
 		log.Fatalln(err)
-	} else if _, err := c.Write([]byte(crypt.Md5(string(f)))); err != nil {
+	} else if _, err := c.Write([]byte(crypt.Blake2b(string(f)))); err != nil {
 		log.Fatalln(err)
 	}
 	var isPub bool

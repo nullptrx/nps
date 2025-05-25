@@ -5,6 +5,7 @@ import (
 
 	"github.com/beego/beego"
 	"github.com/djylb/nps/lib/common"
+	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/server"
 	"github.com/djylb/nps/server/tool"
@@ -442,8 +443,8 @@ func (s *IndexController) AddHost() {
 			},
 			Scheme:         s.getEscapeString("scheme"),
 			HttpsJustProxy: s.GetBoolNoErr("https_just_proxy"),
-			KeyFilePath:    s.getEscapeString("key_file_path"),
-			CertFilePath:   s.getEscapeString("cert_file_path"),
+			KeyFile:        s.getEscapeString("key_file"),
+			CertFile:       s.getEscapeString("cert_file"),
 			AutoHttps:      s.GetBoolNoErr("auto_https"),
 			AutoCORS:       s.GetBoolNoErr("auto_cors"),
 			TargetIsHttps:  s.GetBoolNoErr("target_is_https"),
@@ -483,6 +484,7 @@ func (s *IndexController) EditHost() {
 		if h, err := file.GetDb().GetHostById(id); err != nil {
 			s.error()
 		} else {
+			oleHost := h.Host
 			if h.Host != s.getEscapeString("host") || h.Location != s.getEscapeString("location") || h.Scheme != s.getEscapeString("scheme") {
 				tmpHost := new(file.Host)
 				tmpHost.Host = s.getEscapeString("host")
@@ -509,8 +511,8 @@ func (s *IndexController) EditHost() {
 			h.PathRewrite = s.getEscapeString("path_rewrite")
 			h.Scheme = s.getEscapeString("scheme")
 			h.HttpsJustProxy = s.GetBoolNoErr("https_just_proxy")
-			h.KeyFilePath = s.getEscapeString("key_file_path")
-			h.CertFilePath = s.getEscapeString("cert_file_path")
+			h.KeyFile = s.getEscapeString("key_file")
+			h.CertFile = s.getEscapeString("cert_file")
 			h.Target.ProxyProtocol = s.GetIntNoErr("proxy_protocol")
 			h.Target.LocalProxy = (clientId > 0 && s.GetBoolNoErr("local_proxy")) || clientId <= 0
 			h.Flow.FlowLimit = int64(s.GetIntNoErr("flow_limit"))
@@ -522,6 +524,16 @@ func (s *IndexController) EditHost() {
 			h.AutoHttps = s.GetBoolNoErr("auto_https")
 			h.AutoCORS = s.GetBoolNoErr("auto_cors")
 			h.TargetIsHttps = s.GetBoolNoErr("target_is_https")
+			if h.Host != oleHost {
+				file.HostIndex.Remove(oleHost, h.Id)
+				file.HostIndex.Add(h.Host, h.Id)
+			}
+			if h.CertType == "" {
+				h.CertType = common.GetCertType(h.CertFile)
+			}
+			if h.CertHash == "" {
+				h.CertHash = crypt.FNV1a64(h.CertType, h.CertFile, h.KeyFile)
+			}
 			file.GetDb().JsonDb.StoreHostToJsonFile()
 		}
 		s.AjaxOk("modified success")

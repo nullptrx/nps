@@ -13,6 +13,7 @@ import (
 
 	"github.com/beego/beego"
 	"github.com/djylb/nps/lib/common"
+	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/rate"
 	"github.com/djylb/nps/lib/version"
@@ -45,11 +46,15 @@ type JsonDb struct {
 }
 
 func (s *JsonDb) LoadTaskFromJsonFile() {
+	TaskPasswordIndex.Clear()
 	loadSyncMapFromFile(s.TaskFilePath, Tunnel{}, func(v interface{}) {
 		var err error
 		post := v.(*Tunnel)
 		if post.Client, err = s.GetClient(post.Client.Id); err != nil {
 			return
+		}
+		if post.Password != "" {
+			TaskPasswordIndex.Add(crypt.Md5(post.Password), post.Id)
 		}
 		switch post.Mode {
 		case "socks5":
@@ -69,6 +74,7 @@ func (s *JsonDb) LoadTaskFromJsonFile() {
 }
 
 func (s *JsonDb) LoadClientFromJsonFile() {
+	Blake2bVkeyIndex.Clear()
 	if allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy"); allowLocalProxy {
 		if _, err := s.GetClient(-1); err != nil {
 			local := new(Client)
@@ -89,6 +95,9 @@ func (s *JsonDb) LoadClientFromJsonFile() {
 	}
 	loadSyncMapFromFile(s.ClientFilePath, Client{}, func(v interface{}) {
 		post := v.(*Client)
+		if post.Id > 0 {
+			Blake2bVkeyIndex.Add(crypt.Blake2b(post.VerifyKey), post.Id)
+		}
 		if post.RateLimit > 0 {
 			post.Rate = rate.NewRate(int64(post.RateLimit * 1024))
 		} else {
@@ -104,13 +113,21 @@ func (s *JsonDb) LoadClientFromJsonFile() {
 }
 
 func (s *JsonDb) LoadHostFromJsonFile() {
+	HostIndex.Destroy()
 	loadSyncMapFromFile(s.HostFilePath, Host{}, func(v interface{}) {
 		var err error
 		post := v.(*Host)
 		if post.Client, err = s.GetClient(post.Client.Id); err != nil {
 			return
 		}
+		if post.CertType == "" {
+			post.CertType = common.GetCertType(post.CertFile)
+		}
+		if post.CertHash == "" {
+			post.CertHash = crypt.FNV1a64(post.CertType, post.CertFile, post.KeyFile)
+		}
 		s.Hosts.Store(post.Id, post)
+		HostIndex.Add(post.Host, post.Id)
 		if post.Id > int(s.HostIncreaseId) {
 			s.HostIncreaseId = int32(post.Id)
 		}
@@ -132,7 +149,7 @@ func (s *JsonDb) GetClient(id int) (c *Client, err error) {
 		c = v.(*Client)
 		return
 	}
-	err = errors.New("未找到客户端")
+	err = errors.New("can not find client")
 	return
 }
 
@@ -288,7 +305,6 @@ func loadJsonFile(b []byte, t interface{}, f func(value interface{})) error {
 }
 
 func loadSyncMapFromFileWithSingleJson(filePath string, f func(value string)) {
-	// 如果文件不存在，则创建空文件
 	if !common.FileExists(filePath) {
 		if err := createEmptyFile(filePath); err != nil {
 			panic(err)
@@ -296,7 +312,6 @@ func loadSyncMapFromFileWithSingleJson(filePath string, f func(value string)) {
 		return
 	}
 
-	// 读取文件内容
 	b, err := common.ReadAllFromFile(filePath)
 	if err != nil {
 		panic(err)
@@ -307,7 +322,6 @@ func loadSyncMapFromFileWithSingleJson(filePath string, f func(value string)) {
 
 // 创建空文件的辅助函数
 func createEmptyFile(filePath string) error {
-	// 确保目录存在
 	dir := filepath.Dir(filePath)
 	if !common.FileExists(dir) {
 		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
@@ -315,13 +329,12 @@ func createEmptyFile(filePath string) error {
 		}
 	}
 
-	// 如果文件不存在，则创建空文件
 	if !common.FileExists(filePath) {
 		file, err := os.Create(filePath)
 		if err != nil {
 			return err
 		}
-		defer file.Close() // 创建后立即关闭
+		defer file.Close()
 	}
 
 	return nil

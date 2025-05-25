@@ -10,6 +10,7 @@ import (
 
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/crypt"
+	"github.com/djylb/nps/lib/index"
 	"github.com/djylb/nps/lib/rate"
 )
 
@@ -18,8 +19,11 @@ type DbUtils struct {
 }
 
 var (
-	Db   *DbUtils
-	once sync.Once
+	Db                *DbUtils
+	once              sync.Once
+	HostIndex         = index.NewDomainIndex()
+	Blake2bVkeyIndex  = index.NewStringIDIndex()
+	TaskPasswordIndex = index.NewStringIDIndex()
 )
 
 // init csv from file
@@ -96,6 +100,34 @@ func (s *DbUtils) GetIdByVerifyKey(vKey, addr, localAddr string, hashFunc func(s
 	return 0, errors.New("not found")
 }
 
+func (s *DbUtils) GetClientIdByBlake2bVkey(vkey string) (id int, err error) {
+	var exist bool
+	id, exist = Blake2bVkeyIndex.Get(vkey)
+	if exist {
+		return
+	}
+	err = errors.New("can not find client")
+	return
+}
+
+func (s *DbUtils) GetClientIdByMd5Vkey(vkey string) (id int, err error) {
+	var exist bool
+	s.JsonDb.Clients.Range(func(key, value interface{}) bool {
+		v := value.(*Client)
+		if crypt.Md5(v.VerifyKey) == vkey {
+			exist = true
+			id = v.Id
+			return false
+		}
+		return true
+	})
+	if exist {
+		return
+	}
+	err = errors.New("can not find client")
+	return
+}
+
 func (s *DbUtils) NewTask(t *Tunnel) (err error) {
 	s.JsonDb.Tasks.Range(func(key, value interface{}) bool {
 		v := value.(*Tunnel)
@@ -109,6 +141,9 @@ func (s *DbUtils) NewTask(t *Tunnel) (err error) {
 		return
 	}
 	t.Flow = new(Flow)
+	if t.Password != "" {
+		TaskPasswordIndex.Add(crypt.Md5(t.Password), t.Id)
+	}
 	switch t.Mode {
 	case "socks5":
 		t.Mode = "mixProxy"
@@ -125,6 +160,9 @@ func (s *DbUtils) NewTask(t *Tunnel) (err error) {
 }
 
 func (s *DbUtils) UpdateTask(t *Tunnel) error {
+	if t.Password != "" {
+		TaskPasswordIndex.Add(crypt.Md5(t.Password), t.Id)
+	}
 	s.JsonDb.Tasks.Store(t.Id, t)
 	s.JsonDb.StoreTasksToJsonFile()
 	return nil
@@ -137,6 +175,10 @@ func (s *DbUtils) SaveGlobal(t *Glob) error {
 }
 
 func (s *DbUtils) DelTask(id int) error {
+	if v, ok := s.JsonDb.Tasks.Load(id); ok {
+		t := v.(*Tunnel)
+		TaskPasswordIndex.Remove(crypt.Md5(t.Password))
+	}
 	s.JsonDb.Tasks.Delete(id)
 	s.JsonDb.StoreTasksToJsonFile()
 	return nil
@@ -144,6 +186,17 @@ func (s *DbUtils) DelTask(id int) error {
 
 // md5 password
 func (s *DbUtils) GetTaskByMd5Password(p string) (t *Tunnel) {
+	id, ok := TaskPasswordIndex.Get(p)
+	if ok {
+		if v, ok := s.JsonDb.Tasks.Load(id); ok {
+			t = v.(*Tunnel)
+			return
+		}
+	}
+	return
+}
+
+func (s *DbUtils) GetTaskByMd5PasswordOld(p string) (t *Tunnel) {
 	s.JsonDb.Tasks.Range(func(key, value interface{}) bool {
 		if crypt.Md5(value.(*Tunnel).Password) == p {
 			t = value.(*Tunnel)
@@ -164,6 +217,10 @@ func (s *DbUtils) GetTask(id int) (t *Tunnel, err error) {
 }
 
 func (s *DbUtils) DelHost(id int) error {
+	if v, ok := s.JsonDb.Hosts.Load(id); ok {
+		h := v.(*Host)
+		HostIndex.Remove(h.Host, id)
+	}
 	s.JsonDb.Hosts.Delete(id)
 	s.JsonDb.StoreHostToJsonFile()
 	return nil
@@ -203,8 +260,8 @@ func (s *DbUtils) IsHostModify(h *Host) bool {
 		existingHost.Location != h.Location ||
 		existingHost.Scheme != h.Scheme ||
 		existingHost.HttpsJustProxy != h.HttpsJustProxy ||
-		existingHost.CertFilePath != h.CertFilePath ||
-		existingHost.KeyFilePath != h.KeyFilePath {
+		existingHost.CertFile != h.CertFile ||
+		existingHost.KeyFile != h.KeyFile {
 		return true
 	}
 
@@ -217,6 +274,13 @@ func (s *DbUtils) NewHost(t *Host) error {
 	}
 	if s.IsHostExist(t) {
 		return errors.New("host has exist")
+	}
+	HostIndex.Add(t.Host, t.Id)
+	if t.CertType == "" {
+		t.CertType = common.GetCertType(t.CertFile)
+	}
+	if t.CertHash == "" {
+		t.CertHash = crypt.FNV1a64(t.CertType, t.CertFile, t.KeyFile)
 	}
 	t.Flow = new(Flow)
 	s.JsonDb.Hosts.Store(t.Id, t)
@@ -251,6 +315,10 @@ func (s *DbUtils) GetHost(start, length int, id int, search string) ([]*Host, in
 }
 
 func (s *DbUtils) DelClient(id int) error {
+	if v, ok := s.JsonDb.Clients.Load(id); ok {
+		c := v.(*Client)
+		Blake2bVkeyIndex.Remove(crypt.Blake2b(c.VerifyKey))
+	}
 	s.JsonDb.Clients.Delete(id)
 	s.JsonDb.StoreClientsToJsonFile()
 	return nil
@@ -285,6 +353,7 @@ reset:
 		c.Flow = new(Flow)
 	}
 	s.JsonDb.Clients.Store(c.Id, c)
+	Blake2bVkeyIndex.Add(crypt.Blake2b(c.VerifyKey), c.Id)
 	s.JsonDb.StoreClientsToJsonFile()
 	return nil
 }
@@ -317,6 +386,7 @@ func (s *DbUtils) VerifyUserName(username string, id int) (res bool) {
 
 func (s *DbUtils) UpdateClient(t *Client) error {
 	s.JsonDb.Clients.Store(t.Id, t)
+	Blake2bVkeyIndex.Add(crypt.Blake2b(t.VerifyKey), t.Id)
 	if t.RateLimit == 0 {
 		t.Rate = rate.NewRate(int64(2 << 23))
 		t.Rate.Start()
@@ -345,24 +415,6 @@ func (s *DbUtils) GetGlobal() (c *Glob) {
 	return s.JsonDb.Global
 }
 
-func (s *DbUtils) GetClientIdByMd5Vkey(vkey string) (id int, err error) {
-	var exist bool
-	s.JsonDb.Clients.Range(func(key, value interface{}) bool {
-		v := value.(*Client)
-		if crypt.Md5(v.VerifyKey) == vkey {
-			exist = true
-			id = v.Id
-			return false
-		}
-		return true
-	})
-	if exist {
-		return
-	}
-	err = errors.New("can not find client")
-	return
-}
-
 func (s *DbUtils) GetHostById(id int) (h *Host, err error) {
 	if v, ok := s.JsonDb.Hosts.Load(id); ok {
 		h = v.(*Host)
@@ -384,30 +436,34 @@ func (s *DbUtils) GetInfoByHost(host string, r *http.Request) (h *Host, err erro
 
 	scheme := r.URL.Scheme
 
+	ids := HostIndex.Lookup(host)
+	if len(ids) == 0 {
+		return nil, errors.New("the host could not be parsed")
+	}
+
 	var bestMatch *Host
 	var bestDomainLength int
-	s.JsonDb.Hosts.Range(func(key, value interface{}) bool {
+	for _, id := range ids {
+		value, ok := s.JsonDb.Hosts.Load(id)
+		if !ok {
+			continue
+		}
 		v := value.(*Host)
 
 		// 过滤无效项
 		if v.IsClose || (v.Scheme != "all" && v.Scheme != scheme) {
-			return true
+			continue
 		}
 
 		curDomainLength := len(strings.TrimPrefix(v.Host, "*"))
 		if hostLength < curDomainLength {
-			return true
+			continue
 		}
 
 		// 匹配域名
-		matched := false
-		if v.Host == host {
-			matched = true
-		} else if strings.HasPrefix(v.Host, "*") && strings.HasSuffix(host, v.Host[1:]) {
-			matched = true
-		}
+		matched := (v.Host == host) || (strings.HasPrefix(v.Host, "*") && strings.HasSuffix(host, v.Host[1:]))
 		if !matched {
-			return true
+			continue
 		}
 
 		// 匹配路径，空 Location 默认 "/"
@@ -418,7 +474,7 @@ func (s *DbUtils) GetInfoByHost(host string, r *http.Request) (h *Host, err erro
 
 		// 请求路径不匹配则跳过
 		if !strings.HasPrefix(requestPath, location) {
-			return true
+			continue
 		}
 
 		// 更新最佳匹配项：
@@ -427,50 +483,58 @@ func (s *DbUtils) GetInfoByHost(host string, r *http.Request) (h *Host, err erro
 		// 3. 若相同，则优先匹配完全一致的域名
 		if bestMatch == nil {
 			bestMatch = v
-			bestDomainLength = len(strings.TrimPrefix(bestMatch.Host, "*"))
+			bestDomainLength = curDomainLength
 		} else {
 			if curDomainLength > bestDomainLength {
 				bestMatch = v
-				bestDomainLength = len(strings.TrimPrefix(bestMatch.Host, "*"))
+				bestDomainLength = curDomainLength
 			} else if curDomainLength == bestDomainLength {
 				if len(location) > len(bestMatch.Location) {
 					bestMatch = v
-					bestDomainLength = len(strings.TrimPrefix(bestMatch.Host, "*"))
+					bestDomainLength = curDomainLength
 				} else if len(location) == len(bestMatch.Location) && !strings.HasPrefix(v.Host, "*") && strings.HasPrefix(bestMatch.Host, "*") {
 					bestMatch = v
-					bestDomainLength = len(strings.TrimPrefix(bestMatch.Host, "*"))
+					bestDomainLength = curDomainLength
 				}
 			}
 		}
-		return true
-	})
+	}
 
 	if bestMatch != nil {
 		return bestMatch, nil
 	}
-	return nil, errors.New("The host could not be parsed")
+	return nil, errors.New("the host could not be parsed")
 }
 
 func (s *DbUtils) FindCertByHost(host string) (*Host, error) {
 	if host == "" {
-		return nil, errors.New("Invalid Host")
+		return nil, errors.New("invalid Host")
 	}
 
 	hostLength := len(host)
 
+	ids := HostIndex.Lookup(host)
+	if len(ids) == 0 {
+		return nil, errors.New("the host could not be parsed")
+	}
+
 	var bestMatch *Host
 	var bestDomainLength int
-	s.JsonDb.Hosts.Range(func(key, value interface{}) bool {
+	for _, id := range ids {
+		value, ok := s.JsonDb.Hosts.Load(id)
+		if !ok {
+			continue
+		}
 		v := value.(*Host)
 
 		// 过滤无效项
 		if v.IsClose || (v.Scheme == "http") {
-			return true
+			continue
 		}
 
 		curDomainLength := len(strings.TrimPrefix(v.Host, "*"))
 		if hostLength < curDomainLength {
-			return true
+			continue
 		}
 
 		// 匹配域名
@@ -478,41 +542,39 @@ func (s *DbUtils) FindCertByHost(host string) (*Host, error) {
 		if v.Host == host {
 			if v.Location == "/" || v.Location == "" {
 				bestMatch = v
-				return false
+				break
 			}
 			matched = true
 		} else if strings.HasPrefix(v.Host, "*") && strings.HasSuffix(host, v.Host[1:]) {
 			matched = true
 		}
 		if !matched {
-			return true
+			continue
 		}
 
 		if bestMatch == nil {
 			bestMatch = v
-			bestDomainLength = len(strings.TrimPrefix(bestMatch.Host, "*"))
+			bestDomainLength = curDomainLength
 		} else {
 			if curDomainLength > bestDomainLength {
 				bestMatch = v
-				bestDomainLength = len(strings.TrimPrefix(bestMatch.Host, "*"))
+				bestDomainLength = curDomainLength
 			} else if curDomainLength == bestDomainLength {
 				if !strings.HasPrefix(v.Host, "*") && strings.HasPrefix(bestMatch.Host, "*") {
 					bestMatch = v
-					bestDomainLength = len(strings.TrimPrefix(bestMatch.Host, "*"))
+					bestDomainLength = curDomainLength
 				} else if len(v.Location) < len(bestMatch.Location) {
 					bestMatch = v
-					bestDomainLength = len(strings.TrimPrefix(bestMatch.Host, "*"))
+					bestDomainLength = curDomainLength
 				} else if v.Location == "/" || v.Location == "" {
 					bestMatch = v
-					bestDomainLength = len(strings.TrimPrefix(bestMatch.Host, "*"))
+					bestDomainLength = curDomainLength
 				}
 			}
 		}
-		return true
-	})
-
+	}
 	if bestMatch != nil {
 		return bestMatch, nil
 	}
-	return nil, errors.New("The host could not be parsed")
+	return nil, errors.New("the host could not be parsed")
 }

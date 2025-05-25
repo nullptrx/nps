@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/djylb/nps/lib/crypt"
 	"strconv"
 	"strings"
 	"time"
@@ -126,6 +127,7 @@ func (s *ClientController) Edit() {
 					return
 				}
 				c.VerifyKey = s.getEscapeString("vkey")
+				file.Blake2bVkeyIndex.Add(crypt.Blake2b(c.VerifyKey), c.Id)
 				c.Flow.FlowLimit = int64(s.GetIntNoErr("flow_limit"))
 				c.Flow.TimeLimit = common.GetTimeNoErrByStr(s.getEscapeString("time_limit"))
 				c.RateLimit = s.GetIntNoErr("rate_limit")

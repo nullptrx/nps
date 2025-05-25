@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"math/big"
 	"time"
@@ -136,6 +137,16 @@ func Md5(s string) string {
 func Blake2b(s string) string {
 	hash := blake2b.Sum256([]byte(s))
 	return hex.EncodeToString(hash[:])
+}
+
+func FNV1a64(parts ...string) string {
+	h := fnv.New64a()
+	for _, s := range parts {
+		h.Write([]byte(s))
+		h.Write([]byte{0})
+	}
+	sum := h.Sum(nil) // 8 bytes
+	return hex.EncodeToString(sum)
 }
 
 // GetRandomString 生成指定长度的随机密钥，支持可选传入id

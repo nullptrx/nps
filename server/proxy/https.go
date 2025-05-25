@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/beego/beego"
+	"github.com/djylb/nps/lib/cache"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/crypt"
@@ -19,21 +20,16 @@ import (
 	"github.com/pkg/errors"
 )
 
-type HttpsEntry struct {
-	Listener    *HttpsListener
-	CertContent string
-	KeyContent  string
-}
-
 type HttpsServer struct {
 	httpServer
-	listener net.Listener
-	entryMap sync.Map
-
-	sslCacheTimeout int
+	listener        net.Listener
+	httpListener    *HttpsListener
+	srv             *http.Server
+	cert            *cache.CertManager
+	hasDefaultCert  bool
+	defaultCertHash string
 	defaultCertFile string
 	defaultKeyFile  string
-	exitChan        chan struct{}
 }
 
 func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel) *HttpsServer {
@@ -48,85 +44,27 @@ func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel) *HttpsS
 				Mutex:           sync.Mutex{},
 			},
 		},
-		exitChan: make(chan struct{}),
+		defaultCertFile: beego.AppConfig.String("https_default_cert_file"),
+		defaultKeyFile:  beego.AppConfig.String("https_default_key_file"),
 	}
 
-	https.sslCacheTimeout = 60
-	if cacheTime, err := beego.AppConfig.Int("ssl_cache_timeout"); err == nil {
-		https.sslCacheTimeout = cacheTime
-	}
+	_, https.hasDefaultCert = common.LoadCert(https.defaultCertFile, https.defaultKeyFile)
+	https.defaultCertHash = crypt.FNV1a64("file", https.defaultCertFile, https.defaultKeyFile)
 
-	https.defaultCertFile = beego.AppConfig.String("https_default_cert_file")
-	https.defaultKeyFile = beego.AppConfig.String("https_default_key_file")
+	maxNum := beego.AppConfig.DefaultInt("ssl_cache_max", 0)
+	reload := beego.AppConfig.DefaultInt("ssl_cache_reload", 0)
+	idle := beego.AppConfig.DefaultInt("ssl_cache_idle", 60)
+	https.cert = cache.NewCertManager(maxNum, time.Duration(reload)*time.Second, time.Duration(idle)*time.Minute)
+	https.httpListener = NewHttpsListener(l)
+	https.srv = https.NewServer(0, "https")
 
-	https.startCacheCleaner(time.Duration(https.sslCacheTimeout) * time.Second)
-
-	return https
-}
-
-func (https *HttpsServer) startCacheCleaner(interval time.Duration) {
 	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				count := 0
-				https.entryMap.Range(func(key, value interface{}) bool {
-					count++
-					hostId, ok := key.(int)
-					if !ok {
-						return true
-					}
-					entry, ok := value.(*HttpsEntry)
-					if !ok {
-						return true
-					}
-
-					host, err := file.GetDb().GetHostById(hostId)
-					if err != nil {
-						logs.Info("Asynchronous cleanup: hostId %d does not exist, releasing resource", hostId)
-						https.cleanupEntry(hostId, entry)
-						return true
-					}
-
-					if host.HttpsJustProxy {
-						logs.Info("Asynchronous cleanup: hostId %d is in proxy-only mode, releasing Listener", hostId)
-						https.cleanupEntry(hostId, entry)
-						return true
-					}
-
-					certContent, keyContent := https.getCertAndKey(host)
-					if certContent == "" || keyContent == "" {
-						logs.Info("Asynchronous cleanup: hostId %d certificate is empty, releasing Listener", hostId)
-						https.cleanupEntry(hostId, entry)
-						return true
-					}
-
-					if entry.CertContent != certContent || entry.KeyContent != keyContent {
-						logs.Info("Asynchronous cleanup: hostId %d certificate has changed, releasing Listener", hostId)
-						https.cleanupEntry(hostId, entry)
-					}
-
-					return true
-				})
-				logs.Debug("Current number of Listeners: %d", count)
-			case <-https.exitChan:
-				logs.Info("Cache cleaner stopping")
-				return
-			}
+		if err := https.srv.Serve(https.httpListener); err != nil && err != http.ErrServerClosed {
+			logs.Error("HTTPS server exit: %v", err)
 		}
 	}()
-}
 
-func (https *HttpsServer) cleanupEntry(hostId int, entry *HttpsEntry) {
-	if entry.Listener != nil {
-		err := entry.Listener.Close()
-		if err != nil {
-			logs.Error("Failed to close Listener for hostId %d: %v", hostId, err)
-		}
-	}
-	https.entryMap.Delete(hostId)
+	return https
 }
 
 func (https *HttpsServer) Start() error {
@@ -159,30 +97,34 @@ func (https *HttpsServer) Start() error {
 			return
 		}
 
-		if value, ok := https.entryMap.Load(host.Id); ok {
-			entry := value.(*HttpsEntry)
-			acceptConn := conn.NewConn(c)
-			acceptConn.Rb = rb
-			entry.Listener.acceptConn <- acceptConn
-		} else {
-			certContent, keyContent := https.getCertAndKey(host)
-			if certContent == "" || keyContent == "" {
+		cert, err := https.cert.Get(host.CertFile, host.KeyFile, host.CertType, host.CertHash)
+		if err != nil {
+			if https.hasDefaultCert {
+				cert, err = https.cert.Get(https.defaultCertFile, https.defaultKeyFile, "file", https.defaultCertHash)
+				if err != nil {
+					logs.Error("Failed to load certificate: %v", err)
+				}
+			}
+			if err != nil {
 				logs.Debug("Certificate handled by backend")
 				https.handleHttpsProxy(host, c, rb, serverName)
 				return
 			}
-			l := NewHttpsListener(https.listener)
-			https.NewHttps(l, certContent, keyContent)
-			newEntry := &HttpsEntry{
-				Listener:    l,
-				CertContent: certContent,
-				KeyContent:  keyContent,
-			}
-			https.entryMap.Store(host.Id, newEntry)
-			acceptConn := conn.NewConn(c)
-			acceptConn.Rb = rb
-			l.acceptConn <- acceptConn
 		}
+
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{*cert},
+			NextProtos:   []string{"h2", "http/1.1"},
+		}
+		acceptConn := conn.NewConn(c)
+		acceptConn.Rb = rb
+		tlsConn := tls.Server(acceptConn, tlsConfig)
+		if err := tlsConn.Handshake(); err != nil {
+			tlsConn.Close()
+			return
+		}
+
+		https.httpListener.acceptConn <- conn.NewConn(tlsConn)
 	})
 	return nil
 }
@@ -223,42 +165,6 @@ func checkHTTPAndRedirect(c net.Conn, rb []byte) {
 	}
 }
 
-func (https *HttpsServer) getCertAndKey(host *file.Host) (string, string) {
-	certContent, keyContent, ok := common.LoadCertPair(host.CertFilePath, host.KeyFilePath)
-	if !ok {
-		return https.loadDefaultCert()
-	}
-	return certContent, keyContent
-}
-
-func (https *HttpsServer) loadDefaultCert() (string, string) {
-	logs.Debug("Loading default certificate")
-	certContent, keyContent, ok := common.LoadCertPair(https.defaultCertFile, https.defaultKeyFile)
-	if !ok {
-		return "", ""
-	}
-	return certContent, keyContent
-}
-
-func (https *HttpsServer) NewHttps(l net.Listener, certText string, keyText string) {
-	go func() {
-		cert, err := tls.X509KeyPair([]byte(certText), []byte(keyText))
-		if err != nil {
-			logs.Error("Failed to load certificate: %v", err)
-			return
-		}
-		tlsConfig := &tls.Config{
-			Certificates: []tls.Certificate{cert},
-			NextProtos:   []string{"h2", "http/1.1"},
-		}
-		tlsListener := tls.NewListener(l, tlsConfig)
-		err = https.NewServer(0, "https").Serve(tlsListener)
-		if err != nil {
-			logs.Error("HTTPS server error: %v", err)
-		}
-	}()
-}
-
 func (https *HttpsServer) handleHttpsProxy(host *file.Host, c net.Conn, rb []byte, sni string) {
 	if err := https.CheckFlowAndConnNum(host.Client); err != nil {
 		logs.Debug("Client id %d, host id %d, error %v during https connection", host.Client.Id, host.Id, err)
@@ -278,7 +184,9 @@ func (https *HttpsServer) handleHttpsProxy(host *file.Host, c net.Conn, rb []byt
 }
 
 func (https *HttpsServer) Close() error {
-	close(https.exitChan)
+	https.srv.Close()
+	close(https.httpListener.acceptConn)
+	https.cert.Stop()
 	return https.listener.Close()
 }
 
@@ -289,12 +197,15 @@ type HttpsListener struct {
 }
 
 func NewHttpsListener(l net.Listener) *HttpsListener {
-	return &HttpsListener{parentListener: l, acceptConn: make(chan *conn.Conn)}
+	return &HttpsListener{
+		parentListener: l,
+		acceptConn:     make(chan *conn.Conn, 1024),
+	}
 }
 
 func (httpsListener *HttpsListener) Accept() (net.Conn, error) {
-	httpsConn := <-httpsListener.acceptConn
-	if httpsConn == nil {
+	httpsConn, ok := <-httpsListener.acceptConn
+	if !ok {
 		return nil, errors.New("failed to get connection")
 	}
 	return httpsConn, nil

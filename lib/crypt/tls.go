@@ -113,11 +113,11 @@ func ParseLoginPayload(base64Cipher string) (*LoginPayload, error) {
 	return &lp, nil
 }
 
-func GetCertFingerprint() []byte {
-	if len(cert.Certificate) == 0 {
+func GetCertFingerprint(certificate tls.Certificate) []byte {
+	if len(certificate.Certificate) == 0 {
 		return nil
 	}
-	sum := sha256.Sum256(cert.Certificate[0])
+	sum := sha256.Sum256(certificate.Certificate[0])
 	return sum[:]
 }
 

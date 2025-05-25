@@ -156,8 +156,8 @@ curl -X POST \
   | `location` | URL 路由（字符串，空则不限制） |
   | `scheme` | 协议类型（`all`、`http`、`https`） |
   | `https_just_proxy` | 是否仅代理 HTTPS（`0` 否，`1` 是） |
-  | `key_file_path` | HTTPS 证书密钥文件路径（字符串） |
-  | `cert_file_path` | HTTPS 证书文件路径（字符串） |
+  | `key_file` | HTTPS 证书密钥文本或路径（字符串） |
+  | `cert_file` | HTTPS 证书公钥文本或路径（字符串） |
   | `auto_https` | 是否自动启用 HTTPS（`0` 否，`1` 是） |
   | `auto_cors` | 是否自动添加 CORS 头（`0` 否，`1` 是） |
   | `target_is_https` | 目标是否为 HTTPS（`0` 否，`1` 是） |
