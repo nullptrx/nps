@@ -528,12 +528,8 @@ func (s *IndexController) EditHost() {
 				file.HostIndex.Remove(oleHost, h.Id)
 				file.HostIndex.Add(h.Host, h.Id)
 			}
-			if h.CertType == "" {
-				h.CertType = common.GetCertType(h.CertFile)
-			}
-			if h.CertHash == "" {
-				h.CertHash = crypt.FNV1a64(h.CertType, h.CertFile, h.KeyFile)
-			}
+			h.CertType = common.GetCertType(h.CertFile)
+			h.CertHash = crypt.FNV1a64(h.CertType, h.CertFile, h.KeyFile)
 			file.GetDb().JsonDb.StoreHostToJsonFile()
 		}
 		s.AjaxOk("modified success")

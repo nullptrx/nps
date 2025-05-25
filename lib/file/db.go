@@ -276,12 +276,8 @@ func (s *DbUtils) NewHost(t *Host) error {
 		return errors.New("host has exist")
 	}
 	HostIndex.Add(t.Host, t.Id)
-	if t.CertType == "" {
-		t.CertType = common.GetCertType(t.CertFile)
-	}
-	if t.CertHash == "" {
-		t.CertHash = crypt.FNV1a64(t.CertType, t.CertFile, t.KeyFile)
-	}
+	t.CertType = common.GetCertType(t.CertFile)
+	t.CertHash = crypt.FNV1a64(t.CertType, t.CertFile, t.KeyFile)
 	t.Flow = new(Flow)
 	s.JsonDb.Hosts.Store(t.Id, t)
 	s.JsonDb.StoreHostToJsonFile()
