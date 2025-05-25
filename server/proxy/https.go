@@ -23,7 +23,7 @@ import (
 type HttpsServer struct {
 	httpServer
 	listener        net.Listener
-	httpListener    *HttpsListener
+	httpsListener   *HttpsListener
 	srv             *http.Server
 	cert            *cache.CertManager
 	hasDefaultCert  bool
@@ -55,11 +55,11 @@ func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel) *HttpsS
 	reload := beego.AppConfig.DefaultInt("ssl_cache_reload", 0)
 	idle := beego.AppConfig.DefaultInt("ssl_cache_idle", 60)
 	https.cert = cache.NewCertManager(maxNum, time.Duration(reload)*time.Second, time.Duration(idle)*time.Minute)
-	https.httpListener = NewHttpsListener(l)
+	https.httpsListener = NewHttpsListener(l)
 	https.srv = https.NewServer(0, "https")
 
 	go func() {
-		if err := https.srv.Serve(https.httpListener); err != nil && err != http.ErrServerClosed {
+		if err := https.srv.Serve(https.httpsListener); err != nil && err != http.ErrServerClosed {
 			logs.Error("HTTPS server exit: %v", err)
 		}
 	}()
@@ -123,8 +123,7 @@ func (https *HttpsServer) Start() error {
 			tlsConn.Close()
 			return
 		}
-
-		https.httpListener.acceptConn <- conn.NewConn(tlsConn)
+		https.httpsListener.acceptConn <- tlsConn
 	})
 	return nil
 }
@@ -185,21 +184,21 @@ func (https *HttpsServer) handleHttpsProxy(host *file.Host, c net.Conn, rb []byt
 
 func (https *HttpsServer) Close() error {
 	https.srv.Close()
-	close(https.httpListener.acceptConn)
+	close(https.httpsListener.acceptConn)
 	https.cert.Stop()
 	return https.listener.Close()
 }
 
 // HttpsListener wraps a parent listener.
 type HttpsListener struct {
-	acceptConn     chan *conn.Conn
+	acceptConn     chan *tls.Conn
 	parentListener net.Listener
 }
 
 func NewHttpsListener(l net.Listener) *HttpsListener {
 	return &HttpsListener{
 		parentListener: l,
-		acceptConn:     make(chan *conn.Conn, 1024),
+		acceptConn:     make(chan *tls.Conn, 1024),
 	}
 }
 
