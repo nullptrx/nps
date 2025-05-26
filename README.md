@@ -129,7 +129,8 @@ npc start
 
 ### DEV
 
-- **Main** 
+- **Main**
+  - 避免每次TLS重新握手
   - 待定，优先修BUG，新功能随缘更新
 
 ### Stable
