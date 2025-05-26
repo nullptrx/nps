@@ -3,6 +3,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
 	"crypto/tls"
 	"io"
 	"net"
@@ -30,6 +31,7 @@ type HttpsServer struct {
 	defaultCertHash string
 	defaultCertFile string
 	defaultKeyFile  string
+	ticketKeys      [][32]byte
 }
 
 func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel) *HttpsServer {
@@ -57,6 +59,14 @@ func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel) *HttpsS
 	https.cert = cache.NewCertManager(maxNum, time.Duration(reload)*time.Second, time.Duration(idle)*time.Minute)
 	https.httpsListener = NewHttpsListener(l)
 	https.srv = https.NewServer(0, "https")
+
+	var key [32]byte
+	if _, err := io.ReadFull(rand.Reader, key[:]); err != nil {
+		logs.Error("failed to generate session ticket key: %v", err)
+		s := crypt.GetRandomString(len(key))
+		copy(key[:], []byte(s))
+	}
+	https.ticketKeys = append(https.ticketKeys, key)
 
 	go func() {
 		if err := https.srv.Serve(https.httpsListener); err != nil && err != http.ErrServerClosed {
@@ -116,6 +126,8 @@ func (https *HttpsServer) Start() error {
 			Certificates: []tls.Certificate{*cert},
 			NextProtos:   []string{"h2", "http/1.1"},
 		}
+		tlsConfig.SetSessionTicketKeys(https.ticketKeys)
+
 		acceptConn := conn.NewConn(c)
 		acceptConn.Rb = rb
 		tlsConn := tls.Server(acceptConn, tlsConfig)
