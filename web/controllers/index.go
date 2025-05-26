@@ -487,6 +487,7 @@ func (s *IndexController) EditHost() {
 			oleHost := h.Host
 			if h.Host != s.getEscapeString("host") || h.Location != s.getEscapeString("location") || h.Scheme != s.getEscapeString("scheme") {
 				tmpHost := new(file.Host)
+				tmpHost.Id = h.Id
 				tmpHost.Host = s.getEscapeString("host")
 				tmpHost.Location = s.getEscapeString("location")
 				tmpHost.Scheme = s.getEscapeString("scheme")
