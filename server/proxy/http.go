@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -36,6 +37,8 @@ type httpServer struct {
 	addOrigin     bool
 	httpPortStr   string
 	httpsPortStr  string
+	magic         *certmagic.Config
+	acme          *certmagic.ACMEIssuer
 }
 
 func NewHttp(bridge NetBridge, task *file.Tunnel, httpPort, httpsPort int, httpOnlyPass string, addOrigin bool) *httpServer {
@@ -63,6 +66,43 @@ func (s *httpServer) Start() error {
 		s.errorContent = []byte("nps 404")
 	}
 
+	certmagic.DefaultACME.Agreed = true
+	certmagic.DefaultACME.Email = beego.AppConfig.String("ssl_email")
+	switch strings.ToLower(beego.AppConfig.DefaultString("ssl_ca", "LetsEncrypt")) {
+	case "letsencrypt", "le", "prod", "production":
+		certmagic.DefaultACME.CA = certmagic.LetsEncryptProductionCA
+	case "zerossl", "zero", "zs":
+		certmagic.DefaultACME.CA = certmagic.ZeroSSLProductionCA
+	case "googletrust", "google", "goog":
+		certmagic.DefaultACME.CA = certmagic.GoogleTrustProductionCA
+	default:
+		certmagic.DefaultACME.CA = certmagic.LetsEncryptStagingCA
+	}
+	certmagic.Default.Storage = &certmagic.FileStorage{
+		Path: common.ResolvePath(beego.AppConfig.DefaultString("ssl_path", "ssl")),
+	}
+	s.magic = certmagic.NewDefault()
+	if certmagic.DefaultACME.CA == certmagic.ZeroSSLProductionCA {
+		s.magic.Issuers = []certmagic.Issuer{
+			&certmagic.ZeroSSLIssuer{
+				APIKey: beego.AppConfig.String("ssl_zerossl_api"),
+			},
+		}
+	}
+	s.magic.OnDemand = &certmagic.OnDemandConfig{
+		DecisionFunc: func(ctx context.Context, name string) error {
+			h, err := file.GetDb().FindCertByHost(name)
+			if err != nil {
+				return fmt.Errorf("unknown host %q", name)
+			}
+			if !h.AutoSSL {
+				return fmt.Errorf("AutoSSL disabled for %q", name)
+			}
+			return nil
+		},
+	}
+	s.acme = certmagic.NewACMEIssuer(s.magic, certmagic.DefaultACME)
+
 	if s.httpPort > 0 {
 		s.httpServer = s.NewServer(s.httpPort, "http")
 		go func() {
@@ -88,7 +128,7 @@ func (s *httpServer) Start() error {
 				os.Exit(0)
 			}
 			logs.Info("HTTPS server listening on port %d", s.httpsPort)
-			if err := NewHttpsServer(s.httpsListener, s.bridge, s.task).Start(); err != nil {
+			if err := NewHttpsServer(s.httpsListener, s.bridge, s.task, s.httpsServer, s.magic).Start(); err != nil {
 				logs.Error("HTTPS server stopped: %v", err)
 				os.Exit(0)
 			}
@@ -140,7 +180,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	// AutoSSL
 	if host.AutoSSL && strings.HasPrefix(r.URL.Path, "/.well-known/acme-challenge/") && (s.httpPort == 80 || s.httpsPort == 443) {
-		certmagic.DefaultACME.HandleHTTPChallenge(w, r)
+		s.acme.HandleHTTPChallenge(w, r)
 		return
 	}
 

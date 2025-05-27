@@ -439,6 +439,7 @@ func (s *DbUtils) GetInfoByHost(host string, r *http.Request) (h *Host, err erro
 
 	var bestMatch *Host
 	var bestDomainLength int
+	var bestLocationLength int
 	for _, id := range ids {
 		value, ok := s.JsonDb.Hosts.Load(id)
 		if !ok {
@@ -446,7 +447,6 @@ func (s *DbUtils) GetInfoByHost(host string, r *http.Request) (h *Host, err erro
 		}
 		v := value.(*Host)
 
-		// 过滤无效项
 		if v.IsClose || (v.Scheme != "all" && v.Scheme != scheme) {
 			continue
 		}
@@ -456,42 +456,46 @@ func (s *DbUtils) GetInfoByHost(host string, r *http.Request) (h *Host, err erro
 			continue
 		}
 
-		// 匹配域名
-		matched := (v.Host == host) || (strings.HasPrefix(v.Host, "*") && strings.HasSuffix(host, v.Host[1:]))
+		equaled := v.Host == host
+		matched := equaled || (strings.HasPrefix(v.Host, "*") && strings.HasSuffix(host, v.Host[1:]))
 		if !matched {
 			continue
 		}
 
-		// 匹配路径，空 Location 默认 "/"
 		location := v.Location
 		if location == "" {
 			location = "/"
 		}
 
-		// 请求路径不匹配则跳过
 		if !strings.HasPrefix(requestPath, location) {
 			continue
 		}
 
-		// 更新最佳匹配项：
-		// 1. 域名长度（去除通配符）越长优先级越高
-		// 2. 相同长度时，Location（路径）的长度越长优先级越高
-		// 3. 若相同，则优先匹配完全一致的域名
+		curLocationLength := len(location)
 		if bestMatch == nil {
 			bestMatch = v
 			bestDomainLength = curDomainLength
-		} else {
+			bestLocationLength = curLocationLength
+			continue
+		}
+		if curLocationLength > bestLocationLength {
+			bestMatch = v
+			bestDomainLength = curDomainLength
+			bestLocationLength = curLocationLength
+			continue
+		}
+		if curLocationLength == bestLocationLength {
 			if curDomainLength > bestDomainLength {
 				bestMatch = v
 				bestDomainLength = curDomainLength
-			} else if curDomainLength == bestDomainLength {
-				if len(location) > len(bestMatch.Location) {
-					bestMatch = v
-					bestDomainLength = curDomainLength
-				} else if len(location) == len(bestMatch.Location) && !strings.HasPrefix(v.Host, "*") && strings.HasPrefix(bestMatch.Host, "*") {
-					bestMatch = v
-					bestDomainLength = curDomainLength
-				}
+				bestLocationLength = curLocationLength
+				continue
+			}
+			if equaled {
+				bestMatch = v
+				bestDomainLength = curDomainLength
+				bestLocationLength = curLocationLength
+				continue
 			}
 		}
 	}
@@ -523,7 +527,6 @@ func (s *DbUtils) FindCertByHost(host string) (*Host, error) {
 		}
 		v := value.(*Host)
 
-		// 过滤无效项
 		if v.IsClose || (v.Scheme == "http") {
 			continue
 		}
@@ -533,10 +536,11 @@ func (s *DbUtils) FindCertByHost(host string) (*Host, error) {
 			continue
 		}
 
-		// 匹配域名
+		equaled := v.Host == host
 		matched := false
-		if v.Host == host {
-			if v.Location == "/" || v.Location == "" {
+		location := v.Location == "/" || v.Location == ""
+		if equaled {
+			if location {
 				bestMatch = v
 				break
 			}
@@ -551,21 +555,23 @@ func (s *DbUtils) FindCertByHost(host string) (*Host, error) {
 		if bestMatch == nil {
 			bestMatch = v
 			bestDomainLength = curDomainLength
-		} else {
-			if curDomainLength > bestDomainLength {
+			continue
+		}
+		if curDomainLength > bestDomainLength {
+			bestMatch = v
+			bestDomainLength = curDomainLength
+			continue
+		}
+		if curDomainLength == bestDomainLength {
+			if equaled && (len(v.Location) <= len(bestMatch.Location) || strings.HasPrefix(bestMatch.Host, "*")) {
 				bestMatch = v
 				bestDomainLength = curDomainLength
-			} else if curDomainLength == bestDomainLength {
-				if !strings.HasPrefix(v.Host, "*") && strings.HasPrefix(bestMatch.Host, "*") {
-					bestMatch = v
-					bestDomainLength = curDomainLength
-				} else if len(v.Location) < len(bestMatch.Location) {
-					bestMatch = v
-					bestDomainLength = curDomainLength
-				} else if v.Location == "/" || v.Location == "" {
-					bestMatch = v
-					bestDomainLength = curDomainLength
-				}
+				continue
+			}
+			if (len(v.Location) <= len(bestMatch.Location)) && strings.HasPrefix(bestMatch.Host, "*") {
+				bestMatch = v
+				bestDomainLength = curDomainLength
+				continue
 			}
 		}
 	}

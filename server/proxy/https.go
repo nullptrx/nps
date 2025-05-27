@@ -28,6 +28,7 @@ type HttpsServer struct {
 	httpsListener   *HttpsListener
 	srv             *http.Server
 	cert            *cache.CertManager
+	certMagic       *certmagic.Config
 	certMagicTls    *tls.Config
 	hasDefaultCert  bool
 	defaultCertHash string
@@ -36,7 +37,7 @@ type HttpsServer struct {
 	ticketKeys      [][32]byte
 }
 
-func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel) *HttpsServer {
+func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel, srv *http.Server, magic *certmagic.Config) *HttpsServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
 	https := &HttpsServer{
 		listener: l,
@@ -47,6 +48,8 @@ func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel) *HttpsS
 				allowLocalProxy: allowLocalProxy,
 				Mutex:           sync.Mutex{},
 			},
+			httpPort:  beego.AppConfig.DefaultInt("http_proxy_port", 0),
+			httpsPort: beego.AppConfig.DefaultInt("https_proxy_port", 0),
 		},
 		defaultCertFile: beego.AppConfig.String("https_default_cert_file"),
 		defaultKeyFile:  beego.AppConfig.String("https_default_key_file"),
@@ -60,7 +63,7 @@ func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel) *HttpsS
 	idle := beego.AppConfig.DefaultInt("ssl_cache_idle", 60)
 	https.cert = cache.NewCertManager(maxNum, time.Duration(reload)*time.Second, time.Duration(idle)*time.Minute)
 	https.httpsListener = NewHttpsListener(l)
-	https.srv = https.NewServer(0, "https")
+	https.srv = srv
 
 	var key [32]byte
 	if _, err := io.ReadFull(rand.Reader, key[:]); err != nil {
@@ -70,14 +73,9 @@ func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel) *HttpsS
 	}
 	https.ticketKeys = append(https.ticketKeys, key)
 
-	certmagic.DefaultACME.Agreed = true
-	certPath := common.ResolvePath(beego.AppConfig.DefaultString("https_ssl_path", "ssl"))
-	certmagic.Default.Storage = &certmagic.FileStorage{
-		Path: certPath,
-	}
-
-	https.certMagicTls = certmagic.Default.TLSConfig()
-	https.certMagicTls.NextProtos = []string{"h2", "http/1.1"}
+	https.certMagic = magic
+	https.certMagicTls = magic.TLSConfig()
+	https.certMagicTls.NextProtos = append([]string{"h2", "http/1.1"}, https.certMagicTls.NextProtos...)
 	https.certMagicTls.SetSessionTicketKeys(https.ticketKeys)
 
 	go func() {
@@ -119,25 +117,25 @@ func (https *HttpsServer) Start() error {
 			return
 		}
 
-		cert, err := https.cert.Get(host.CertFile, host.KeyFile, host.CertType, host.CertHash)
-		if err != nil {
-			if https.hasDefaultCert {
-				cert, err = https.cert.Get(https.defaultCertFile, https.defaultKeyFile, "file", https.defaultCertHash)
-				if err != nil {
-					logs.Error("Failed to load certificate: %v", err)
-				}
-			}
-			if err != nil {
-				logs.Debug("Certificate handled by backend")
-				https.handleHttpsProxy(host, c, rb, serverName)
-				return
-			}
-		}
-
 		var tlsConfig *tls.Config
-		if host.AutoSSL && (https.httpPort == 80 && https.httpsPort == 443) {
+		if host.AutoSSL && (https.httpPort == 80 || https.httpsPort == 443) {
+			logs.Debug("Auto SSL is enabled")
 			tlsConfig = https.certMagicTls
 		} else {
+			cert, err := https.cert.Get(host.CertFile, host.KeyFile, host.CertType, host.CertHash)
+			if err != nil {
+				if https.hasDefaultCert {
+					cert, err = https.cert.Get(https.defaultCertFile, https.defaultKeyFile, "file", https.defaultCertHash)
+					if err != nil {
+						logs.Error("Failed to load certificate: %v", err)
+					}
+				}
+				if err != nil {
+					logs.Debug("Certificate handled by backend")
+					https.handleHttpsProxy(host, c, rb, serverName)
+					return
+				}
+			}
 			tlsConfig = &tls.Config{
 				Certificates: []tls.Certificate{*cert},
 				NextProtos:   []string{"h2", "http/1.1"},

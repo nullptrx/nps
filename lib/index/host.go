@@ -127,6 +127,9 @@ func (dt *DomainTree) lookup(n *node, parts []string, depth int, out map[int]str
 
 func splitDomain(domain string) []string {
 	d := strings.ToLower(strings.TrimSpace(domain))
+	if d == "" {
+		return nil
+	}
 	parts := strings.Split(d, ".")
 	for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
 		parts[i], parts[j] = parts[j], parts[i]

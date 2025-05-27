@@ -443,6 +443,7 @@ func (s *IndexController) AddHost() {
 			},
 			Scheme:         s.getEscapeString("scheme"),
 			HttpsJustProxy: s.GetBoolNoErr("https_just_proxy"),
+			AutoSSL:        s.GetBoolNoErr("auto_ssl"),
 			KeyFile:        s.getEscapeString("key_file"),
 			CertFile:       s.getEscapeString("cert_file"),
 			AutoHttps:      s.GetBoolNoErr("auto_https"),
@@ -512,6 +513,7 @@ func (s *IndexController) EditHost() {
 			h.PathRewrite = s.getEscapeString("path_rewrite")
 			h.Scheme = s.getEscapeString("scheme")
 			h.HttpsJustProxy = s.GetBoolNoErr("https_just_proxy")
+			h.AutoSSL = s.GetBoolNoErr("auto_ssl")
 			h.KeyFile = s.getEscapeString("key_file")
 			h.CertFile = s.getEscapeString("cert_file")
 			h.Target.ProxyProtocol = s.GetIntNoErr("proxy_protocol")
