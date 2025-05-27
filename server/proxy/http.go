@@ -260,7 +260,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		},
 		Transport: &http.Transport{
 			ResponseHeaderTimeout: 60 * time.Second,
-			//DisableKeepAlives:     true,
+			DisableKeepAlives:     true,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 				ServerName: func() string {
@@ -285,6 +285,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 				return conn.NewFlowConn(rawConn, host.Flow, host.Client.Flow), nil
 			},
 		},
+		FlushInterval: 100 * time.Millisecond,
 		ModifyResponse: func(resp *http.Response) error {
 			// CORS
 			if host.AutoCORS {

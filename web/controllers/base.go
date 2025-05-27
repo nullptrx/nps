@@ -87,22 +87,22 @@ func (s *BaseController) display(tpl ...string) {
 	if common.IsWindows() {
 		s.Data["win"] = ".exe"
 	}
-	if bridge.ServerTcpEnable {
-		s.Data["tcp_p"] = connection.BridgeTcpPort
+	if bridge.ServerTcpEnable && beego.AppConfig.DefaultBool("bridge_tcp_show", true) {
+		s.Data["tcp_p"] = beego.AppConfig.DefaultString("bridge_tcp_show_port", connection.BridgeTcpPort)
 	}
-	if bridge.ServerKcpEnable {
-		s.Data["kcp_p"] = connection.BridgeKcpPort
+	if bridge.ServerKcpEnable && beego.AppConfig.DefaultBool("bridge_kcp_show", true) {
+		s.Data["kcp_p"] = beego.AppConfig.DefaultString("bridge_kcp_show_port", connection.BridgeKcpPort)
 	}
-	if bridge.ServerTlsEnable {
-		s.Data["tls_p"] = connection.BridgeTlsPort
+	if bridge.ServerTlsEnable && beego.AppConfig.DefaultBool("bridge_tls_show", true) {
+		s.Data["tls_p"] = beego.AppConfig.DefaultString("bridge_tls_show_port", connection.BridgeTlsPort)
 	}
 	if wsPath := beego.AppConfig.String("bridge_path"); wsPath != "" {
-		s.Data["ws_path"] = wsPath
-		if bridge.ServerWsEnable {
-			s.Data["ws_p"] = beego.AppConfig.String("bridge_ws_port")
+		s.Data["ws_path"] = beego.AppConfig.DefaultString("bridge_ws_show_path", wsPath)
+		if bridge.ServerWsEnable && beego.AppConfig.DefaultBool("bridge_ws_show", true) {
+			s.Data["ws_p"] = beego.AppConfig.DefaultString("bridge_ws_show_port", beego.AppConfig.String("bridge_ws_port"))
 		}
-		if bridge.ServerWssEnable {
-			s.Data["wss_p"] = beego.AppConfig.String("bridge_wss_port")
+		if bridge.ServerWssEnable && beego.AppConfig.DefaultBool("bridge_wss_show", true) {
+			s.Data["wss_p"] = beego.AppConfig.DefaultString("bridge_wss_show_port", beego.AppConfig.String("bridge_wss_port"))
 		}
 	}
 	s.Data["proxyPort"] = beego.AppConfig.String("hostPort")

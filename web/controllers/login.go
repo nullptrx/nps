@@ -28,9 +28,10 @@ type record struct {
 }
 
 func init() {
+	webBaseUrl := beego.AppConfig.String("web_base_url")
 	// use beego cache system store the captcha data
 	store := cache.NewMemoryCache()
-	cpt = captcha.NewWithFilter("/captcha/", store)
+	cpt = captcha.NewWithFilter(webBaseUrl+"/captcha/", store)
 	cpt.ChallengeNums = 4
 	cpt.StdWidth = 100
 	cpt.StdHeight = 50
