@@ -376,6 +376,10 @@
 		<zh-CN>自动HTTPS (301)</zh-CN>
 		<en-US>Auto HTTPS (301)</en-US>
 	</lang>
+	<lang id="word-autossl">
+		<zh-CN>自动证书</zh-CN>
+		<en-US>Auto SSL</en-US>
+	</lang>
 	<lang id="word-autocors">
 		<zh-CN>自动修复 CORS</zh-CN>
 		<en-US>Auto CORS</en-US>

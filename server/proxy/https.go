@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/beego/beego"
+	"github.com/caddyserver/certmagic"
 	"github.com/djylb/nps/lib/cache"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
@@ -27,6 +28,7 @@ type HttpsServer struct {
 	httpsListener   *HttpsListener
 	srv             *http.Server
 	cert            *cache.CertManager
+	certMagicTls    *tls.Config
 	hasDefaultCert  bool
 	defaultCertHash string
 	defaultCertFile string
@@ -67,6 +69,16 @@ func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel) *HttpsS
 		copy(key[:], []byte(s))
 	}
 	https.ticketKeys = append(https.ticketKeys, key)
+
+	certmagic.DefaultACME.Agreed = true
+	certPath := common.ResolvePath(beego.AppConfig.DefaultString("https_ssl_path", "ssl"))
+	certmagic.Default.Storage = &certmagic.FileStorage{
+		Path: certPath,
+	}
+
+	https.certMagicTls = certmagic.Default.TLSConfig()
+	https.certMagicTls.NextProtos = []string{"h2", "http/1.1"}
+	https.certMagicTls.SetSessionTicketKeys(https.ticketKeys)
 
 	go func() {
 		if err := https.srv.Serve(https.httpsListener); err != nil && err != http.ErrServerClosed {
@@ -122,11 +134,16 @@ func (https *HttpsServer) Start() error {
 			}
 		}
 
-		tlsConfig := &tls.Config{
-			Certificates: []tls.Certificate{*cert},
-			NextProtos:   []string{"h2", "http/1.1"},
+		var tlsConfig *tls.Config
+		if host.AutoSSL && (https.httpPort == 80 && https.httpsPort == 443) {
+			tlsConfig = https.certMagicTls
+		} else {
+			tlsConfig = &tls.Config{
+				Certificates: []tls.Certificate{*cert},
+				NextProtos:   []string{"h2", "http/1.1"},
+			}
+			tlsConfig.SetSessionTicketKeys(https.ticketKeys)
 		}
-		tlsConfig.SetSessionTicketKeys(https.ticketKeys)
 
 		acceptConn := conn.NewConn(c)
 		acceptConn.Rb = rb

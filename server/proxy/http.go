@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/beego/beego"
+	"github.com/caddyserver/certmagic"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/file"
@@ -134,6 +135,12 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			conn, _, _ := hj.Hijack()
 			conn.Close()
 		}
+		return
+	}
+
+	// AutoSSL
+	if host.AutoSSL && strings.HasPrefix(r.URL.Path, "/.well-known/acme-challenge/") && (s.httpPort == 80 || s.httpsPort == 443) {
+		certmagic.DefaultACME.HandleHTTPChallenge(w, r)
 		return
 	}
 

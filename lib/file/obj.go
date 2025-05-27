@@ -199,6 +199,7 @@ type Host struct {
 	Remark         string //remark
 	Scheme         string //http https all
 	HttpsJustProxy bool
+	AutoSSL        bool
 	CertType       string
 	CertHash       string
 	CertFile       string

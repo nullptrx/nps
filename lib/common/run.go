@@ -109,6 +109,13 @@ func GetConfigPath() string {
 	return path
 }
 
+func ResolvePath(path string) string {
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(GetRunPath(), path)
+	}
+	return path
+}
+
 func GetRunTime() string {
 	totalSecs := int64(time.Since(StartTime).Seconds())
 	days := totalSecs / 86400
