@@ -71,16 +71,28 @@ type Client struct {
 	retryTime int      // it will add 1 when ping not ok until to 3 will close the client
 	signals   sync.Map // map[*conn.Conn]struct{}
 	tunnels   sync.Map // map[*nps_mux.Mux]struct{}
+	hasSignal bool
+	hasTunnel bool
 }
 
 func NewClient(t, f *nps_mux.Mux, s *conn.Conn, vs string) *Client {
+	hasSignal := false
+	hasTunnel := false
+	if s != nil {
+		hasSignal = true
+	}
+	if t != nil {
+		hasTunnel = true
+	}
 	cli := &Client{
-		signal:  s,
-		tunnel:  t,
-		file:    f,
-		Version: vs,
-		signals: sync.Map{},
-		tunnels: sync.Map{},
+		signal:    s,
+		tunnel:    t,
+		file:      f,
+		Version:   vs,
+		signals:   sync.Map{},
+		tunnels:   sync.Map{},
+		hasSignal: hasSignal,
+		hasTunnel: hasTunnel,
 	}
 	return cli
 }
@@ -550,6 +562,7 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 			}
 			client.signal = c
 			client.Version = vs
+			client.hasSignal = true
 		}
 
 		go s.GetHealthFromClient(id, c)
@@ -563,6 +576,7 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 				client.tunnels.LoadOrStore(client.tunnel, struct{}{})
 			}
 			client.tunnel = muxConn
+			client.hasTunnel = true
 		}
 
 	case common.WORK_CONFIG:
@@ -720,7 +734,7 @@ func (s *Bridge) ping() {
 					return true
 				}
 
-				if client == nil || client.tunnel == nil || client.signal == nil || client.tunnel.IsClose {
+				if client == nil || (client.hasSignal && client.signal == nil) || (client.hasTunnel && (client.tunnel == nil || client.tunnel.IsClose)) {
 					client.retryTime++
 					if client.retryTime >= 3 {
 						closedClients = append(closedClients, clientID)
