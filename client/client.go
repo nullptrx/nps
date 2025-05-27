@@ -58,40 +58,28 @@ var HasFailed = false
 // start
 func (s *TRPClient) Start() {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
-	defer s.cancel()
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		default:
-		}
-		NowStatus = 0
-		c, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_MAIN, s.proxyUrl)
-		if err != nil {
-			HasFailed = true
-			logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
-			select {
-			case <-time.After(5 * time.Second):
-				continue
-			case <-s.ctx.Done():
-				return
-			}
-		}
-		logs.Info("Successful connection with server %s", s.svrAddr)
-		s.signal = c
-		//start a channel connection
-		go s.newChan()
-		//monitor the connection
-		go s.ping()
-		//start health check if it's open
-		if s.cnf != nil && len(s.cnf.Healths) > 0 {
-			s.healthChecker = NewHealthChecker(s.ctx, s.cnf.Healths, s.signal)
-			s.healthChecker.Start()
-		}
-		NowStatus = 1
-		//msg connection, eg udp
-		s.handleMain()
+	defer s.Close()
+	NowStatus = 0
+	c, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_MAIN, s.proxyUrl)
+	if err != nil {
+		HasFailed = true
+		logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
+		return
 	}
+	logs.Info("Successful connection with server %s", s.svrAddr)
+	s.signal = c
+	//start a channel connection
+	go s.newChan()
+	//monitor the connection
+	go s.ping()
+	//start health check if it's open
+	if s.cnf != nil && len(s.cnf.Healths) > 0 {
+		s.healthChecker = NewHealthChecker(s.ctx, s.cnf.Healths, s.signal)
+		s.healthChecker.Start()
+	}
+	NowStatus = 1
+	//msg connection, eg udp
+	s.handleMain()
 }
 
 // handle main connection
