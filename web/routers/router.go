@@ -12,10 +12,10 @@ func Init() {
 	beego.ErrorHandler("404", func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusNotFound)
 	})
-
-	web_base_url := beego.AppConfig.String("web_base_url")
-	if len(web_base_url) > 0 {
-		ns := beego.NewNamespace(web_base_url,
+	controllers.InitCaptcha()
+	webBaseUrl := beego.AppConfig.String("web_base_url")
+	if len(webBaseUrl) > 0 {
+		ns := beego.NewNamespace(webBaseUrl,
 			beego.NSRouter("/", &controllers.IndexController{}, "*:Index"),
 			beego.NSAutoRouter(&controllers.IndexController{}),
 			beego.NSAutoRouter(&controllers.LoginController{}),

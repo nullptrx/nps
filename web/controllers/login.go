@@ -27,11 +27,10 @@ type record struct {
 	lastLoginTime     time.Time
 }
 
-func init() {
-	webBaseUrl := beego.AppConfig.String("web_base_url")
+func InitCaptcha() {
 	// use beego cache system store the captcha data
 	store := cache.NewMemoryCache()
-	cpt = captcha.NewWithFilter(webBaseUrl+"/captcha/", store)
+	cpt = captcha.NewWithFilter(beego.AppConfig.String("web_base_url")+"/captcha/", store)
 	cpt.ChallengeNums = 4
 	cpt.StdWidth = 100
 	cpt.StdHeight = 50
