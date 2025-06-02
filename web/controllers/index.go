@@ -380,9 +380,9 @@ func (s *IndexController) StartHost() {
 	mode := s.getEscapeString("mode")
 	if mode != "" {
 		if err := changeHostStatus(id, mode, "start"); err != nil {
-			s.AjaxErr("start error")
+			s.AjaxErr("modified fail")
 		}
-		s.AjaxOk("start success")
+		s.AjaxOk("modified success")
 	}
 	h, err := file.GetDb().GetHostById(id)
 	if err != nil {
@@ -399,9 +399,9 @@ func (s *IndexController) StopHost() {
 	mode := s.getEscapeString("mode")
 	if mode != "" {
 		if err := changeHostStatus(id, mode, "stop"); err != nil {
-			s.AjaxErr("stop error")
+			s.AjaxErr("modified fail")
 		}
-		s.AjaxOk("stop success")
+		s.AjaxOk("modified success")
 	}
 	h, err := file.GetDb().GetHostById(id)
 	if err != nil {
