@@ -24,6 +24,7 @@ TARGETS=(
   "linux 386"
   "linux amd64"
   "linux arm64"
+  "linux arm"
   "linux arm 5"
   "linux arm 6"
   "linux arm 7"
