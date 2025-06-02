@@ -192,23 +192,30 @@ func downloadLatest(bin string) string {
 		filename = fmt.Sprintf("%s_%s_%s_old.tar.gz", runtime.GOOS, runtime.GOARCH, bin)
 	}
 	// download latest package
-	githubURL := fmt.Sprintf("https://github.com/djylb/nps/releases/download/%s/%s", version, filename)
-	fmt.Println("Attempting to download from GitHub:", githubURL)
-	resp, err := httpClient.Get(githubURL)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		if err == nil {
+	urls := []string{
+		fmt.Sprintf("https://github.com/djylb/nps/releases/download/%s/%s", version, filename),
+		fmt.Sprintf("https://cdn.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
+		fmt.Sprintf("https://fastly.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
+		fmt.Sprintf("https://gcore.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
+		fmt.Sprintf("https://testingcf.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
+	}
+	var resp *http.Response
+	var downloadErr error
+	for _, url := range urls {
+		fmt.Println("Trying:", url)
+		resp, downloadErr = httpClient.Get(url)
+		if downloadErr == nil && resp.StatusCode == http.StatusOK {
+			break
+		}
+		if resp != nil {
 			resp.Body.Close()
 		}
-		jsdelivrURL := fmt.Sprintf("https://cdn.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename)
-		fmt.Println("GitHub download failed; falling back to jsDelivr:", jsdelivrURL)
-		resp, err = httpClient.Get(jsdelivrURL)
-		if err != nil {
-			log.Fatal("Failed to download from both GitHub and jsDelivr:", err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			log.Fatalf("Failed to download from both GitHub (status %d) and jsDelivr (status %d)", resp.StatusCode, resp.StatusCode)
-		}
+	}
+	if downloadErr != nil {
+		log.Fatal("Download failed:", downloadErr)
+	}
+	if resp == nil || resp.StatusCode != http.StatusOK {
+		log.Fatalf("All mirrors failed; last status: %v", resp.StatusCode)
 	}
 	defer resp.Body.Close()
 
