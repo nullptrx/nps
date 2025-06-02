@@ -174,6 +174,7 @@ function submitform(action, url, postdata) {
         }
     });
     switch (action) {
+        case 'turn':
         case 'clear':
         case 'delete':
             var langobj = languages['content']['confirm'][action];

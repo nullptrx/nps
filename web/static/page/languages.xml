@@ -975,6 +975,10 @@
 	</lang>
 
 	<confirm>
+		<lang id="turn">
+			<zh-CN>你确定你要切换它吗？</zh-CN>
+			<en-US>Are you sure you want to toggle it?</en-US>
+		</lang>
 		<lang id="clear">
 			<zh-CN>你确定你要清空它吗？</zh-CN>
 			<en-US>Are you sure you want to clear it?</en-US>
