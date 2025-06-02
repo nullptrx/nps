@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -392,6 +393,9 @@ func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly b
 
 // Read file content by file path
 func ReadAllFromFile(filePath string) ([]byte, error) {
+	if !filepath.IsAbs(filePath) {
+		filePath = filepath.Join(GetRunPath(), filePath)
+	}
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -400,7 +404,6 @@ func ReadAllFromFile(filePath string) ([]byte, error) {
 	return ioutil.ReadAll(f)
 }
 
-// getCertContent 从文件读取证书/密钥文本
 func GetCertContent(filePath, header string) (string, error) {
 	if filePath == "" || strings.Contains(filePath, header) {
 		return filePath, nil

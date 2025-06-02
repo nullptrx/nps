@@ -213,6 +213,7 @@ type Host struct {
 	TargetIsHttps  bool
 	Target         *Target //目标
 	UserAuth       *MultiAccount
+	MultiAccount   *MultiAccount
 	Health         `json:"-"`
 	sync.RWMutex
 }

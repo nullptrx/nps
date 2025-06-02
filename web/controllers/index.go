@@ -377,6 +377,13 @@ func (s *IndexController) DelHost() {
 
 func (s *IndexController) StartHost() {
 	id := s.GetIntNoErr("id")
+	mode := s.getEscapeString("mode")
+	if mode != "" {
+		if err := changeHostStatus(id, mode, "start"); err != nil {
+			s.AjaxErr("start error")
+		}
+		s.AjaxOk("start success")
+	}
 	h, err := file.GetDb().GetHostById(id)
 	if err != nil {
 		s.error()
@@ -389,6 +396,13 @@ func (s *IndexController) StartHost() {
 
 func (s *IndexController) StopHost() {
 	id := s.GetIntNoErr("id")
+	mode := s.getEscapeString("mode")
+	if mode != "" {
+		if err := changeHostStatus(id, mode, "stop"); err != nil {
+			s.AjaxErr("stop error")
+		}
+		s.AjaxOk("stop success")
+	}
 	h, err := file.GetDb().GetHostById(id)
 	if err != nil {
 		s.error()
@@ -552,6 +566,61 @@ func changeHostStatus(id int, name, action string) (err error) {
 		}
 		if name == "time_limit" && action == "clear" {
 			h.Flow.TimeLimit = common.GetTimeNoErrByStr("")
+		}
+		if name == "auto_ssl" {
+			if action == "start" {
+				h.AutoSSL = true
+			}
+			if action == "stop" {
+				h.AutoSSL = false
+			}
+			if action == "clear" {
+				h.AutoSSL = !h.AutoSSL
+			}
+		}
+		if name == "https_just_proxy" {
+			if action == "start" {
+				h.HttpsJustProxy = true
+			}
+			if action == "stop" {
+				h.HttpsJustProxy = false
+			}
+			if action == "clear" {
+				h.HttpsJustProxy = !h.HttpsJustProxy
+			}
+		}
+		if name == "auto_https" {
+			if action == "start" {
+				h.AutoHttps = true
+			}
+			if action == "stop" {
+				h.AutoHttps = false
+			}
+			if action == "clear" {
+				h.AutoHttps = !h.AutoHttps
+			}
+		}
+		if name == "auto_cors" {
+			if action == "start" {
+				h.AutoCORS = true
+			}
+			if action == "stop" {
+				h.AutoCORS = false
+			}
+			if action == "clear" {
+				h.AutoCORS = !h.AutoCORS
+			}
+		}
+		if name == "target_is_https" {
+			if action == "start" {
+				h.TargetIsHttps = true
+			}
+			if action == "stop" {
+				h.TargetIsHttps = false
+			}
+			if action == "clear" {
+				h.TargetIsHttps = !h.TargetIsHttps
+			}
 		}
 		file.GetDb().JsonDb.StoreHostToJsonFile()
 	}

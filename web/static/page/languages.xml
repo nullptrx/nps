@@ -674,6 +674,14 @@
 		<zh-CN>是</zh-CN>
 		<en-US>True</en-US>
 	</lang>
+	<lang id="word-ishttpstrue">
+		<zh-CN>HTTPS</zh-CN>
+		<en-US>HTTPS</en-US>
+	</lang>
+	<lang id="word-ishttpsfalse">
+		<zh-CN>HTTP</zh-CN>
+		<en-US>HTTP</en-US>
+	</lang>
 	<lang id="word-tunnel">
 		<zh-CN>隧道</zh-CN>
 		<en-US>Tunnel</en-US>

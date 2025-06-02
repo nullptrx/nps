@@ -7,15 +7,19 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/c4milo/unpackit"
 	"github.com/djylb/nps/lib/common"
 )
+
+var BuildTarget string
 
 // Keep it in sync with the template from service_sysv_linux.go file
 // Use "ps | grep -v grep | grep $(get_pid)" because "ps PID" may not work on OpenWrt
@@ -154,38 +158,70 @@ type release struct {
 }
 
 func downloadLatest(bin string) string {
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		TLSHandshakeTimeout: 5 * time.Second,
+	}
+	httpClient := &http.Client{
+		Transport: transport,
+	}
+
 	// get version
-	data, err := http.Get("https://api.github.com/repos/djylb/nps/releases/latest")
+	data, err := httpClient.Get("https://api.github.com/repos/djylb/nps/releases/latest")
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+	defer data.Body.Close()
+
 	b, err := ioutil.ReadAll(data.Body)
 	if err != nil {
 		log.Fatal(err)
 	}
 	rl := new(release)
-	json.Unmarshal(b, &rl)
+	if err := json.Unmarshal(b, &rl); err != nil {
+		log.Fatal(err)
+	}
 	version := rl.TagName
 	fmt.Println("The latest version is", version)
-	filename := runtime.GOOS + "_" + runtime.GOARCH + "_" + bin + ".tar.gz"
-	// download latest package
-	downloadUrl := fmt.Sprintf("https://github.com/djylb/nps/releases/download/%s/%s", version, filename)
-	fmt.Println("Downloading package from", downloadUrl)
-	resp, err := http.Get(downloadUrl)
-	if err != nil {
-		log.Fatal(err.Error())
+
+	filename := fmt.Sprintf("%s_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH, bin)
+	if BuildTarget == "win7" {
+		filename = fmt.Sprintf("%s_%s_%s_old.tar.gz", runtime.GOOS, runtime.GOARCH, bin)
 	}
+	// download latest package
+	githubURL := fmt.Sprintf("https://github.com/djylb/nps/releases/download/%s/%s", version, filename)
+	fmt.Println("Attempting to download from GitHub:", githubURL)
+	resp, err := httpClient.Get(githubURL)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		if err == nil {
+			resp.Body.Close()
+		}
+		jsdelivrURL := fmt.Sprintf("https://cdn.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename)
+		fmt.Println("GitHub download failed; falling back to jsDelivr:", jsdelivrURL)
+		resp, err = httpClient.Get(jsdelivrURL)
+		if err != nil {
+			log.Fatal("Failed to download from both GitHub and jsDelivr:", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			log.Fatalf("Failed to download from both GitHub (status %d) and jsDelivr (status %d)", resp.StatusCode, resp.StatusCode)
+		}
+	}
+	defer resp.Body.Close()
 
 	destPath, err := ioutil.TempDir(os.TempDir(), "nps-")
 	if err != nil {
 		log.Fatal("Failed to create temp directory:", err)
 	}
 
-	err = unpackit.Unpack(resp.Body, destPath)
-	if err != nil {
+	if err := unpackit.Unpack(resp.Body, destPath); err != nil {
 		log.Fatal(err)
 		return ""
 	}
+
 	if bin == "server" {
 		destPath = strings.Replace(destPath, "/web", "", -1)
 		destPath = strings.Replace(destPath, `\web`, "", -1)
@@ -201,7 +237,6 @@ func downloadLatest(bin string) string {
 func copyStaticFile(srcPath, bin string) string {
 	path := common.GetInstallPath()
 	if bin == "nps" {
-		//复制文件到对应目录
 		if err := CopyDir(filepath.Join(srcPath, "web", "views"), filepath.Join(path, "web", "views")); err != nil {
 			log.Fatalln(err)
 		}
@@ -213,7 +248,7 @@ func copyStaticFile(srcPath, bin string) string {
 		if _, err := copyFile(filepath.Join(srcPath, "conf", "nps.conf"), filepath.Join(path, "conf", "nps.conf.default")); err != nil {
 			log.Fatalln(err)
 		}
-		chMod(filepath.Join(path, "conf", "nps.conf.new"), 0766)
+		chMod(filepath.Join(path, "conf", "nps.conf.default"), 0766)
 	}
 	binPath, _ := filepath.Abs(os.Args[0])
 	if !common.IsWindows() {

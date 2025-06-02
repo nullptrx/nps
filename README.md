@@ -22,6 +22,7 @@ NPS 是一款轻量高效的内网穿透代理服务器，支持多种协议（T
 - **讨论交流：**  加入 [Telegram 交流群](https://t.me/npsdev) 与其他用户交流经验。
 - **Android：**  [djylb/npsclient](https://github.com/djylb/npsclient)
 - **OpenWrt：**  [djylb/nps-openwrt](https://github.com/djylb/nps-openwrt)
+- **Mirror：**  [djylb/nps-mirror](https://github.com/djylb/nps-mirror)
 
 ---
 
@@ -139,6 +140,11 @@ npc update && mv /usr/local/bin/npc /usr/bin/npc && npc restart
   - 待定，优先修BUG，新功能随缘更新
 
 ### Stable
+
+- **v0.29.13 (2025-06-03)**
+  - 添加镜像下载更新文件 [nps-mirror](https://github.com/djylb/nps-mirror)
+  - 域名转发支持客户端配置文件配置证书等内容
+  - 调整域名转发管理列表显示
 
 - **v0.29.12 (2025-05-28)**
   - 修复指定路径后验证码不显示

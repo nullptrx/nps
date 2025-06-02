@@ -429,6 +429,12 @@ func GetHostList(start, length, clientId int, search, sortField, order string) (
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].Scheme > list[j].Scheme })
 		}
+	} else if sortField == "TargetIsHttps" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].TargetIsHttps && !list[j].TargetIsHttps })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return !list[i].TargetIsHttps && list[j].TargetIsHttps })
+		}
 	} else if sortField == "Target.TargetStr" {
 		if order == "asc" {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].Target.TargetStr < list[j].Target.TargetStr })
@@ -446,6 +452,36 @@ func GetHostList(start, length, clientId int, search, sortField, order string) (
 			sort.SliceStable(list, func(i, j int) bool { return list[i].PathRewrite < list[j].PathRewrite })
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].PathRewrite > list[j].PathRewrite })
+		}
+	} else if sortField == "CertType" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].CertType < list[j].CertType })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].CertType > list[j].CertType })
+		}
+	} else if sortField == "AutoSSL" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].AutoSSL && !list[j].AutoSSL })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return !list[i].AutoSSL && list[j].AutoSSL })
+		}
+	} else if sortField == "AutoHttps" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].AutoHttps && !list[j].AutoHttps })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return !list[i].AutoHttps && list[j].AutoHttps })
+		}
+	} else if sortField == "AutoCORS" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].AutoCORS && !list[j].AutoCORS })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return !list[i].AutoCORS && list[j].AutoCORS })
+		}
+	} else if sortField == "HttpsJustProxy" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].HttpsJustProxy && !list[j].HttpsJustProxy })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return !list[i].HttpsJustProxy && list[j].HttpsJustProxy })
 		}
 	} else if sortField == "IsClose" {
 		if order == "asc" {

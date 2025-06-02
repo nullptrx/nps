@@ -186,6 +186,34 @@ func dealHost(s string) *file.Host {
 			h.Scheme = item[1]
 		case "location":
 			h.Location = item[1]
+		case "cert_file":
+			h.CertFile, _ = common.GetCertContent(item[1], "CERTIFICATE")
+		case "key_file":
+			h.KeyFile, _ = common.GetCertContent(item[1], "PRIVATE")
+		case "https_just_proxy":
+			h.HttpsJustProxy = common.GetBoolByStr(item[1])
+		case "auto_ssl":
+			h.AutoSSL = common.GetBoolByStr(item[1])
+		case "auto_https":
+			h.AutoHttps = common.GetBoolByStr(item[1])
+		case "auto_cors":
+			h.AutoCORS = common.GetBoolByStr(item[1])
+		case "target_is_https":
+			h.TargetIsHttps = common.GetBoolByStr(item[1])
+		case "multi_account":
+			h.MultiAccount = &file.MultiAccount{}
+			if common.FileExists(item[1]) {
+				if b, err := common.ReadAllFromFile(item[1]); err != nil {
+					panic(err)
+				} else {
+					if content, err := common.ParseStr(string(b)); err != nil {
+						panic(err)
+					} else {
+						h.MultiAccount.Content = content
+						h.MultiAccount.AccountMap = dealMultiUser(content)
+					}
+				}
+			}
 		default:
 			if strings.Contains(item[0], "header") {
 				headerChange += strings.Replace(item[0], "header_", "", -1) + ":" + item[1] + "\n"
