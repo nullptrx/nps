@@ -372,9 +372,17 @@
 		<zh-CN>由后端处理HTTPS (仅转发)</zh-CN>
 		<en-US>Handle HTTPS by the backend (only forwarding)</en-US>
 	</lang>
+	<lang id="word-httpsjustproxytitle">
+		<zh-CN>HTTPS仅转发</zh-CN>
+		<en-US>HTTPS only forwarding</en-US>
+	</lang>
 	<lang id="word-autohttps">
 		<zh-CN>自动HTTPS (301)</zh-CN>
 		<en-US>Auto HTTPS (301)</en-US>
+	</lang>
+	<lang id="word-autohttpstitle">
+		<zh-CN>自动HTTPS</zh-CN>
+		<en-US>Auto HTTPS</en-US>
 	</lang>
 	<lang id="word-autossl">
 		<zh-CN>自动证书</zh-CN>
@@ -382,6 +390,10 @@
 	</lang>
 	<lang id="word-autocors">
 		<zh-CN>自动修复 CORS</zh-CN>
+		<en-US>Auto CORS</en-US>
+	</lang>
+	<lang id="word-autocorstitle">
+		<zh-CN>自动CORS</zh-CN>
 		<en-US>Auto CORS</en-US>
 	</lang>
 	<lang id="word-httpskey">
@@ -649,6 +661,10 @@
 	<lang id="word-targetishttps">
 		<zh-CN>目标类型 (HTTP/HTTPS)</zh-CN>
 		<en-US>Target Type (HTTP/HTTPS)</en-US>
+	</lang>
+	<lang id="word-targettype">
+		<zh-CN>目标类型</zh-CN>
+		<en-US>Target Type</en-US>
 	</lang>
 	<lang id="word-tcpconnections_established">
 		<zh-CN>TCP 连接 (已建立)</zh-CN>
