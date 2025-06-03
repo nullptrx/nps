@@ -126,7 +126,7 @@ nps start|stop|restart|uninstall
 nps stop
 nps-update update
 nps start
-# 热更新
+# 快速更新
 nps update && mv /usr/local/bin/nps /usr/bin/nps && nps restart
 
 # NPC 客户端
@@ -138,7 +138,7 @@ npc start|stop|restart|uninstall
 npc stop
 /usr/bin/npc-update update
 npc start
-# 热更新
+# 快速更新
 npc update && mv /usr/local/bin/npc /usr/bin/npc && npc restart
 ```
 
@@ -164,7 +164,7 @@ nps start|stop|restart|uninstall
 nps stop
 nps-update update
 nps start
-# 热更新
+# 快速更新
 nps update && mv /usr/local/bin/nps /usr/bin/nps && nps restart
 
 # NPC 客户端
@@ -176,7 +176,7 @@ npc start|stop|restart|uninstall
 npc stop
 /usr/bin/npc-update update
 npc start
-# 热更新
+# 快速更新
 npc update && mv /usr/local/bin/npc /usr/bin/npc && npc restart
 ```
 
