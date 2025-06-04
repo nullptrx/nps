@@ -81,7 +81,7 @@ nps stop
 nps-update update
 nps start
 # 快速更新
-nps update && mv /usr/local/bin/nps /usr/bin/nps && nps restart
+nps update && nps restart
 ```
 
 #### Windows
@@ -109,7 +109,7 @@ npc stop
 /usr/bin/npc-update update
 npc start
 # 快速更新
-npc update && mv /usr/local/bin/npc /usr/bin/npc && npc restart
+npc update && npc restart
 ```
 
 #### Windows
@@ -140,6 +140,11 @@ npc update && mv /usr/local/bin/npc /usr/bin/npc && npc restart
   - 待定，优先修BUG，新功能随缘更新
 
 ### Stable
+
+- **v0.29.14 (2025-06-04)**
+  - 添加备用CDN下载更新
+  - 新增编译架构
+  - 调整更新替换文件逻辑
 
 - **v0.29.13 (2025-06-03)**
   - 添加镜像下载更新文件 [nps-mirror](https://github.com/djylb/nps-mirror)

@@ -127,7 +127,7 @@ nps stop
 nps-update update
 nps start
 # 快速更新
-nps update && mv /usr/local/bin/nps /usr/bin/nps && nps restart
+nps update && nps restart
 
 # NPC 客户端
 ./npc install
@@ -139,7 +139,7 @@ npc stop
 /usr/bin/npc-update update
 npc start
 # 快速更新
-npc update && mv /usr/local/bin/npc /usr/bin/npc && npc restart
+npc update && npc restart
 ```
 
 ---
@@ -165,7 +165,7 @@ nps stop
 nps-update update
 nps start
 # 快速更新
-nps update && mv /usr/local/bin/nps /usr/bin/nps && nps restart
+nps update && nps restart
 
 # NPC 客户端
 ./npc install
@@ -177,7 +177,7 @@ npc stop
 /usr/bin/npc-update update
 npc start
 # 快速更新
-npc update && mv /usr/local/bin/npc /usr/bin/npc && npc restart
+npc update && npc restart
 ```
 
 ---

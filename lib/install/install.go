@@ -274,6 +274,7 @@ func copyStaticFile(srcPath, bin string) string {
 
 	if !common.IsWindows() {
 		copyFile(filepath.Join(srcPath, bin), binPath)
+		chMod(binPath, 0755)
 		if _, err := copyFile(filepath.Join(srcPath, bin), "/usr/bin/"+bin); err != nil {
 			if _, err := copyFile(filepath.Join(srcPath, bin), "/usr/local/bin/"+bin); err != nil {
 				log.Fatalln(err)
