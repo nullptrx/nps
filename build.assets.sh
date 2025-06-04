@@ -98,7 +98,7 @@ build_binary() {
     build_ldflags+=" -X 'github.com/djylb/nps/lib/install.BuildTarget=${arch_tag}'"
   fi
 
-  CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" "${envs[@]}" \
+  CGO_ENABLED=0 GOOS=$os GOARCH=$arch ${envs[@]} \
     go build -ldflags "$build_ldflags" -o "$name$ext" "./cmd/$name/$name.go"
 }
 
@@ -123,7 +123,7 @@ package_binary() {
   fi
 
   local tarname="${os}_${arch_tag}_${suffix}.tar.gz"
-  tar -czvf "$tarname" "$bin" $tar_files
+  tar -czvf "$tarname" $bin $tar_files
   rm -f "$bin"
 }
 
@@ -148,7 +148,7 @@ build_sdk() {
     mkdir -p "$folder"
     local ext=""
     [ "$os" = "windows" ] && ext=".dll" || ext=".so"
-    CGO_ENABLED=1 GOOS="$os" GOARCH="$arch" CC="$cc" \
+    CGO_ENABLED=1 GOOS=$os GOARCH=$arch CC=$cc \
       go build -buildmode=c-shared -ldflags "$COMMON_LDFLAGS" -o "$folder/npc_sdk$ext" cmd/npc/sdk.go
     cp npc_sdk.h "$folder"/ 2>/dev/null || true
   done
