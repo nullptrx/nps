@@ -57,28 +57,19 @@ build_binary() {
   local ext=""
   [ "$os" = "windows" ] && ext=".exe"
 
-  local envs=()
-
+  local envstr=""
   case "$arch" in
     "arm")
-      if [[ -n "$extra" ]]; then
-        envs+=( "GOARM=$extra" )
-      fi
+      [[ -n "$extra" ]] && envstr="GOARM=$extra"
       ;;
     "386")
-      if [[ -n "$extra" ]]; then
-        envs+=( "GO386=$extra" )
-      fi
+      [[ -n "$extra" ]] && envstr="GO386=$extra"
       ;;
     "amd64")
-      if [[ -n "$extra" ]]; then
-        envs+=( "GOAMD64=$extra" )
-      fi
+      [[ -n "$extra" ]] && envstr="GOAMD64=$extra"
       ;;
     "mips"|"mipsle")
-      if [[ -n "$extra" ]]; then
-        envs+=( "GOMIPS=$extra" )
-      fi
+      [[ -n "$extra" ]] && envstr="GOMIPS=$extra"
       ;;
     *)
       ;;
@@ -98,8 +89,11 @@ build_binary() {
     build_ldflags+=" -X 'github.com/djylb/nps/lib/install.BuildTarget=${arch_tag}'"
   fi
 
-  CGO_ENABLED=0 GOOS=$os GOARCH=$arch ${envs[@]} \
-    go build -ldflags "$build_ldflags" -o "$name$ext" "./cmd/$name/$name.go"
+  if [[ -n "$envstr" ]]; then
+    eval "CGO_ENABLED=0 GOOS=\"$os\" GOARCH=\"$arch\" $envstr go build -trimpath -ldflags \"$build_ldflags\" -o \"$name$ext\" \"./cmd/$name/$name.go\""
+  else
+    eval "CGO_ENABLED=0 GOOS=\"$os\" GOARCH=\"$arch\" go build -trimpath -ldflags \"$build_ldflags\" -o \"$name$ext\" \"./cmd/$name/$name.go\""
+  fi
 }
 
 package_binary() {
@@ -149,7 +143,7 @@ build_sdk() {
     local ext=""
     [ "$os" = "windows" ] && ext=".dll" || ext=".so"
     CGO_ENABLED=1 GOOS=$os GOARCH=$arch CC=$cc \
-      go build -buildmode=c-shared -ldflags "$COMMON_LDFLAGS" -o "$folder/npc_sdk$ext" cmd/npc/sdk.go
+      go build -trimpath -buildmode=c-shared -ldflags "$COMMON_LDFLAGS" -o "$folder/npc_sdk$ext" cmd/npc/sdk.go
     cp npc_sdk.h "$folder"/ 2>/dev/null || true
   done
   tar -czvf npc_sdk.tar.gz sdk_*
