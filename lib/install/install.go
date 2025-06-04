@@ -187,10 +187,18 @@ func downloadLatest(bin string) string {
 	version := rl.TagName
 	fmt.Println("The latest version is", version)
 
-	filename := fmt.Sprintf("%s_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH, bin)
+	osName := runtime.GOOS
+	archName := runtime.GOARCH
+
+	var filename string
 	if BuildTarget == "win7" {
-		filename = fmt.Sprintf("%s_%s_%s_old.tar.gz", runtime.GOOS, runtime.GOARCH, bin)
+		filename = fmt.Sprintf("%s_%s_%s_old.tar.gz", osName, archName, bin)
+	} else if BuildTarget != "" {
+		filename = fmt.Sprintf("%s_%s_%s_%s.tar.gz", osName, archName, BuildTarget, bin)
+	} else {
+		filename = fmt.Sprintf("%s_%s_%s.tar.gz", osName, archName, bin)
 	}
+
 	// download latest package
 	urls := []string{
 		fmt.Sprintf("https://github.com/djylb/nps/releases/download/%s/%s", version, filename),
@@ -199,6 +207,7 @@ func downloadLatest(bin string) string {
 		fmt.Sprintf("https://gcore.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
 		fmt.Sprintf("https://testingcf.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
 	}
+
 	var resp *http.Response
 	var downloadErr error
 	for _, url := range urls {
@@ -257,8 +266,14 @@ func copyStaticFile(srcPath, bin string) string {
 		}
 		chMod(filepath.Join(path, "conf", "nps.conf.default"), 0766)
 	}
-	binPath, _ := filepath.Abs(os.Args[0])
+
+	binPath, err := os.Executable()
+	if err != nil {
+		binPath, _ = filepath.Abs(os.Args[0])
+	}
+
 	if !common.IsWindows() {
+		copyFile(filepath.Join(srcPath, bin), binPath)
 		if _, err := copyFile(filepath.Join(srcPath, bin), "/usr/bin/"+bin); err != nil {
 			if _, err := copyFile(filepath.Join(srcPath, bin), "/usr/local/bin/"+bin); err != nil {
 				log.Fatalln(err)
@@ -390,13 +405,39 @@ func copyFile(src, dest string) (w int64, err error) {
 			}
 		}
 	}
-	dstFile, err := os.Create(dest)
-	if err != nil {
-		return
-	}
-	defer dstFile.Close()
 
-	return io.Copy(dstFile, srcFile)
+	dstFile, err := os.Create(dest)
+	if err == nil {
+		defer dstFile.Close()
+		if n, copyErr := io.Copy(dstFile, srcFile); copyErr == nil {
+			return n, nil
+		}
+	}
+
+	tmpPath := dest + ".tmp"
+	if _, statErr := os.Stat(tmpPath); statErr == nil {
+		_ = os.Remove(tmpPath)
+	}
+
+	tmpFile, err := os.Create(tmpPath)
+	if err != nil {
+		return 0, err
+	}
+	defer tmpFile.Close()
+
+	if _, err = srcFile.Seek(0, io.SeekStart); err != nil {
+		return 0, err
+	}
+	n, err := io.Copy(tmpFile, srcFile)
+	if err != nil {
+		return n, err
+	}
+
+	tmpFile.Close()
+	if renameErr := os.Rename(tmpPath, dest); renameErr != nil {
+		return n, renameErr
+	}
+	return n, nil
 }
 
 // 检测文件夹路径时候存在

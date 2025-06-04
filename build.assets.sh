@@ -32,7 +32,9 @@ TARGETS=(
   "linux mips64le"
   "linux mips64"
   "linux mipsle"
+  "linux mipsle softfloat"
   "linux mips"
+  "linux mips softfloat"
   "linux riscv64"
   "windows 386"
   "windows amd64"
@@ -51,25 +53,86 @@ build_binary() {
   local name="$1"
   local os="$2"
   local arch="$3"
-  local goarm="$4"
+  local extra="$4"
   local ext=""
   [ "$os" = "windows" ] && ext=".exe"
-  CGO_ENABLED=0 GOOS=$os GOARCH=$arch GOARM=$goarm \
-    go build -ldflags "$COMMON_LDFLAGS" -o "$name$ext" "./cmd/$name/$name.go"
+
+  local envs=""
+  local goarm=""
+  local go386=""
+  local goamd64=""
+  local gomips=""
+
+  case "$arch" in
+    "arm")
+      if [[ -n "$extra" ]]; then
+        goarm="$extra"
+      fi
+      ;;
+    "386")
+      if [[ -n "$extra" ]]; then
+        go386="$extra"
+      fi
+      ;;
+    "amd64")
+      if [[ -n "$extra" ]]; then
+        goamd64="$extra"
+      fi
+      ;;
+    "mips"|"mipsle")
+      if [[ -n "$extra" ]]; then
+        gomips="$extra"
+      fi
+      ;;
+    *)
+      ;;
+  esac
+
+  [[ -n "$goarm"   ]] && envs+=" GOARM=$goarm"
+  [[ -n "$go386"   ]] && envs+=" GO386=$go386"
+  [[ -n "$goamd64" ]] && envs+=" GOAMD64=$goamd64"
+  [[ -n "$gomips"  ]] && envs+=" GOMIPS=$gomips"
+
+  local arch_tag=""
+  if [[ -n "$extra" ]]; then
+    if [[ "$arch" == "arm" ]]; then
+      arch_tag="v${extra}"
+    else
+      arch_tag="${extra}"
+    fi
+  fi
+
+  local build_ldflags="$COMMON_LDFLAGS"
+  if [[ -n "$arch_tag" ]]; then
+    build_ldflags+=" -X 'github.com/djylb/nps/lib/install.BuildTarget=${arch_tag}'"
+  fi
+
+  eval CGO_ENABLED=0 GOOS="$os" GOARCH="$arch"${envs} \
+    go build -ldflags "$build_ldflags" -o "$name$ext" "./cmd/$name/$name.go"
 }
 
 package_binary() {
   local name="$1"
   local os="$2"
   local arch="$3"
-  local goarm="$4"
+  local extra="$4"
   local tar_files="$5"
   local suffix="$6"
   local ext=""
   [ "$os" = "windows" ] && ext=".exe"
   local bin="$name$ext"
-  local tarname="${os}_${arch}${goarm:+_v$goarm}_${suffix}.tar.gz"
-  tar -czvf "$tarname" $bin $tar_files
+
+  local arch_tag="$arch"
+  if [[ -n "$extra" ]]; then
+    if [[ "$arch" == "arm" ]]; then
+      arch_tag="${arch}_v${extra}"
+    else
+      arch_tag="${arch}_${extra}"
+    fi
+  fi
+
+  local tarname="${os}_${arch_tag}_${suffix}.tar.gz"
+  tar -czvf "$tarname" "$bin" $tar_files
   rm -f "$bin"
 }
 
@@ -78,10 +141,11 @@ build_all_targets() {
   local suffix="$2"
   local targets=("${!3}")
   local tar_files="$4"
+
   for entry in "${targets[@]}"; do
-    IFS=' ' read -r os arch goarm <<< "$entry"
-    build_binary "$name" "$os" "$arch" "$goarm"
-    package_binary "$name" "$os" "$arch" "$goarm" "$tar_files" "$suffix"
+    IFS=' ' read -r os arch extra <<< "$entry"
+    build_binary "$name" "$os" "$arch" "$extra"
+    package_binary "$name" "$os" "$arch" "$extra" "$tar_files" "$suffix"
   done
 }
 
@@ -93,7 +157,7 @@ build_sdk() {
     mkdir -p "$folder"
     local ext=""
     [ "$os" = "windows" ] && ext=".dll" || ext=".so"
-    CGO_ENABLED=1 GOOS=$os GOARCH=$arch CC=$cc \
+    CGO_ENABLED=1 GOOS="$os" GOARCH="$arch" CC="$cc" \
       go build -buildmode=c-shared -ldflags "$COMMON_LDFLAGS" -o "$folder/npc_sdk$ext" cmd/npc/sdk.go
     cp npc_sdk.h "$folder"/ 2>/dev/null || true
   done
