@@ -57,41 +57,32 @@ build_binary() {
   local ext=""
   [ "$os" = "windows" ] && ext=".exe"
 
-  local envs=""
-  local goarm=""
-  local go386=""
-  local goamd64=""
-  local gomips=""
+  local envs=()
 
   case "$arch" in
     "arm")
       if [[ -n "$extra" ]]; then
-        goarm="$extra"
+        envs+=( "GOARM=$extra" )
       fi
       ;;
     "386")
       if [[ -n "$extra" ]]; then
-        go386="$extra"
+        envs+=( "GO386=$extra" )
       fi
       ;;
     "amd64")
       if [[ -n "$extra" ]]; then
-        goamd64="$extra"
+        envs+=( "GOAMD64=$extra" )
       fi
       ;;
     "mips"|"mipsle")
       if [[ -n "$extra" ]]; then
-        gomips="$extra"
+        envs+=( "GOMIPS=$extra" )
       fi
       ;;
     *)
       ;;
   esac
-
-  [[ -n "$goarm"   ]] && envs+=" GOARM=$goarm"
-  [[ -n "$go386"   ]] && envs+=" GO386=$go386"
-  [[ -n "$goamd64" ]] && envs+=" GOAMD64=$goamd64"
-  [[ -n "$gomips"  ]] && envs+=" GOMIPS=$gomips"
 
   local arch_tag=""
   if [[ -n "$extra" ]]; then
@@ -107,7 +98,7 @@ build_binary() {
     build_ldflags+=" -X 'github.com/djylb/nps/lib/install.BuildTarget=${arch_tag}'"
   fi
 
-  eval CGO_ENABLED=0 GOOS="$os" GOARCH="$arch"${envs} \
+  CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" "${envs[@]}" \
     go build -ldflags "$build_ldflags" -o "$name$ext" "./cmd/$name/$name.go"
 }
 
