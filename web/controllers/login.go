@@ -3,6 +3,7 @@ package controllers
 import (
 	"math/rand"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,11 +62,16 @@ func (self *LoginController) Verify() {
 	stored := self.GetSession("login_nonce")
 	self.SetSession("login_nonce", nonce)
 	username := self.GetString("username")
-	remoteAddr := self.Ctx.Request.RemoteAddr
+	ip, _, _ := net.SplitHostPort(self.Ctx.Request.RemoteAddr)
+	if beego.AppConfig.DefaultBool("allow_x_real_ip", false) && isTrustedProxy(ip) {
+		if realIP := self.Ctx.Request.Header.Get("X-Real-IP"); realIP != "" {
+			ip = realIP
+		}
+	}
 	captchaOpen, _ := beego.AppConfig.Bool("open_captcha")
 	if captchaOpen {
 		if !cpt.VerifyReq(self.Ctx.Request) {
-			logs.Warn("Captcha failed for user %s from %s", username, remoteAddr)
+			logs.Warn("Captcha failed for user %s from %s", username, ip)
 			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "the verification code is wrong, please get it again and try again", "nonce": nonce}
 			self.SetSession("login_nonce", nonce)
 			self.ServeJSON()
@@ -74,30 +80,30 @@ func (self *LoginController) Verify() {
 	}
 	pl, err := crypt.ParseLoginPayload(self.GetString("password"))
 	if err != nil {
-		logs.Warn("Decrypt error for user %s from %s: %v", username, remoteAddr, err)
+		logs.Warn("Decrypt error for user %s from %s: %v", username, ip, err)
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error", "nonce": nonce}
 		self.ServeJSON()
 		return
 	}
 	if stored == nil || stored.(string) != pl.Nonce {
-		logs.Warn("Invalid nonce for user %s from %s", username, remoteAddr)
+		logs.Warn("Invalid nonce for user %s from %s", username, ip)
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "invalid nonce", "nonce": nonce}
 		self.ServeJSON()
 		return
 	}
 	now := time.Now().UnixMilli()
 	if pl.Timestamp < now-5*60*1000 || pl.Timestamp > now+60*1000 {
-		logs.Warn("Timestamp expired for user %s from %s", username, remoteAddr)
+		logs.Warn("Timestamp expired for user %s from %s", username, ip)
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired", "nonce": nonce}
 		self.ServeJSON()
 		return
 	}
 	if self.doLogin(username, pl.Password, true) {
-		logs.Info("Login success for user %s from %s", username, remoteAddr)
+		logs.Info("Login success for user %s from %s", username, ip)
 		self.DelSession("login_nonce")
 		self.Data["json"] = map[string]interface{}{"status": 1, "msg": "login success"}
 	} else {
-		logs.Warn("Login failed for user %s from %s", username, remoteAddr)
+		logs.Warn("Login failed for user %s from %s", username, ip)
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "username or password incorrect", "nonce": nonce}
 	}
 	self.ServeJSON()
@@ -106,6 +112,11 @@ func (self *LoginController) Verify() {
 func (self *LoginController) doLogin(username, password string, explicit bool) bool {
 	clearIprecord()
 	ip, _, _ := net.SplitHostPort(self.Ctx.Request.RemoteAddr)
+	if beego.AppConfig.DefaultBool("allow_x_real_ip", false) && isTrustedProxy(ip) {
+		if realIP := self.Ctx.Request.Header.Get("X-Real-IP"); realIP != "" {
+			ip = realIP
+		}
+	}
 	if v, ok := ipRecord.Load(ip); ok {
 		vv := v.(*record)
 		if (time.Now().Unix() - vv.lastLoginTime.Unix()) >= 60 {
@@ -273,4 +284,51 @@ func adminAuth(username, password string) bool {
 	}
 	expectedPass := beego.AppConfig.String("web_password")
 	return password == expectedPass
+}
+
+func isTrustedProxy(ip string) bool {
+	list := beego.AppConfig.DefaultString("trusted_proxy_ips", "127.0.0.1")
+	for _, entry := range strings.Split(list, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+
+		// if CIDR
+		if strings.Contains(entry, "/") {
+			if _, cidrNet, err := net.ParseCIDR(entry); err == nil {
+				if cidrNet.Contains(net.ParseIP(ip)) {
+					return true
+				}
+			}
+			continue
+		}
+
+		// if "192.168.*.*"
+		if strings.Contains(entry, "*") {
+			pSegs := strings.Split(entry, ".")
+			ipSegs := strings.Split(ip, ".")
+			if len(pSegs) == 4 && len(ipSegs) == 4 {
+				matched := true
+				for i := 0; i < 4; i++ {
+					if pSegs[i] == "*" {
+						continue
+					}
+					if pSegs[i] != ipSegs[i] {
+						matched = false
+						break
+					}
+				}
+				if matched {
+					return true
+				}
+			}
+			continue
+		}
+
+		if entry == ip {
+			return true
+		}
+	}
+	return false
 }
