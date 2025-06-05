@@ -226,11 +226,6 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Compat Mode
-	if host.CompatMode {
-		isHttpOnlyRequest = true
-	}
-
 	// Get target addr
 	targetAddr, err := host.Target.GetRandomTarget()
 	if err != nil {
@@ -371,7 +366,7 @@ func (s *httpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		//logs.Debug("handleWebsocket: TLS handshake succeeded")
 	}
 
-	common.ChangeHostAndHeader(r, host.HostChange, host.HeaderChange, isHttpOnlyRequest)
+	common.ChangeHostAndHeader(r, host.HostChange, host.HeaderChange, isHttpOnlyRequest || host.CompatMode)
 
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
