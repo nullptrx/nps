@@ -393,9 +393,6 @@ func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly b
 
 // Read file content by file path
 func ReadAllFromFile(filePath string) ([]byte, error) {
-	if !filepath.IsAbs(filePath) {
-		filePath = filepath.Join(GetRunPath(), filePath)
-	}
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -404,9 +401,23 @@ func ReadAllFromFile(filePath string) ([]byte, error) {
 	return ioutil.ReadAll(f)
 }
 
+func GetPath(filePath string) string {
+	if !filepath.IsAbs(filePath) {
+		filePath = filepath.Join(GetRunPath(), filePath)
+	}
+	path, err := filepath.Abs(filePath)
+	if err != nil {
+		return filePath
+	}
+	return path
+}
+
 func GetCertContent(filePath, header string) (string, error) {
 	if filePath == "" || strings.Contains(filePath, header) {
 		return filePath, nil
+	}
+	if !filepath.IsAbs(filePath) {
+		filePath = filepath.Join(GetRunPath(), filePath)
 	}
 	content, err := ReadAllFromFile(filePath)
 	if err != nil || !strings.Contains(string(content), header) {
