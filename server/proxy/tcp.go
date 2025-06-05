@@ -222,8 +222,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 		c.Rb = rb
 		listener = conn.NewOneConnListener(c)
 	} else {
-		cc := conn.NewConn(c)
-		cc.Rb = rb
+		cc := conn.NewConnWithRb(c, rb)
 		listener = conn.NewOneConnListener(cc)
 	}
 	var shutdownTimerMu sync.Mutex

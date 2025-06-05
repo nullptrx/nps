@@ -39,6 +39,10 @@ func NewConn(conn net.Conn) *Conn {
 	return &Conn{Conn: conn}
 }
 
+func NewConnWithRb(conn net.Conn, rb []byte) *Conn {
+	return &Conn{Conn: conn, Rb: rb}
+}
+
 func (s *Conn) readRequest(buf []byte) (n int, err error) {
 	var rd int
 	for {

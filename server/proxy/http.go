@@ -417,6 +417,18 @@ func (s *httpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		return
 	}
 
+	bufReader := clientBuf.Reader
+	if bufReader.Buffered() > 0 {
+		pending := make([]byte, bufReader.Buffered())
+		if _, err := bufReader.Read(pending); err != nil {
+			logs.Error("handleWebsocket: failed to read buffered data from client: %v", err)
+			netConn.Close()
+			clientConn.Close()
+			return
+		}
+		clientConn = conn.NewConnWithRb(clientConn, pending)
+	}
+
 	goroutine.Join(clientConn, netConn, []*file.Flow{host.Flow, host.Client.Flow}, s.task, r.RemoteAddr)
 }
 
