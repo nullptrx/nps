@@ -462,6 +462,7 @@ func (s *IndexController) AddHost() {
 			CertFile:       s.getEscapeString("cert_file"),
 			AutoHttps:      s.GetBoolNoErr("auto_https"),
 			AutoCORS:       s.GetBoolNoErr("auto_cors"),
+			CompatMode:     s.GetBoolNoErr("compat_mode"),
 			TargetIsHttps:  s.GetBoolNoErr("target_is_https"),
 		}
 		var err error
@@ -540,6 +541,7 @@ func (s *IndexController) EditHost() {
 			}
 			h.AutoHttps = s.GetBoolNoErr("auto_https")
 			h.AutoCORS = s.GetBoolNoErr("auto_cors")
+			h.CompatMode = s.GetBoolNoErr("compat_mode")
 			h.TargetIsHttps = s.GetBoolNoErr("target_is_https")
 			if h.Host != oleHost {
 				file.HostIndex.Remove(oleHost, h.Id)
@@ -609,6 +611,17 @@ func changeHostStatus(id int, name, action string) (err error) {
 			}
 			if action == "clear" {
 				h.AutoCORS = !h.AutoCORS
+			}
+		}
+		if name == "compat_mode" {
+			if action == "start" {
+				h.CompatMode = true
+			}
+			if action == "stop" {
+				h.CompatMode = false
+			}
+			if action == "clear" {
+				h.CompatMode = !h.CompatMode
 			}
 		}
 		if name == "target_is_https" {

@@ -396,6 +396,10 @@
 		<zh-CN>自动CORS</zh-CN>
 		<en-US>Auto CORS</en-US>
 	</lang>
+	<lang id="word-compatmode">
+		<zh-CN>兼容模式</zh-CN>
+		<en-US>Compat Mode</en-US>
+	</lang>
 	<lang id="word-httpskey">
 		<zh-CN>HTTPS 密钥（key格式）</zh-CN>
 		<en-US>HTTPS Key</en-US>

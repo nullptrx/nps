@@ -78,6 +78,7 @@
                 + '<b langtag="word-timelimit"></b>: <span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'time_limit\'})">' + row.Flow.TimeLimit + '</span>&emsp;<br/><br>'
                 + '<b langtag="word-autohttps"></b>: <span onclick="submitform(\'turn\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'auto_https\'})" langtag="word-' + row.AutoHttps + '"></span>&emsp;'
                 + '<b langtag="word-autocors"></b>: <span onclick="submitform(\'turn\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'auto_cors\'})" langtag="word-' + row.AutoCORS + '"></span>&emsp;'
+                + '<b langtag="word-compatmode"></b>: <span onclick="submitform(\'turn\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'compat_mode\'})" langtag="word-' + row.CompatMode + '"></span>&emsp;'
                 + '<b langtag="word-httpsjustproxy"></b>: <span onclick="submitform(\'turn\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'https_just_proxy\'})" langtag="word-' + row.HttpsJustProxy + '"></span>&emsp;'
                 + '<b langtag="word-targetishttps"></b>: <span onclick="submitform(\'turn\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'target_is_https\'})" langtag="word-ishttps' + row.TargetIsHttps + '"></span>&emsp;<br/><br>'
                 + '<b langtag="word-basicusername"></b>: ' + row.Client.Cnf.U + '&emsp;'
@@ -254,6 +255,20 @@
                         return '<span langtag="word-' + value + '" onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stophost\', {\'id\':' + row.Id + ', \'mode\': \'auto_cors\'})"></span>'
                     } else {
                         return '<span langtag="word-' + value + '" onclick="submitform(\'start\', \'{{.web_base_url}}/index/starthost\', {\'id\':' + row.Id + ', \'mode\': \'auto_cors\'})"></span>'
+                    }
+                }
+            },
+            {
+                field: 'CompatMode', //域值
+                title: '<span langtag="word-compatmode"></span>', //标题
+                halign: 'center',
+                visible: false, //false表示不显示
+                sortable: true,//启用排序
+                formatter: function (value, row, index) {
+                    if (value) {
+                        return '<span langtag="word-' + value + '" onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stophost\', {\'id\':' + row.Id + ', \'mode\': \'compat_mode\'})"></span>'
+                    } else {
+                        return '<span langtag="word-' + value + '" onclick="submitform(\'start\', \'{{.web_base_url}}/index/starthost\', {\'id\':' + row.Id + ', \'mode\': \'compat_mode\'})"></span>'
                     }
                 }
             },

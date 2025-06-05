@@ -76,6 +76,15 @@
                             </select>
                         </div>
                     </div>
+                    <div class="form-group" id="compat_mode">
+                        <label class="control-label font-bold" langtag="word-compatmode"></label>
+                        <div class="col-sm-12">
+                            <select class="form-control selectpicker" name="compat_mode">
+                                <option {{if eq false .h.CompatMode}}selected{{end}} value="0" langtag="word-no"></option>
+                                <option {{if eq true .h.CompatMode}}selected{{end}}  value="1" langtag="word-yes"></option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="form-group" id="https_just_proxy">
                         <label class="control-label font-bold" langtag="word-httpsjustproxy"></label>
                         <div class="col-sm-12">

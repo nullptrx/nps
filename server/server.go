@@ -477,6 +477,12 @@ func GetHostList(start, length, clientId int, search, sortField, order string) (
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return !list[i].AutoCORS && list[j].AutoCORS })
 		}
+	} else if sortField == "CompatMode" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].CompatMode && !list[j].CompatMode })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return !list[i].CompatMode && list[j].CompatMode })
+		}
 	} else if sortField == "HttpsJustProxy" {
 		if order == "asc" {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].HttpsJustProxy && !list[j].HttpsJustProxy })

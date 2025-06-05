@@ -260,7 +260,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		},
 		Transport: &http.Transport{
 			ResponseHeaderTimeout: 60 * time.Second,
-			DisableKeepAlives:     true,
+			DisableKeepAlives:     host.CompatMode,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 				ServerName: func() string {

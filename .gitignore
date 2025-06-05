@@ -3,3 +3,5 @@ nps
 npc
 .vscode/
 *.tar.gz
+*.json
+*.tmp

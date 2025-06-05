@@ -208,6 +208,7 @@ type Host struct {
 	IsClose        bool
 	AutoHttps      bool
 	AutoCORS       bool
+	CompatMode     bool
 	Flow           *Flow
 	Client         *Client
 	TargetIsHttps  bool

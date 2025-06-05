@@ -141,6 +141,11 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.16 (2025-06-06)**
+  - 调整登录验证码逻辑
+  - 管理页面添加信任代理服务器选项
+  - 域名转发添加兼容模式
+
 - **v0.29.15 (2025-06-05)**
   - 调整相对路径处理逻辑 [#82](https://github.com/djylb/nps/issues/82)
   - 记录登录日志 [#81](https://github.com/djylb/nps/issues/81)
