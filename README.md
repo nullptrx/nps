@@ -141,6 +141,12 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.15 (2025-06-05)**
+  - 调整相对路径处理逻辑 [#82](https://github.com/djylb/nps/issues/82)
+  - 记录登录日志 [#81](https://github.com/djylb/nps/issues/81)
+  - 添加获取证书公钥接口
+  - 修复安装替换文件逻辑 [#83](https://github.com/djylb/nps/issues/83)
+
 - **v0.29.14 (2025-06-04)**
   - 添加备用CDN下载更新
   - 新增编译架构

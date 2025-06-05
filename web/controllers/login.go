@@ -12,6 +12,7 @@ import (
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/file"
+	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/server"
 )
 
@@ -59,9 +60,12 @@ func (self *LoginController) Verify() {
 	nonce := crypt.GetRandomString(16)
 	stored := self.GetSession("login_nonce")
 	self.SetSession("login_nonce", nonce)
+	username := self.GetString("username")
+	remoteAddr := self.Ctx.Request.RemoteAddr
 	captchaOpen, _ := beego.AppConfig.Bool("open_captcha")
 	if captchaOpen {
 		if !cpt.VerifyReq(self.Ctx.Request) {
+			logs.Warn("Captcha failed for user %s from %s", username, remoteAddr)
 			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "the verification code is wrong, please get it again and try again", "nonce": nonce}
 			self.SetSession("login_nonce", nonce)
 			self.ServeJSON()
@@ -69,25 +73,30 @@ func (self *LoginController) Verify() {
 	}
 	pl, err := crypt.ParseLoginPayload(self.GetString("password"))
 	if err != nil {
+		logs.Warn("Decrypt error for user %s from %s: %v", username, remoteAddr, err)
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error", "nonce": nonce}
 		self.ServeJSON()
 		return
 	}
 	if stored == nil || stored.(string) != pl.Nonce {
+		logs.Warn("Invalid nonce for user %s from %s", username, remoteAddr)
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "invalid nonce", "nonce": nonce}
 		self.ServeJSON()
 		return
 	}
 	now := time.Now().UnixMilli()
 	if pl.Timestamp < now-5*60*1000 || pl.Timestamp > now+60*1000 {
+		logs.Warn("Timestamp expired for user %s from %s", username, remoteAddr)
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired", "nonce": nonce}
 		self.ServeJSON()
 		return
 	}
-	if self.doLogin(self.GetString("username"), pl.Password, true) {
+	if self.doLogin(username, pl.Password, true) {
+		logs.Info("Login success for user %s from %s", username, remoteAddr)
 		self.DelSession("login_nonce")
 		self.Data["json"] = map[string]interface{}{"status": 1, "msg": "login success"}
 	} else {
+		logs.Warn("Login failed for user %s from %s", username, remoteAddr)
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "username or password incorrect", "nonce": nonce}
 	}
 	self.ServeJSON()
@@ -102,6 +111,7 @@ func (self *LoginController) doLogin(username, password string, explicit bool) b
 			vv.hasLoginFailTimes = 0
 		}
 		if vv.hasLoginFailTimes >= 10 {
+			logs.Warn("IP %s has reached maximum failed attempts, login blocked", ip)
 			return false
 		}
 	}
@@ -153,6 +163,7 @@ func (self *LoginController) doLogin(username, password string, explicit bool) b
 	}
 	return false
 }
+
 func (self *LoginController) Register() {
 	if self.Ctx.Request.Method == "GET" {
 		nonce := crypt.GetRandomString(16)

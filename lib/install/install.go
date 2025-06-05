@@ -382,28 +382,30 @@ func CopyDir(srcPath string, destPath string) error {
 
 // 生成目录并拷贝文件
 func copyFile(src, dest string) (w int64, err error) {
+	srcAbs, err := filepath.Abs(src)
+	if err != nil {
+		return 0, err
+	}
+	destAbs, err := filepath.Abs(dest)
+	if err != nil {
+		return 0, err
+	}
+	if srcAbs == destAbs {
+		return 0, nil
+	}
+
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return
 	}
 	defer srcFile.Close()
-	//分割path目录
-	destSplitPathDirs := strings.Split(dest, string(filepath.Separator))
 
-	//检测时候存在目录
-	destSplitPath := ""
-	for index, dir := range destSplitPathDirs {
-		if index < len(destSplitPathDirs)-1 {
-			destSplitPath = destSplitPath + dir + string(filepath.Separator)
-			b, _ := pathExists(destSplitPath)
-			if b == false {
-				log.Println("mkdir:" + destSplitPath)
-				//创建目录
-				err := os.Mkdir(destSplitPath, os.ModePerm)
-				if err != nil {
-					log.Fatalln(err)
-				}
-			}
+	// 确保目录存在
+	dirPath := filepath.Dir(dest)
+	if exists, _ := pathExists(dirPath); !exists {
+		log.Println("mkdir all:", dirPath)
+		if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
+			log.Fatalln(err)
 		}
 	}
 
@@ -441,7 +443,7 @@ func copyFile(src, dest string) (w int64, err error) {
 	return n, nil
 }
 
-// 检测文件夹路径时候存在
+// 检测文件夹路径是否存在
 func pathExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {

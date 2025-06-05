@@ -40,3 +40,16 @@ func (s *AuthController) GetTime() {
 	s.Data["json"] = m
 	s.ServeJSON()
 }
+
+func (s *AuthController) GetCert() {
+	m := make(map[string]interface{})
+	var err error
+	m["cert"], err = crypt.GetPublicKeyPEM()
+	if err != nil {
+		m["status"] = 0
+	} else {
+		m["status"] = 1
+	}
+	s.Data["json"] = m
+	s.ServeJSON()
+}

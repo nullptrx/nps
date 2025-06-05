@@ -64,7 +64,9 @@ func main() {
 	}
 
 	if err := beego.LoadAppConfig("ini", filepath.Join(common.GetRunPath(), "conf", "nps.conf")); err != nil {
-		log.Fatalln("load config file error", err.Error())
+		if err := beego.LoadAppConfig("ini", filepath.Join(common.GetAppPath(), "conf", "nps.conf")); err != nil {
+			log.Fatalln("load config file error", err.Error())
+		}
 	}
 
 	common.InitPProfFromFile()
