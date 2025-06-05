@@ -186,7 +186,9 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Path Rewrite
 	if host.PathRewrite != "" && strings.HasPrefix(r.URL.Path, host.Location) {
-		r.Header.Set("X-Original-Path", r.URL.Path)
+		if !host.CompatMode {
+			r.Header.Set("X-Original-Path", r.URL.Path)
+		}
 		r.URL.Path = host.PathRewrite + r.URL.Path[len(host.Location):]
 	}
 
@@ -222,6 +224,11 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "401 Unauthorized", http.StatusUnauthorized)
 			return
 		}
+	}
+
+	// Compat Mode
+	if host.CompatMode {
+		isHttpOnlyRequest = true
 	}
 
 	// Get target addr

@@ -146,6 +146,7 @@ npc update && npc restart
   - 管理页面添加信任代理服务器选项
   - 域名转发添加兼容模式
   - 修复代理到服务器本地
+  - 域名转发添加 CONNECT 支持
 
 - **v0.29.15 (2025-06-05)**
   - 调整相对路径处理逻辑 [#82](https://github.com/djylb/nps/issues/82)
