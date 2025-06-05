@@ -647,7 +647,11 @@ func (s *Bridge) register(c *conn.Conn) {
 func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (target net.Conn, err error) {
 	// if the proxy type is local
 	if link.LocalProxy {
-		target, err = net.Dial("tcp", link.Host)
+		network := "tcp"
+		if link.ConnType == common.CONN_UDP {
+			network = "udp"
+		}
+		target, err = net.Dial(network, common.FormatAddress(link.Host))
 		return
 	}
 

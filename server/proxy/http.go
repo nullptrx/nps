@@ -238,7 +238,8 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	logs.Debug("%s request, method %s, host %s, url %s, remote address %s, target %s", r.URL.Scheme, r.Method, r.Host, r.URL.Path, r.RemoteAddr, targetAddr)
 
 	// WebSocket
-	if r.Method == "CONNECT" || r.Header.Get("Upgrade") != "" || r.Header.Get(":protocol") != "" {
+	if r.Method == http.MethodConnect || r.Header.Get("Upgrade") != "" || r.Header.Get(":protocol") != "" {
+		logs.Trace("Handling websocket from %s to %s", r.RemoteAddr, targetAddr)
 		s.handleWebsocket(w, r, host, targetAddr, isHttpOnlyRequest)
 		return
 	}
@@ -367,14 +368,14 @@ func (s *httpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
-		http.Error(w, "WebSocket hijacking not supported", http.StatusInternalServerError)
-		logs.Error("handleWebsocket: WebSocket hijacking not supported.")
+		http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
+		logs.Error("handleWebsocket: Hijack not supported")
 		return
 	}
 	clientConn, clientBuf, err := hijacker.Hijack()
 	if err != nil {
-		http.Error(w, "WebSocket hijacking failed", http.StatusInternalServerError)
-		logs.Error("handleWebsocket: WebSocket hijacking failed.")
+		http.Error(w, "Hijack failed", http.StatusInternalServerError)
+		logs.Error("handleWebsocket: Hijack failed")
 		return
 	}
 	//defer clientConn.Close()
@@ -394,7 +395,9 @@ func (s *httpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		return
 	}
 
-	if resp.StatusCode != http.StatusSwitchingProtocols {
+	isChunked := resp.StatusCode == http.StatusOK && resp.Header.Get("Transfer-Encoding") == "chunked"
+	if (r.Method == http.MethodConnect && resp.StatusCode != http.StatusOK) ||
+		(r.Method != http.MethodConnect && resp.StatusCode != http.StatusSwitchingProtocols && !isChunked) {
 		logs.Error("handleWebsocket: unexpected status code in handshake: %d", resp.StatusCode)
 		netConn.Close()
 		clientConn.Close()
