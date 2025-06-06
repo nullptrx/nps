@@ -330,8 +330,8 @@ func changeStatus(id int, name, action string) (err error) {
 			t.Flow.TimeLimit = common.GetTimeNoErrByStr("")
 		}
 		file.GetDb().UpdateTask(t)
-		server.StopServer(t.Id)
-		server.StartTask(t.Id)
+		//server.StopServer(t.Id)
+		//server.StartTask(t.Id)
 	}
 	return nil
 }
