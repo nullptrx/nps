@@ -81,7 +81,8 @@ func (self *LoginController) Verify() {
 	pl, err := crypt.ParseLoginPayload(self.GetString("password"))
 	if err != nil {
 		logs.Warn("Decrypt error for user %s from %s: %v", username, ip, err)
-		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error", "nonce": nonce, "cert": crypt.GetPublicKeyPEM()}
+		cert, _ := crypt.GetPublicKeyPEM()
+		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error", "nonce": nonce, "cert": cert}
 		self.ServeJSON()
 		return
 	}
@@ -212,7 +213,8 @@ func (self *LoginController) Register() {
 		}
 		pl, err := crypt.ParseLoginPayload(self.GetString("password"))
 		if err != nil {
-			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error", "nonce": nonce, "cert": crypt.GetPublicKeyPEM()}
+			cert, _ := crypt.GetPublicKeyPEM()
+			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error", "nonce": nonce, "cert": cert}
 			self.ServeJSON()
 			return
 		}
