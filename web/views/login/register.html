@@ -113,6 +113,9 @@
                             if (res.nonce) {
                                 window.nps.loginNonce = res.nonce;
                             }
+                            if (res.cert) {
+                                window.nps.publicKey = res.cert;
+                            }
                             {{if eq true .captcha_open}}
                             var $img = $('.captcha-img');
                             if ($img.length) {
