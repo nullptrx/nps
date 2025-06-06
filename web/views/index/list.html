@@ -249,6 +249,39 @@
             },
             {{ end }}
             {
+                field: 'InletFlow', //域值
+                title: '<span langtag="word-inletflow"></span>', //内容
+                align: 'center',
+                halign: 'center',
+                visible: false, //false表示不显示
+                sortable: true, //启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.InletFlow) + '</span>'
+                }
+            },
+            {
+                field: 'ExportFlow', //域值
+                title: '<span langtag="word-exportflow"></span>', //内容
+                align: 'center',
+                halign: 'center',
+                visible: false, //false表示不显示
+                sortable: true, //启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.ExportFlow) + '</span>'
+                }
+            },
+            {
+                field: 'TotalFlow', //域值
+                title: '<span langtag="word-totalflow"></span>', //内容
+                align: 'center',
+                halign: 'center',
+                visible: true, //false表示不显示
+                sortable: true, //启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clear\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.InletFlow + row.Flow.ExportFlow) + '</span>'
+                }
+            },
+            {
                 field: 'Status', //域值
                 title: '<span langtag="word-status"></span>', //内容
                 align: 'center',

@@ -330,6 +330,16 @@ func GetTunnel(start, length int, typeVal string, clientId int, search string, s
 		} else {
 			sort.SliceStable(all_list, func(i, j int) bool { return !all_list[i].Socks5Proxy && all_list[j].Socks5Proxy })
 		}
+	} else if sortField == "TotalFlow" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool {
+				return list[i].Flow.InletFlow+list[i].Flow.ExportFlow < list[j].Flow.InletFlow+list[j].Flow.ExportFlow
+			})
+		} else {
+			sort.SliceStable(list, func(i, j int) bool {
+				return list[i].Flow.InletFlow+list[i].Flow.ExportFlow > list[j].Flow.InletFlow+list[j].Flow.ExportFlow
+			})
+		}
 	} else if sortField == "Status" {
 		if order == "asc" {
 			sort.SliceStable(all_list, func(i, j int) bool { return all_list[i].Status && !all_list[j].Status })
@@ -489,6 +499,16 @@ func GetHostList(start, length, clientId int, search, sortField, order string) (
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return !list[i].HttpsJustProxy && list[j].HttpsJustProxy })
 		}
+	} else if sortField == "TotalFlow" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool {
+				return list[i].Flow.InletFlow+list[i].Flow.ExportFlow < list[j].Flow.InletFlow+list[j].Flow.ExportFlow
+			})
+		} else {
+			sort.SliceStable(list, func(i, j int) bool {
+				return list[i].Flow.InletFlow+list[i].Flow.ExportFlow > list[j].Flow.InletFlow+list[j].Flow.ExportFlow
+			})
+		}
 	} else if sortField == "IsClose" {
 		if order == "asc" {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].IsClose && !list[j].IsClose })
@@ -547,6 +567,16 @@ func GetClientList(start, length int, search, sortField, order string, clientId 
 		} else {
 			sort.SliceStable(list, func(i, j int) bool {
 				return list[i].Flow.InletFlow+list[i].Flow.ExportFlow > list[j].Flow.InletFlow+list[j].Flow.ExportFlow
+			})
+		}
+	} else if sortField == "NowConn" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool {
+				return list[i].NowConn < list[j].NowConn
+			})
+		} else {
+			sort.SliceStable(list, func(i, j int) bool {
+				return list[i].NowConn > list[j].NowConn
 			})
 		}
 	} else if sortField == "Version" {

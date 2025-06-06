@@ -622,6 +622,10 @@
 		<zh-CN>网速</zh-CN>
 		<en-US>Speed</en-US>
 	</lang>
+	<lang id="word-nowconn">
+		<zh-CN>连接数</zh-CN>
+		<en-US>Connections</en-US>
+	</lang>
 	<lang id="word-status">
 		<zh-CN>状态</zh-CN>
 		<en-US>Status</en-US>

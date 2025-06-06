@@ -163,7 +163,7 @@
                 title: '<span langtag="word-targettype"></span>', //标题
                 halign: 'center',
                 visible: false, //false表示不显示
-                sortable: true,//启用排序
+                sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     if (value) {
                         return '<span langtag="word-ishttps' + value + '" onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stophost\', {\'id\':' + row.Id + ', \'mode\': \'target_is_https\'})"></span>'
@@ -207,7 +207,7 @@
                 title: '<span langtag="word-httpsjustproxytitle"></span>', //标题
                 halign: 'center',
                 visible: false, //false表示不显示
-                sortable: true,//启用排序
+                sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     if (value) {
                         return '<span langtag="word-' + value + '" onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stophost\', {\'id\':' + row.Id + ', \'mode\': \'https_just_proxy\'})"></span>'
@@ -221,7 +221,7 @@
                 title: '<span langtag="word-autossl"></span>', //标题
                 halign: 'center',
                 visible: false, //false表示不显示
-                sortable: true,//启用排序
+                sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     if (value) {
                         return '<span langtag="word-' + value + '" onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stophost\', {\'id\':' + row.Id + ', \'mode\': \'auto_ssl\'})"></span>'
@@ -235,7 +235,7 @@
                 title: '<span langtag="word-autohttpstitle"></span>', //标题
                 halign: 'center',
                 visible: false, //false表示不显示
-                sortable: true,//启用排序
+                sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     if (value) {
                         return '<span langtag="word-' + value + '" onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stophost\', {\'id\':' + row.Id + ', \'mode\': \'auto_https\'})"></span>'
@@ -249,7 +249,7 @@
                 title: '<span langtag="word-autocorstitle"></span>', //标题
                 halign: 'center',
                 visible: false, //false表示不显示
-                sortable: true,//启用排序
+                sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     if (value) {
                         return '<span langtag="word-' + value + '" onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stophost\', {\'id\':' + row.Id + ', \'mode\': \'auto_cors\'})"></span>'
@@ -263,13 +263,46 @@
                 title: '<span langtag="word-compatmode"></span>', //标题
                 halign: 'center',
                 visible: false, //false表示不显示
-                sortable: true,//启用排序
+                sortable: true, //启用排序
                 formatter: function (value, row, index) {
                     if (value) {
                         return '<span langtag="word-' + value + '" onclick="submitform(\'stop\', \'{{.web_base_url}}/index/stophost\', {\'id\':' + row.Id + ', \'mode\': \'compat_mode\'})"></span>'
                     } else {
                         return '<span langtag="word-' + value + '" onclick="submitform(\'start\', \'{{.web_base_url}}/index/starthost\', {\'id\':' + row.Id + ', \'mode\': \'compat_mode\'})"></span>'
                     }
+                }
+            },
+            {
+                field: 'InletFlow', //域值
+                title: '<span langtag="word-inletflow"></span>', //内容
+                align: 'center',
+                halign: 'center',
+                visible: false, //false表示不显示
+                sortable: true, //启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.InletFlow) + '</span>'
+                }
+            },
+            {
+                field: 'ExportFlow', //域值
+                title: '<span langtag="word-exportflow"></span>', //内容
+                align: 'center',
+                halign: 'center',
+                visible: false, //false表示不显示
+                sortable: true, //启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.ExportFlow) + '</span>'
+                }
+            },
+            {
+                field: 'TotalFlow', //域值
+                title: '<span langtag="word-totalflow"></span>', //内容
+                align: 'center',
+                halign: 'center',
+                visible: true, //false表示不显示
+                sortable: true,//启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'flow\'})">' + changeunit(row.Flow.InletFlow + row.Flow.ExportFlow) + '</span>'
                 }
             },
             {
