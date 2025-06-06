@@ -143,7 +143,7 @@ npc update && npc restart
 
 - **v0.29.17 (2025-06-07)**
   - NPC配置文件支持兼容模式
-  - 调整页面显示 [#87](https://github.com/djylb/nps/pull/87)
+  - 调整页面显示 [#87](https://github.com/djylb/nps/pull/87) (感谢[yhl452493373](https://github.com/yhl452493373))
   - 添加连接数、流量统计
   - 清空统计信息时保持隧道连接
   - 添加隧道级别连接数统计
