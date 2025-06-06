@@ -73,7 +73,11 @@ func DealBridgeTask() {
 			logs.Trace("New secret connection, addr %v", s.Conn.Conn.RemoteAddr())
 			if t := file.GetDb().GetTaskByMd5Password(s.Password); t != nil {
 				if t.Status {
-					go proxy.NewBaseServer(Bridge, t).DealClient(s.Conn, t.Client, t.Target.TargetStr, nil, common.CONN_TCP, nil, []*file.Flow{t.Flow, t.Client.Flow}, t.Target.ProxyProtocol, t.Target.LocalProxy, t)
+					go func() {
+						t.AddConn()
+						proxy.NewBaseServer(Bridge, t).DealClient(s.Conn, t.Client, t.Target.TargetStr, nil, common.CONN_TCP, nil, []*file.Flow{t.Flow, t.Client.Flow}, t.Target.ProxyProtocol, t.Target.LocalProxy, t)
+						t.CutConn()
+					}()
 				} else {
 					s.Conn.Close()
 					logs.Trace("This key %s cannot be processed,status is close", s.Password)
@@ -330,6 +334,24 @@ func GetTunnel(start, length int, typeVal string, clientId int, search string, s
 		} else {
 			sort.SliceStable(all_list, func(i, j int) bool { return !all_list[i].Socks5Proxy && all_list[j].Socks5Proxy })
 		}
+	} else if sortField == "NowConn" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].NowConn < list[j].NowConn })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].NowConn > list[j].NowConn })
+		}
+	} else if sortField == "InletFlow" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.InletFlow < list[j].Flow.InletFlow })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.InletFlow > list[j].Flow.InletFlow })
+		}
+	} else if sortField == "ExportFlow" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.ExportFlow < list[j].Flow.ExportFlow })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.ExportFlow > list[j].Flow.ExportFlow })
+		}
 	} else if sortField == "TotalFlow" {
 		if order == "asc" {
 			sort.SliceStable(list, func(i, j int) bool {
@@ -499,6 +521,24 @@ func GetHostList(start, length, clientId int, search, sortField, order string) (
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return !list[i].HttpsJustProxy && list[j].HttpsJustProxy })
 		}
+	} else if sortField == "NowConn" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].NowConn < list[j].NowConn })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].NowConn > list[j].NowConn })
+		}
+	} else if sortField == "InletFlow" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.InletFlow < list[j].Flow.InletFlow })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.InletFlow > list[j].Flow.InletFlow })
+		}
+	} else if sortField == "ExportFlow" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.ExportFlow < list[j].Flow.ExportFlow })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.ExportFlow > list[j].Flow.ExportFlow })
+		}
 	} else if sortField == "TotalFlow" {
 		if order == "asc" {
 			sort.SliceStable(list, func(i, j int) bool {
@@ -571,13 +611,9 @@ func GetClientList(start, length int, search, sortField, order string, clientId 
 		}
 	} else if sortField == "NowConn" {
 		if order == "asc" {
-			sort.SliceStable(list, func(i, j int) bool {
-				return list[i].NowConn < list[j].NowConn
-			})
+			sort.SliceStable(list, func(i, j int) bool { return list[i].NowConn < list[j].NowConn })
 		} else {
-			sort.SliceStable(list, func(i, j int) bool {
-				return list[i].NowConn > list[j].NowConn
-			})
+			sort.SliceStable(list, func(i, j int) bool { return list[i].NowConn > list[j].NowConn })
 		}
 	} else if sortField == "Version" {
 		if order == "asc" {

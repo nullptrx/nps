@@ -71,10 +71,13 @@ func (s *P2PServer) handleP2P(addr *net.UDPAddr, data []byte) {
 		localStr = string(chunks[2])
 	}
 
-	if t := file.GetDb().GetTaskByMd5Password(key); t == nil {
+	t := file.GetDb().GetTaskByMd5Password(key)
+	if t == nil {
 		logs.Error("p2p error, failed to match the key successfully")
 		return
 	}
+	t.AddConn()
+	defer t.CutConn()
 
 	v, _ := s.sessions.LoadOrStore(key, &session{})
 	sess := v.(*session)

@@ -215,6 +215,8 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer host.Client.CutConn()
+	host.AddConn()
+	defer host.CutConn()
 
 	// HTTP Auth
 	if r.Header.Get("Upgrade") == "" {

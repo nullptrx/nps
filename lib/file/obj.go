@@ -160,6 +160,7 @@ type Tunnel struct {
 	Client       *Client
 	Ports        string
 	Flow         *Flow
+	NowConn      int32
 	Password     string
 	Remark       string
 	TargetAddr   string
@@ -174,6 +175,14 @@ type Tunnel struct {
 	MultiAccount *MultiAccount
 	Health
 	sync.RWMutex
+}
+
+func (s *Tunnel) AddConn() {
+	atomic.AddInt32(&s.NowConn, 1)
+}
+
+func (s *Tunnel) CutConn() {
+	atomic.AddInt32(&s.NowConn, -1)
 }
 
 type Health struct {
@@ -210,6 +219,7 @@ type Host struct {
 	AutoCORS       bool
 	CompatMode     bool
 	Flow           *Flow
+	NowConn        int32
 	Client         *Client
 	TargetIsHttps  bool
 	Target         *Target //目标
@@ -217,6 +227,14 @@ type Host struct {
 	MultiAccount   *MultiAccount
 	Health         `json:"-"`
 	sync.RWMutex
+}
+
+func (s *Host) AddConn() {
+	atomic.AddInt32(&s.NowConn, 1)
+}
+
+func (s *Host) CutConn() {
+	atomic.AddInt32(&s.NowConn, -1)
 }
 
 type Target struct {
