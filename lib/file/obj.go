@@ -20,15 +20,21 @@ type Flow struct {
 
 func (s *Flow) Add(in, out int64) {
 	s.Lock()
-	s.InletFlow += int64(in)
-	s.ExportFlow += int64(out)
+	s.InletFlow += in
+	s.ExportFlow += out
 	s.Unlock()
 }
 
 func (s *Flow) Sub(in, out int64) {
 	s.Lock()
-	s.InletFlow -= int64(in)
-	s.ExportFlow -= int64(out)
+	s.InletFlow -= in
+	s.ExportFlow -= out
+	if s.InletFlow < 0 {
+		s.InletFlow = 0
+	}
+	if s.ExportFlow < 0 {
+		s.ExportFlow = 0
+	}
 	s.Unlock()
 }
 
