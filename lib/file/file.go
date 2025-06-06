@@ -56,6 +56,7 @@ func (s *JsonDb) LoadTaskFromJsonFile() {
 		if post.Password != "" {
 			TaskPasswordIndex.Add(crypt.Md5(post.Password), post.Id)
 		}
+		post.NowConn = 0
 		switch post.Mode {
 		case "socks5":
 			post.Mode = "mixProxy"
@@ -126,6 +127,7 @@ func (s *JsonDb) LoadHostFromJsonFile() {
 		if post.CertHash == "" {
 			post.CertHash = crypt.FNV1a64(post.CertType, post.CertFile, post.KeyFile)
 		}
+		post.NowConn = 0
 		s.Hosts.Store(post.Id, post)
 		HostIndex.Add(post.Host, post.Id)
 		if post.Id > int(s.HostIncreaseId) {
