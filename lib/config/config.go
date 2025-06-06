@@ -198,6 +198,8 @@ func dealHost(s string) *file.Host {
 			h.AutoHttps = common.GetBoolByStr(item[1])
 		case "auto_cors":
 			h.AutoCORS = common.GetBoolByStr(item[1])
+		case "compat_mode":
+			h.CompatMode = common.GetBoolByStr(item[1])
 		case "target_is_https":
 			h.TargetIsHttps = common.GetBoolByStr(item[1])
 		case "multi_account":
