@@ -60,7 +60,7 @@
                     </div>
                 </div>
                 {{end}}
-                <button class="btn btn-primary block full-width m-b" langtag="word-register" onclick="register()" type="submit"></button>
+                <button class="btn btn-primary block full-width m-b" langtag="word-register" onclick="if (this.form.reportValidity()) register()" type="submit"></button>
                 <p class="text-muted text-center">
                     <small langtag="info-haveaccount"></small>
                     <small><a href="{{.web_base_url}}/login/index" langtag="word-login"></a></small>
