@@ -141,6 +141,11 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.18 (2025-06-08)**
+  - 调整字体 [#90](https://github.com/djylb/nps/pull/90) (感谢[yhl452493373](https://github.com/yhl452493373))
+  - 登录表单非空时允许提交 [#89](https://github.com/djylb/nps/issues/89)
+  - 更新相关依赖
+
 - **v0.29.17 (2025-06-07)**
   - NPC配置文件支持兼容模式
   - 调整页面显示 [#87](https://github.com/djylb/nps/pull/87) (感谢[yhl452493373](https://github.com/yhl452493373))
