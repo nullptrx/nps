@@ -142,7 +142,7 @@ npc update && npc restart
 ### Stable
 
 - **v0.29.20 (2025-06-10)**
-  - 头部替换支持变量替换
+  - 头部替换支持变量替换 [具体说明](https://d-jy.net/docs/nps/#/feature?id=%e8%87%aa%e5%ae%9a%e4%b9%89header)
 
 - **v0.29.19 (2025-06-09)**
   - 默认添加 X-Forwarded-Proto 请求头
