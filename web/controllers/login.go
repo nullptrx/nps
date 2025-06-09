@@ -137,7 +137,7 @@ func (self *LoginController) doLogin(username, password string, explicit bool) b
 		server.Bridge.Register.Store(common.GetIpByAddr(self.Ctx.Input.IP()), time.Now().Add(time.Hour*time.Duration(2)))
 	}
 	b, err := beego.AppConfig.Bool("allow_user_login")
-	if err == nil && b && !auth {
+	if err == nil && b && !auth && username != "" && password != "" {
 		file.GetDb().JsonDb.Clients.Range(func(key, value interface{}) bool {
 			v := value.(*file.Client)
 			if !v.Status || v.NoDisplay {
