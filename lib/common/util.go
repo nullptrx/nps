@@ -413,7 +413,8 @@ func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly b
 			"${http_host}", origHost,
 
 			// 客户端
-			"${remote_addr}", clientIP,
+			"${remote_addr}", remoteAddr,
+			"${remote_ip}", clientIP,
 			"${remote_port}", clientPort,
 			"${proxy_add_x_forwarded_for}", proxyAddXFF,
 

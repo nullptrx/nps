@@ -63,7 +63,7 @@ NPS 会自动添加 `X-Original-Path` 请求头用于识别浏览器请求的实
 使用示例：
 ```
 X-Original-URL: ${scheme_host}${request_uri}
-X-Client-IP: ${remote_addr}
+X-Client-IP: ${remote_ip}
 X-Client-Port: ${remote_port}
 X-Forwarded-Proto: ${scheme}
 X-Forwarded-Ssl: ${ssl}
@@ -77,7 +77,8 @@ X-Forwarded-Ssl: ${ssl}
 | `${host}`                      | 不带端口的主机名（等同 Nginx 的 `$host`）           |
 | `${http_host}`                 | 原始 `Host:` 头值（等同 Nginx 的 `$http_host`） |
 | `${server_port}`               | 服务监听端口号（等同 Nginx 的 `$server_port`）     |
-| `${remote_addr}`               | 客户端真实 IP                               |
+| `${remote_addr}`               | 客户端真实地址（含端口）                           |
+| `${remote_ip}`                 | 客户端真实 IP （IPv6不含方括号）                   |
 | `${remote_port}`               | 客户端源端口                                 |
 | `${proxy_add_x_forwarded_for}` | 完整的 `X-Forwarded-For` 链（追加了当前客户端 IP）   |
 | `${request_uri}`               | 完整请求路径及查询字符串（含 `?` 及后续部分）              |
