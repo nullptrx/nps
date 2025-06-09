@@ -141,6 +141,11 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.19 (2025-06-09)**
+  - 默认添加 X-Forwarded-Proto 请求头
+  - 后端验证用户名密码表单非空
+  - 管理页面支持 X-NPS-Http-Only 头
+
 - **v0.29.18 (2025-06-08)**
   - 调整字体 [#90](https://github.com/djylb/nps/pull/90) (感谢[yhl452493373](https://github.com/yhl452493373))
   - 登录表单非空时允许提交 [#89](https://github.com/djylb/nps/issues/89)

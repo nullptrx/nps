@@ -63,7 +63,9 @@ func (self *LoginController) Verify() {
 	self.SetSession("login_nonce", nonce)
 	username := self.GetString("username")
 	ip, _, _ := net.SplitHostPort(self.Ctx.Request.RemoteAddr)
-	if beego.AppConfig.DefaultBool("allow_x_real_ip", false) && isTrustedProxy(ip) {
+	httpOnlyPass := beego.AppConfig.String("x_nps_http_only")
+	if (beego.AppConfig.DefaultBool("allow_x_real_ip", false) && isTrustedProxy(ip)) ||
+		(httpOnlyPass != "" && self.Ctx.Request.Header.Get("X-NPS-Http-Only") == httpOnlyPass) {
 		if realIP := self.Ctx.Request.Header.Get("X-Real-IP"); realIP != "" {
 			ip = realIP
 		}
@@ -113,7 +115,9 @@ func (self *LoginController) Verify() {
 func (self *LoginController) doLogin(username, password string, explicit bool) bool {
 	clearIprecord()
 	ip, _, _ := net.SplitHostPort(self.Ctx.Request.RemoteAddr)
-	if beego.AppConfig.DefaultBool("allow_x_real_ip", false) && isTrustedProxy(ip) {
+	httpOnlyPass := beego.AppConfig.String("x_nps_http_only")
+	if (beego.AppConfig.DefaultBool("allow_x_real_ip", false) && isTrustedProxy(ip)) ||
+		(httpOnlyPass != "" && self.Ctx.Request.Header.Get("X-NPS-Http-Only") == httpOnlyPass) {
 		if realIP := self.Ctx.Request.Header.Get("X-Real-IP"); realIP != "" {
 			ip = realIP
 		}
