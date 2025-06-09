@@ -58,7 +58,38 @@ NPS 会自动添加 `X-Original-Path` 请求头用于识别浏览器请求的实
 
 ## 自定义header
 
-支持对header进行新增或者修改，以配合服务的需要
+支持对header进行新增或者修改，以配合服务的需要。
+
+使用示例：
+```
+X-Original-URL: ${scheme_host}${request_uri}
+X-Client-IP: ${remote_addr}
+X-Client-Port: ${remote_port}
+X-Forwarded-Proto: ${scheme}
+X-Forwarded-Ssl: ${ssl}
+```
+
+| 占位符                            | 含义                                     |
+|--------------------------------|----------------------------------------|
+| `${scheme}`                    | 请求协议，`http` 或 `https`                  |
+| `${ssl}`                       | TLS 状态，`on`（HTTPS）或 `off`（HTTP）        |
+| `${forwarded_ssl}`             | 同 `${ssl}`                             |
+| `${host}`                      | 不带端口的主机名（等同 Nginx 的 `$host`）           |
+| `${http_host}`                 | 原始 `Host:` 头值（等同 Nginx 的 `$http_host`） |
+| `${server_port}`               | 服务监听端口号（等同 Nginx 的 `$server_port`）     |
+| `${remote_addr}`               | 客户端真实 IP                               |
+| `${remote_port}`               | 客户端源端口                                 |
+| `${proxy_add_x_forwarded_for}` | 完整的 `X-Forwarded-For` 链（追加了当前客户端 IP）   |
+| `${request_uri}`               | 完整请求路径及查询字符串（含 `?` 及后续部分）              |
+| `${uri}`                       | 请求路径，不含查询字符串                           |
+| `${args}`                      | 查询字符串，不含前导 `?`                         |
+| `${query_string}`              | 同 `${args}`                            |
+| `${scheme_host}`               | 协议 + 主机（含非标端口），如 `https://example.com` |
+| `${http_upgrade}`              | 原始请求的 `Upgrade` 头                      |
+| `${http_connection}`           | 原始请求的 `Connection` 头                   |
+| `${http_range}`                | 原始请求的 `Range` 头                        |
+| `${http_if_range}`             | 原始请求的 `If-Range` 头                     |
+
 
 ## 404页面配置
 

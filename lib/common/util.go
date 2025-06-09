@@ -119,6 +119,14 @@ func GetPortByAddr(addr string) int {
 	return 0
 }
 
+func GetPortStrByAddr(addr string) string {
+	port := GetPortByAddr(addr)
+	if port == 0 {
+		return ""
+	}
+	return strconv.Itoa(port)
+}
+
 func BuildAddress(host string, port string) string {
 	if strings.Contains(host, ":") { // IPv6
 		return fmt.Sprintf("[%s]:%s", host, port)
@@ -341,9 +349,18 @@ func ContainsFold(s, substr string) bool {
 func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly bool) {
 	// 设置 Host 头部信息
 	scheme := "http"
+	ssl := "off"
+	serverPort := beego.AppConfig.DefaultString("http_proxy_port", "80")
 	if r.TLS != nil {
 		scheme = "https"
+		ssl = "on"
+		serverPort = beego.AppConfig.DefaultString("https_proxy_port", "443")
 	}
+	// Host 不带端口
+	origHost := r.Host
+	hostOnly := RemovePortFromHost(origHost)
+
+	// 替换 Host
 	if host != "" {
 		r.Host = host
 		if orig := r.Header.Get("Origin"); orig != "" {
@@ -351,24 +368,26 @@ func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly b
 		}
 	}
 
-	// 获取请求的客户端 IP
-	clientIP := GetIpByAddr(r.RemoteAddr)
+	// 获取请求的客户端 IP Port
+	remoteAddr := r.RemoteAddr
+	clientIP := GetIpByAddr(remoteAddr)
+	clientPort := GetPortStrByAddr(remoteAddr)
 
 	//logs.Debug("get X-Remote-IP = " + clientIP)
 
 	// 获取 X-Forwarded-For 头部的先前值
-	xfwdFor := clientIP
+	proxyAddXFF := clientIP
 	if prior, ok := r.Header["X-Forwarded-For"]; ok {
-		xfwdFor = strings.Join(prior, ", ") + ", " + clientIP
+		proxyAddXFF = strings.Join(prior, ", ") + ", " + clientIP
 	}
 
-	//logs.Debug("get X-Forwarded-For = " + xfwdFor)
+	//logs.Debug("get X-Forwarded-For = " + proxyAddXFF)
 
 	// 判断是否需要添加真实 IP 信息
 	var addOrigin bool
 	if !httpOnly {
 		addOrigin, _ = beego.AppConfig.Bool("http_add_origin_header")
-		r.Header.Set("X-Forwarded-For", xfwdFor)
+		r.Header.Set("X-Forwarded-For", proxyAddXFF)
 	} else {
 		addOrigin = false
 	}
@@ -382,13 +401,53 @@ func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly b
 		r.Header.Set("X-Real-IP", clientIP)
 	}
 
+	expandVars := func(val string) string {
+		rep := strings.NewReplacer(
+			// 协议/SSL
+			"${scheme}", scheme,
+			"${ssl}", ssl,
+			"${forwarded_ssl}", ssl,
+
+			// 主机
+			"${host}", hostOnly,
+			"${http_host}", origHost,
+
+			// 客户端
+			"${remote_addr}", clientIP,
+			"${remote_port}", clientPort,
+			"${proxy_add_x_forwarded_for}", proxyAddXFF,
+
+			// URL 相关
+			"${request_uri}", r.RequestURI, // 包括 ?args
+			"${uri}", r.URL.Path, // 不含 args
+			"${args}", r.URL.RawQuery, // 不含 “?”
+			"${query_string}", r.URL.RawQuery, // 同 $args
+			"${scheme_host}", scheme+"://"+origHost, // 组合变量
+
+			// 连接头
+			"${http_upgrade}", r.Header.Get("Upgrade"),
+			"${http_connection}", r.Header.Get("Connection"),
+
+			// 端口
+			"${server_port}", serverPort,
+
+			// Range 相关
+			"${http_range}", r.Header.Get("Range"),
+			"${http_if_range}", r.Header.Get("If-Range"),
+		)
+		return rep.Replace(val)
+	}
+
 	// 设置自定义头部信息
 	if header != "" {
 		h := strings.Split(strings.ReplaceAll(header, "\r\n", "\n"), "\n")
 		for _, v := range h {
 			hd := strings.SplitN(v, ":", 2)
 			if len(hd) == 2 {
-				r.Header.Set(strings.TrimSpace(hd[0]), strings.TrimSpace(hd[1]))
+				key := strings.TrimSpace(hd[0])
+				val := strings.TrimSpace(hd[1])
+				val = expandVars(val)
+				r.Header.Set(key, val)
 			}
 		}
 	}
