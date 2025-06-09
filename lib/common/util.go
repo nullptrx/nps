@@ -340,13 +340,13 @@ func ContainsFold(s, substr string) bool {
 // Change headers and host of request
 func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly bool) {
 	// 设置 Host 头部信息
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
 	if host != "" {
 		r.Host = host
 		if orig := r.Header.Get("Origin"); orig != "" {
-			scheme := "http"
-			if r.TLS != nil {
-				scheme = "https"
-			}
 			r.Header.Set("Origin", scheme+"://"+host)
 		}
 	}
@@ -373,9 +373,12 @@ func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly b
 		addOrigin = false
 	}
 
-	// 添加 X-Forwarded-For 和 X-Real-IP 头部信息
+	// 添加头部信息
 	if addOrigin {
-		r.Header.Set("X-Forwarded-For", clientIP)
+		if r.Header.Get("X-Forwarded-Proto") == "" {
+			r.Header.Set("X-Forwarded-Proto", scheme)
+		}
+		//r.Header.Set("X-Forwarded-For", clientIP)
 		r.Header.Set("X-Real-IP", clientIP)
 	}
 
