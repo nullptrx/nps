@@ -32,11 +32,6 @@ Http Basic Auth 来保护，访问时需要输入正确的用户名和密码。
 ## 自动证书
 开启后如果NPS监听80或443端口则自动申请SSL证书管理并续签
 
-## URL 重写
-填写后自动替换请求路径里 **URL 路由** 的前缀为填写的内容，适用于前后端访问不同路径的情况
-
-NPS 会自动添加 `X-Original-Path` 请求头用于识别浏览器请求的实际地址
-
 ## 自动HTTPS (301)
 开启后如果浏览器使用http请求会自动跳转为https访问
 
@@ -177,7 +172,17 @@ target_addr=127.0.0.1:7002
 location=/static
 ```
 
-对于`a.proxy.com/test`将转发到`web1`，对于`a.proxy.com/static`将转发到`web2`
+对于`a.proxy.com/test`将转发到`127.0.0.1:7001/test`，对于`a.proxy.com/static/bg.jpg`将转发到`127.0.0.1:7002/static/bg.jpg`
+
+## URL 重写
+填写后自动替换请求路径里 **URL 路由** 的前缀为填写的内容，适用于前后端访问不同路径的情况
+
+NPS 会自动添加 `X-Original-Path` 请求头用于识别浏览器请求的实际地址
+
+例如：
+- 当**URL 路由**配置为`/path/`，当**URL 重写**配置为`/`。请求`xx.com/path/index.html`将返回`127.0.0.1:80/index.html`
+- 当**URL 路由**配置为`/xml`，当**URL 重写**配置为`/path/list.xml`。请求`xx.com/xml`将下载`127.0.0.1:80/path/list.xml`
+- 当**URL 路由**配置为`/ws`，当**URL 重写**配置为`/websocket`。请求`xx.com/ws`将转发到`127.0.0.1:80/websocket`
 
 ## 限制ip访问
 
