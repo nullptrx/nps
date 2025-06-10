@@ -399,9 +399,9 @@ func (s *httpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		return
 	}
 
-	isChunked := resp.StatusCode == http.StatusOK && resp.Header.Get("Transfer-Encoding") == "chunked"
-	if (r.Method == http.MethodConnect && resp.StatusCode != http.StatusOK) ||
-		(r.Method != http.MethodConnect && resp.StatusCode != http.StatusSwitchingProtocols && !isChunked) {
+	good := (r.Method == http.MethodConnect && resp.StatusCode == http.StatusOK) ||
+		(r.Method != http.MethodConnect && resp.StatusCode == http.StatusSwitchingProtocols)
+	if !good {
 		logs.Error("handleWebsocket: unexpected status code in handshake: %d", resp.StatusCode)
 		netConn.Close()
 		clientConn.Close()
@@ -419,6 +419,18 @@ func (s *httpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		netConn.Close()
 		clientConn.Close()
 		return
+	}
+
+	if backendReader.Buffered() > 0 {
+		pending := make([]byte, backendReader.Buffered())
+		if _, err := backendReader.Read(pending); err == nil {
+			netConn = conn.NewConnWithRb(netConn, pending)
+		} else {
+			logs.Error("handleWebsocket: read backend buffered data failed: %v", err)
+			netConn.Close()
+			clientConn.Close()
+			return
+		}
 	}
 
 	bufReader := clientBuf.Reader
