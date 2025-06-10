@@ -45,7 +45,7 @@
 	</lang>
 	<lang id="scheme-mixproxy">
 		<zh-CN>混合代理</zh-CN>
-		<en-US>Mix Proxy</en-US>
+		<en-US>Proxy</en-US>
 	</lang>
 	<lang id="scheme-secret">
 		<zh-CN>私密代理</zh-CN>
@@ -585,6 +585,38 @@
 	<lang id="word-save">
 		<zh-CN>保存</zh-CN>
 		<en-US>Save</en-US>
+	</lang>
+	<lang id="word-start">
+		<zh-CN>开启</zh-CN>
+		<en-US>Start</en-US>
+	</lang>
+	<lang id="word-stop">
+		<zh-CN>关闭</zh-CN>
+		<en-US>Stop</en-US>
+	</lang>
+	<lang id="word-delete">
+		<zh-CN>删除</zh-CN>
+		<en-US>Delete</en-US>
+	</lang>
+	<lang id="word-execute">
+		<zh-CN>执行</zh-CN>
+		<en-US>Execute</en-US>
+	</lang>
+	<lang id="word-chooseaction">
+		<zh-CN>多选操作</zh-CN>
+		<en-US>Choose Action</en-US>
+	</lang>
+	<lang id="word-clearflow">
+		<zh-CN>清空流量</zh-CN>
+		<en-US>Clear Flow</en-US>
+	</lang>
+	<lang id="word-clearflowlimit">
+		<zh-CN>重置流量限制</zh-CN>
+		<en-US>Clear Flow Limit</en-US>
+	</lang>
+	<lang id="word-cleartimelimit">
+		<zh-CN>重置时间限制</zh-CN>
+		<en-US>Clear Time Limit</en-US>
 	</lang>
 	<lang id="word-scheme">
 		<zh-CN>模式</zh-CN>
