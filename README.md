@@ -144,6 +144,7 @@ npc update && npc restart
 - **v0.29.20 (2025-06-10)**
   - 头部替换支持变量替换 [具体说明](https://d-jy.net/docs/nps/#/feature?id=%e8%87%aa%e5%ae%9a%e4%b9%89header)
   - 避免重复添加 X-Forwarded-For
+  - 修复上游错误导致发布失败 [#93](https://github.com/djylb/nps/issues/93)
 
 - **v0.29.19 (2025-06-09)**
   - 默认添加 X-Forwarded-Proto 请求头
