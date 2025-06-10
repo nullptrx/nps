@@ -387,7 +387,7 @@ func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly b
 	var addOrigin bool
 	if !httpOnly {
 		addOrigin, _ = beego.AppConfig.Bool("http_add_origin_header")
-		r.Header.Set("X-Forwarded-For", proxyAddXFF)
+		//r.Header.Set("X-Forwarded-For", proxyAddXFF)
 	} else {
 		addOrigin = false
 	}
