@@ -492,7 +492,7 @@ func BuildProxyProtocolHeaderByAddr(clientAddr, targetAddr *net.TCPAddr, proxyPr
 	if proxyProtocol == 0 {
 		return nil
 	}
-
+	targetAddr = normalizeTarget(clientAddr, targetAddr)
 	if proxyProtocol == 2 {
 		return BuildProxyProtocolV2Header(clientAddr, targetAddr)
 	}
@@ -500,6 +500,31 @@ func BuildProxyProtocolHeaderByAddr(clientAddr, targetAddr *net.TCPAddr, proxyPr
 		return BuildProxyProtocolV1Header(clientAddr, targetAddr)
 	}
 	return nil
+}
+
+func normalizeTarget(src, dst *net.TCPAddr) *net.TCPAddr {
+	if dst == nil {
+		dst = &net.TCPAddr{Port: 0}
+	}
+
+	srcIsV4 := src.IP.To4() != nil
+	dstIsV4 := dst.IP != nil && dst.IP.To4() != nil
+
+	switch {
+	case srcIsV4 && !dstIsV4:
+		dst.IP = net.IPv4zero
+	case !srcIsV4 && dstIsV4:
+		v6 := append(net.IPv6zero[:12], dst.IP.To4()...)
+		dst.IP = v6
+	case dst.IP == nil:
+		if srcIsV4 {
+			dst.IP = net.IPv4zero
+		} else {
+			dst.IP = net.ParseIP("::")
+		}
+	}
+
+	return dst
 }
 
 // get crypt or snappy conn

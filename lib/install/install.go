@@ -299,7 +299,7 @@ func copyStaticFile(srcPath, bin string) string {
 func InstallNpc() {
 	path := common.GetInstallPath()
 	if !common.FileExists(path) {
-		err := os.Mkdir(path, 0755)
+		err := os.MkdirAll(path, 0755)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -336,6 +336,7 @@ now!`)
 	chMod(common.GetLogPath(), 0777)
 	return binPath
 }
+
 func MkidrDirAll(path string, v ...string) {
 	for _, item := range v {
 		if err := os.MkdirAll(filepath.Join(path, item), 0755); err != nil {
@@ -351,16 +352,21 @@ func CopyDir(srcPath string, destPath string) error {
 		return err
 	} else {
 		if !srcInfo.IsDir() {
-			e := errors.New("SrcPath is not the right directory!")
+			e := errors.New("srcPath is not a directory")
 			return e
 		}
 	}
 	if destInfo, err := os.Stat(destPath); err != nil {
-		return err
+		if os.IsNotExist(err) {
+			if mkErr := os.MkdirAll(destPath, os.ModePerm); mkErr != nil {
+				return mkErr
+			}
+		} else {
+			return err
+		}
 	} else {
 		if !destInfo.IsDir() {
-			e := errors.New("DestInfo is not the right directory!")
-			return e
+			return errors.New("destInfo is not the right directory")
 		}
 	}
 	err := filepath.Walk(srcPath, func(path string, f os.FileInfo, err error) error {
@@ -369,7 +375,7 @@ func CopyDir(srcPath string, destPath string) error {
 		}
 		if !f.IsDir() {
 			destNewPath := strings.Replace(path, srcPath, destPath, -1)
-			log.Println("copy file ::" + path + " to " + destNewPath)
+			log.Println("copy file: " + path + " -> " + destNewPath)
 			copyFile(path, destNewPath)
 			if !common.IsWindows() {
 				chMod(destNewPath, 0766)

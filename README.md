@@ -141,6 +141,12 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.21 (2025-06-11)**
+  - 增强 WebSocket 连接稳定性
+  - 调整界面翻译
+  - 域名转发完整支持 Proxy Protocol
+  - 更新时自动创建不存在的文件夹
+
 - **v0.29.20 (2025-06-10)**
   - 头部替换支持变量替换 [具体说明](https://d-jy.net/docs/nps/#/feature?id=%e8%87%aa%e5%ae%9a%e4%b9%89header)
   - 避免重复添加 X-Forwarded-For

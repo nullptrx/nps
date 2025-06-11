@@ -233,12 +233,10 @@
                 $("#auto_https").css("display", "block")
                 $("#https_just_proxy").css("display", "block")
                 if ($("#https_just_proxy_select").val() == "1") {
-                    $("#proxy_protocol").css("display", "block")
                     $("#auto_ssl").css("display", "none")
                     $("#cert_file").css("display", "none")
                     $("#key_file").css("display", "none")
                 } else {
-                    $("#proxy_protocol").css("display", "none")
                     $("#auto_ssl").css("display", "block")
                     $("#cert_file").css("display", "block")
                     $("#key_file").css("display", "block")
@@ -247,7 +245,6 @@
                 $("#auto_ssl").css("display", "none")
                 $("#cert_file").css("display", "none")
                 $("#key_file").css("display", "none")
-                $("#proxy_protocol").css("display", "none")
                 $("#https_just_proxy").css("display", "none")
                 $("#auto_https").css("display", "none")
             }
@@ -255,12 +252,10 @@
 
         $("#https_just_proxy_select").on("change", function () {
             if ($("#https_just_proxy_select").val() == "1") {
-                $("#proxy_protocol").css("display", "block")
                 $("#auto_ssl").css("display", "none")
                 $("#cert_file").css("display", "none")
                 $("#key_file").css("display", "none")
             } else {
-                $("#proxy_protocol").css("display", "none")
                 $("#auto_ssl").css("display", "block")
                 $("#cert_file").css("display", "block")
                 $("#key_file").css("display", "block")

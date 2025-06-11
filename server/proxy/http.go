@@ -287,7 +287,24 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 					return nil, err
 				}
 				rawConn := conn.GetConn(target, link.Crypt, link.Compress, host.Client.Rate, true)
-				return conn.NewFlowConn(rawConn, host.Flow, host.Client.Flow), nil
+				flowConn := conn.NewFlowConn(rawConn, host.Flow, host.Client.Flow)
+				if host.Target.ProxyProtocol != 0 {
+					ra, _ := net.ResolveTCPAddr("tcp", r.RemoteAddr)
+					if ra == nil || ra.IP == nil {
+						ra = &net.TCPAddr{IP: net.IPv4zero, Port: 0}
+					}
+					la, _ := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
+					hdr := conn.BuildProxyProtocolHeaderByAddr(ra, la, host.Target.ProxyProtocol)
+					if hdr != nil {
+						flowConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+						if _, err := flowConn.Write(hdr); err != nil {
+							flowConn.Close()
+							return nil, fmt.Errorf("write PROXY header: %w", err)
+						}
+						flowConn.SetWriteDeadline(time.Time{})
+					}
+				}
+				return flowConn, nil
 			},
 		},
 		FlushInterval: 100 * time.Millisecond,
@@ -345,6 +362,23 @@ func (s *httpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 	rawConn := conn.GetConn(targetConn, link.Crypt, link.Compress, host.Client.Rate, true)
 	wsConn := conn.NewRWConn(rawConn)
 	var netConn net.Conn = wsConn
+
+	if host.Target.ProxyProtocol != 0 {
+		ra, _ := net.ResolveTCPAddr("tcp", r.RemoteAddr)
+		if ra == nil || ra.IP == nil {
+			ra = &net.TCPAddr{IP: net.IPv4zero, Port: 0}
+		}
+		la, _ := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
+		hdr := conn.BuildProxyProtocolHeaderByAddr(ra, la, host.Target.ProxyProtocol)
+		if hdr != nil {
+			netConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			if _, err := netConn.Write(hdr); err != nil {
+				netConn.Close()
+				return
+			}
+			netConn.SetWriteDeadline(time.Time{})
+		}
+	}
 
 	if host.TargetIsHttps {
 		serverName := host.HostChange
