@@ -352,8 +352,7 @@ func CopyDir(srcPath string, destPath string) error {
 		return err
 	} else {
 		if !srcInfo.IsDir() {
-			e := errors.New("srcPath is not a directory")
-			return e
+			return errors.New("srcPath is not a directory")
 		}
 	}
 	if destInfo, err := os.Stat(destPath); err != nil {
