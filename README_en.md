@@ -75,6 +75,8 @@ nps start|stop|restart|uninstall
 nps stop
 nps-update update
 nps start
+# Fast Update
+nps update && nps restart
 ```
 
 #### Windows
@@ -101,6 +103,8 @@ npc start|stop|restart|uninstall
 npc stop
 /usr/bin/npc-update update
 npc start
+# Fast Update
+npc update && npc restart
 ```
 
 #### Windows
