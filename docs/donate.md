@@ -8,3 +8,4 @@
 ---
 
 📧 联系邮箱：[duan@d-jy.net](mailto:duan@d-jy.net)
+💬 联系作者：[微信 / QQ](https://d-jy.net/api/me/)
