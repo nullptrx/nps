@@ -650,6 +650,12 @@ func (s *Bridge) register(c *conn.Conn) {
 }
 
 func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (target net.Conn, err error) {
+	clientValue, ok := s.Client.Load(clientId)
+	if !ok {
+		err = errors.New(fmt.Sprintf("the client %d is not connect", clientId))
+		return
+	}
+
 	// if the proxy type is local
 	if link.LocalProxy {
 		network := "tcp"
@@ -657,12 +663,6 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 			network = "udp"
 		}
 		target, err = net.Dial(network, common.FormatAddress(link.Host))
-		return
-	}
-
-	clientValue, ok := s.Client.Load(clientId)
-	if !ok {
-		err = errors.New(fmt.Sprintf("the client %d is not connect", clientId))
 		return
 	}
 
