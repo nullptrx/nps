@@ -246,6 +246,8 @@ github.com/xtaci/kcp-go/v5 v5.6.20 h1:eoZKuVCjU3wVjoiwZyCwXeuO84na/DbBFvpPdPG9Nv
 github.com/xtaci/kcp-go/v5 v5.6.20/go.mod h1:pASZrdycJanBE9aFNhA9UK5cTDc1p27+5s4Dw3RsH1I=
 github.com/xtaci/kcp-go/v5 v5.6.21 h1:ypEakZSFGFAY9P0PYNylUVSftbTFQCKGKaR0H20q6sM=
 github.com/xtaci/kcp-go/v5 v5.6.21/go.mod h1:LDL3AzFyG+7G9q0+h0X5UfJ9xhjWTgSMTDz40IqCoTk=
+github.com/xtaci/kcp-go/v5 v5.6.22 h1:FkvGVIAUQAtesDpAcGsoWbM+vSa0Z5RPPf/9m0dfDGI=
+github.com/xtaci/kcp-go/v5 v5.6.22/go.mod h1:LDL3AzFyG+7G9q0+h0X5UfJ9xhjWTgSMTDz40IqCoTk=
 github.com/xtaci/lossyconn v0.0.0-20200209145036-adba10fffc37 h1:EWU6Pktpas0n8lLQwDsRyZfmkPeRbdgPtW609es+/9E=
 github.com/xtaci/lossyconn v0.0.0-20200209145036-adba10fffc37/go.mod h1:HpMP7DB2CyokmAh4lp0EQnnWhmycP/TvwBGzvuie+H0=
 github.com/yuin/gopher-lua v0.0.0-20171031051903-609c9cd26973/go.mod h1:aEV29XrmTYFr3CiRxZeGHpkvbwq+prZduBqMaascyCU=
