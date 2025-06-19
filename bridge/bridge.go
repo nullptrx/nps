@@ -388,6 +388,11 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			c.Close()
 			return
 		}
+		if !client.Status {
+			logs.Info("Client %v (ID %d) is disabled", c.Conn.RemoteAddr(), id)
+			c.Close()
+			return
+		}
 		client.Addr = common.GetIpByAddr(c.Conn.RemoteAddr().String())
 		infoBuf, err := c.GetShortLenContent()
 		if err != nil {

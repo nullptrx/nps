@@ -141,6 +141,10 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.22 (2025-06-19)**
+  - 修复禁用客户端失效 [#97](https://github.com/djylb/nps/issues/97)
+  - 虚拟客户端支持禁用
+
 - **v0.29.21 (2025-06-11)**
   - 增强 WebSocket 连接稳定性
   - 调整界面翻译

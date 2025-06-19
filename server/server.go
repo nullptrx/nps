@@ -660,12 +660,12 @@ func dealClientData() {
 			v.Version = vv.(*bridge.Client).Version
 		} else if v.Id <= 0 {
 			if allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy"); allowLocalProxy {
-				v.IsConnect = true
+				v.IsConnect = v.Status
 				v.Version = version.VERSION
 				v.Mode = "local"
 				v.LocalAddr = common.GetOutboundIP().String()
 				// Add Local Client
-				if _, exists := Bridge.Client.Load(v.Id); !exists {
+				if _, exists := Bridge.Client.Load(v.Id); !exists && v.Status {
 					Bridge.Client.Store(v.Id, bridge.NewClient(nil, nil, nil, version.VERSION))
 					logs.Debug("Inserted virtual client for ID %d", v.Id)
 				}
