@@ -2,4 +2,6 @@
 
 github: [djylb]
 #patreon: # Replace with a single Patreon username
-custom: ["https://afdian.com/a/duanlab"]
+custom:
+  - "https://afdian.com/a/duanlab"
+  - "https://d-jy.net/api/pay/"
