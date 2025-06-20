@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"html/template"
 	"math/rand"
 	"net"
 	"strings"
@@ -50,6 +51,7 @@ func (self *LoginController) Index() {
 	self.Data["login_nonce"] = nonce
 	self.Data["public_key"], _ = crypt.GetPublicKeyPEM()
 	self.Data["web_base_url"] = webBaseUrl
+	self.Data["head_custom_code"] = template.HTML(beego.AppConfig.String("head_custom_code"))
 	self.Data["version"] = server.GetVersion()
 	self.Data["year"] = server.GetCurrentYear()
 	self.Data["register_allow"], _ = beego.AppConfig.Bool("allow_user_register")
@@ -188,6 +190,7 @@ func (self *LoginController) Register() {
 		self.Data["login_nonce"] = nonce
 		self.Data["public_key"], _ = crypt.GetPublicKeyPEM()
 		self.Data["web_base_url"] = beego.AppConfig.String("web_base_url")
+		self.Data["head_custom_code"] = template.HTML(beego.AppConfig.String("head_custom_code"))
 		self.Data["version"] = server.GetVersion()
 		self.Data["year"] = server.GetCurrentYear()
 		self.Data["captcha_open"], _ = beego.AppConfig.Bool("open_captcha")

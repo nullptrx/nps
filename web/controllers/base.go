@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"html"
+	"html/template"
 	"math"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ type BaseController struct {
 
 func (s *BaseController) Prepare() {
 	s.Data["web_base_url"] = beego.AppConfig.String("web_base_url")
+	s.Data["head_custom_code"] = template.HTML(beego.AppConfig.String("head_custom_code"))
 	controllerName, actionName := s.GetControllerAndAction()
 	s.controllerName = strings.ToLower(controllerName[0 : len(controllerName)-10])
 	s.actionName = strings.ToLower(actionName)
@@ -71,6 +73,7 @@ func (s *BaseController) Prepare() {
 
 func (s *BaseController) display(tpl ...string) {
 	s.Data["web_base_url"] = beego.AppConfig.String("web_base_url")
+	s.Data["head_custom_code"] = template.HTML(beego.AppConfig.String("head_custom_code"))
 	s.Data["version"] = server.GetVersion()
 	s.Data["year"] = server.GetCurrentYear()
 	var tplname string
@@ -113,6 +116,7 @@ func (s *BaseController) display(tpl ...string) {
 
 func (s *BaseController) error() {
 	s.Data["web_base_url"] = beego.AppConfig.String("web_base_url")
+	s.Data["head_custom_code"] = template.HTML(beego.AppConfig.String("head_custom_code"))
 	s.Data["version"] = server.GetVersion()
 	s.Data["year"] = server.GetCurrentYear()
 	s.Layout = "public/layout.html"

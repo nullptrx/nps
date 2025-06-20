@@ -141,6 +141,11 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.23 (2025-06-20)**
+  - Docker添加CA证书
+  - 更新相关依赖
+  - 允许自定义页面显示
+
 - **v0.29.22 (2025-06-19)**
   - 修复禁用客户端失效 [#97](https://github.com/djylb/nps/issues/97)
   - 虚拟客户端支持禁用

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -61,7 +60,7 @@ func NewHttp(bridge NetBridge, task *file.Tunnel, httpPort, httpsPort int, httpO
 
 func (s *httpServer) Start() error {
 	var err error
-	s.errorContent, err = common.ReadAllFromFile(filepath.Join(common.GetRunPath(), "web", "static", "page", "error.html"))
+	s.errorContent, err = common.ReadAllFromFile(common.ResolvePath(beego.AppConfig.DefaultString("error_page", "web/static/page/error.html")))
 	if err != nil {
 		s.errorContent = []byte("nps 404")
 	}

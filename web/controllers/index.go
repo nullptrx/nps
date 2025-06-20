@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"html/template"
 	"strings"
 
 	"github.com/beego/beego"
@@ -17,6 +18,7 @@ type IndexController struct {
 
 func (s *IndexController) Index() {
 	s.Data["web_base_url"] = beego.AppConfig.String("web_base_url")
+	s.Data["head_custom_code"] = template.HTML(beego.AppConfig.String("head_custom_code"))
 	s.Data["data"] = server.GetDashboardData(true)
 	s.SetInfo("dashboard")
 	s.display("index/index")
