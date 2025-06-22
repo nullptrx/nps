@@ -2,7 +2,6 @@ package file
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -129,21 +128,34 @@ func (s *DbUtils) GetClientIdByMd5Vkey(vkey string) (id int, err error) {
 }
 
 func (s *DbUtils) NewTask(t *Tunnel) (err error) {
-	s.JsonDb.Tasks.Range(func(key, value interface{}) bool {
-		v := value.(*Tunnel)
-		if (v.Mode == "secret" || v.Mode == "p2p") && v.Password == t.Password {
-			err = errors.New(fmt.Sprintf("secret mode keys %s must be unique", t.Password))
-			return false
-		}
-		return true
-	})
-	if err != nil {
-		return
+	//s.JsonDb.Tasks.Range(func(key, value interface{}) bool {
+	//	v := value.(*Tunnel)
+	//	if (v.Mode == "secret" || v.Mode == "p2p") && (t.Mode == "secret" || t.Mode == "p2p") && v.Password == t.Password {
+	//		err = errors.New(fmt.Sprintf("secret mode keys %s must be unique", t.Password))
+	//		return false
+	//	}
+	//	return true
+	//})
+	//if err != nil {
+	//	return
+	//}
+	if (t.Mode == "secret" || t.Mode == "p2p") && t.Password == "" {
+		t.Password = crypt.GetRandomString(16, t.Id)
 	}
+
 	t.Flow = new(Flow)
+
 	if t.Password != "" {
-		TaskPasswordIndex.Add(crypt.Md5(t.Password), t.Id)
+		for {
+			hash := crypt.Md5(t.Password)
+			if idxId, ok := TaskPasswordIndex.Get(hash); !ok || idxId == t.Id {
+				TaskPasswordIndex.Add(hash, t.Id)
+				break
+			}
+			t.Password = crypt.GetRandomString(16, t.Id)
+		}
 	}
+
 	switch t.Mode {
 	case "socks5":
 		t.Mode = "mixProxy"
@@ -160,9 +172,29 @@ func (s *DbUtils) NewTask(t *Tunnel) (err error) {
 }
 
 func (s *DbUtils) UpdateTask(t *Tunnel) error {
-	if t.Password != "" {
-		TaskPasswordIndex.Add(crypt.Md5(t.Password), t.Id)
+	if (t.Mode == "secret" || t.Mode == "p2p") && t.Password == "" {
+		t.Password = crypt.GetRandomString(16, t.Id)
 	}
+
+	if v, ok := s.JsonDb.Tasks.Load(t.Id); ok {
+		if oldPwd := v.(*Tunnel).Password; oldPwd != "" {
+			if idxId, ok := TaskPasswordIndex.Get(crypt.Md5(oldPwd)); ok && idxId == t.Id {
+				TaskPasswordIndex.Remove(crypt.Md5(oldPwd))
+			}
+		}
+	}
+
+	if t.Password != "" {
+		for {
+			hash := crypt.Md5(t.Password)
+			if idxId, ok := TaskPasswordIndex.Get(hash); !ok || idxId == t.Id {
+				TaskPasswordIndex.Add(hash, t.Id)
+				break
+			}
+			t.Password = crypt.GetRandomString(16, t.Id)
+		}
+	}
+
 	s.JsonDb.Tasks.Store(t.Id, t)
 	s.JsonDb.StoreTasksToJsonFile()
 	return nil

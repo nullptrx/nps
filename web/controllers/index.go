@@ -225,8 +225,8 @@ func (s *IndexController) Edit() {
 			t.Mode = s.getEscapeString("type")
 			t.Target = &file.Target{TargetStr: strings.ReplaceAll(s.getEscapeString("target"), "\r\n", "\n")}
 			t.UserAuth = &file.MultiAccount{Content: s.getEscapeString("auth"), AccountMap: common.DealMultiUser(s.getEscapeString("auth"))}
-			t.Password = s.getEscapeString("password")
 			t.Id = id
+			t.Password = s.getEscapeString("password")
 			t.LocalPath = s.getEscapeString("local_path")
 			t.StripPre = s.getEscapeString("strip_pre")
 			t.HttpProxy = s.GetBoolNoErr("enable_http")
