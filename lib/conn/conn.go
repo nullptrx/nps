@@ -441,9 +441,9 @@ func BuildProxyProtocolV1Header(clientAddr, targetAddr net.Addr) []byte {
 			clientIP, targetIP = c.IP.String(), u.IP.String()
 			srcPort, dstPort = c.Port, u.Port
 			if c.IP.To4() != nil {
-				protocol = "UDP4"
+				protocol = "TCP4"
 			} else {
-				protocol = "UDP6"
+				protocol = "TCP6"
 			}
 		}
 	}
