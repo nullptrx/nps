@@ -427,18 +427,29 @@ func BuildProxyProtocolV1Header(clientAddr, targetAddr net.Addr) []byte {
 
 	switch c := clientAddr.(type) {
 	case *net.TCPAddr:
-		t := targetAddr.(*net.TCPAddr)
-		clientIP, targetIP = c.IP.String(), t.IP.String()
-		srcPort, dstPort = c.Port, t.Port
-		if c.IP.To4() != nil {
-			protocol = "TCP4"
-		} else {
-			protocol = "TCP6"
+		if t, ok := targetAddr.(*net.TCPAddr); ok {
+			clientIP, targetIP = c.IP.String(), t.IP.String()
+			srcPort, dstPort = c.Port, t.Port
+			if c.IP.To4() != nil {
+				protocol = "TCP4"
+			} else {
+				protocol = "TCP6"
+			}
 		}
 	case *net.UDPAddr:
-		u := targetAddr.(*net.UDPAddr)
-		clientIP, targetIP = c.IP.String(), u.IP.String()
-		srcPort, dstPort = c.Port, u.Port
+		if u, ok := targetAddr.(*net.UDPAddr); ok {
+			clientIP, targetIP = c.IP.String(), u.IP.String()
+			srcPort, dstPort = c.Port, u.Port
+			if c.IP.To4() != nil {
+				protocol = "UDP4"
+			} else {
+				protocol = "UDP6"
+			}
+		}
+	}
+
+	if protocol == "UNKNOWN" {
+		return []byte("PROXY UNKNOWN\r\n")
 	}
 
 	header := "PROXY " + protocol + " " + clientIP + " " + targetIP + " " +

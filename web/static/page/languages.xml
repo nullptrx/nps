@@ -534,7 +534,15 @@
 		<zh-CN>代理协议 (Proxy Protocol)</zh-CN>
 		<en-US>Proxy Protocol</en-US>
 	</lang>
+	<lang id="word-proxyprotocoltitle">
+		<zh-CN>Proxy Protocol</zh-CN>
+		<en-US>Proxy Protocol</en-US>
+	</lang>
 	<lang id="word-disable">
+		<zh-CN>关闭</zh-CN>
+		<en-US>Disable</en-US>
+	</lang>
+	<lang id="word-proxyprotocolv0">
 		<zh-CN>关闭</zh-CN>
 		<en-US>Disable</en-US>
 	</lang>

@@ -141,6 +141,10 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.24 (2025-06-23)**
+  - 自动生成唯一标识密钥
+  - UDP添加Proxy Protocol支持 [#99](https://github.com/djylb/nps/issues/99)
+
 - **v0.29.23 (2025-06-20)**
   - Docker添加CA证书
   - 更新相关依赖
