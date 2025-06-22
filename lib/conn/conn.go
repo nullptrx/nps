@@ -520,43 +520,71 @@ func BuildProxyProtocolHeaderByAddr(clientAddr, targetAddr net.Addr, proxyProtoc
 		return nil
 	}
 
-	if cs, ok := clientAddr.(*net.TCPAddr); ok {
-		if ts, ok2 := targetAddr.(*net.TCPAddr); ok2 {
-			targetAddr = normalizeTarget(cs, ts)
-		}
-	}
+	targetAddr = normalizeTarget(clientAddr, targetAddr)
 
-	if proxyProtocol == 2 {
+	switch proxyProtocol {
+	case 2:
 		return BuildProxyProtocolV2Header(clientAddr, targetAddr)
-	}
-	if proxyProtocol == 1 {
+	case 1:
 		return BuildProxyProtocolV1Header(clientAddr, targetAddr)
+	default:
+		return nil
 	}
-	return nil
 }
 
-func normalizeTarget(src, dst *net.TCPAddr) *net.TCPAddr {
-	if dst == nil {
-		dst = &net.TCPAddr{Port: 0}
-	}
+func normalizeTarget(src, dst net.Addr) net.Addr {
+	switch s := src.(type) {
 
-	srcIsV4 := src.IP.To4() != nil
-	dstIsV4 := dst.IP != nil && dst.IP.To4() != nil
-
-	switch {
-	case srcIsV4 && !dstIsV4:
-		dst.IP = net.IPv4zero
-	case !srcIsV4 && dstIsV4:
-		v6 := append(net.IPv6zero[:12], dst.IP.To4()...)
-		dst.IP = v6
-	case dst.IP == nil:
-		if srcIsV4 {
-			dst.IP = net.IPv4zero
-		} else {
-			dst.IP = net.ParseIP("::")
+	// TCP
+	case *net.TCPAddr:
+		d, _ := dst.(*net.TCPAddr)
+		if d == nil {
+			d = &net.TCPAddr{Port: 0}
 		}
+		srcIsV4 := s.IP.To4() != nil
+		dstIsV4 := d.IP != nil && d.IP.To4() != nil
+
+		switch {
+		case srcIsV4 && !dstIsV4:
+			d.IP = net.IPv4zero
+		case !srcIsV4 && dstIsV4:
+			d.IP = append(net.IPv6zero[:12], d.IP.To4()...)
+		case d.IP == nil || d.IP.IsUnspecified():
+			if srcIsV4 {
+				d.IP = net.IPv4zero
+			} else {
+				d.IP = net.IPv6zero
+			}
+		}
+		return d
+
+	// UDP
+	case *net.UDPAddr:
+		d, _ := dst.(*net.UDPAddr)
+		if d == nil {
+			d = &net.UDPAddr{Port: 0}
+		}
+		srcIsV4 := s.IP.To4() != nil
+		dstIsV4 := d.IP != nil && d.IP.To4() != nil
+
+		switch {
+		case srcIsV4 && !dstIsV4:
+			d.IP = net.IPv4zero
+		case !srcIsV4 && dstIsV4:
+			d.IP = append(net.IPv6zero[:12], d.IP.To4()...)
+		case d.IP == nil || d.IP.IsUnspecified():
+			if srcIsV4 {
+				d.IP = net.IPv4zero
+			} else {
+				d.IP = net.IPv6zero
+			}
+		}
+		return d
+
+	// Other
+	default:
+		return dst
 	}
-	return dst
 }
 
 // get crypt or snappy conn

@@ -16,7 +16,7 @@ import (
 
 type UdpModeServer struct {
 	BaseServer
-	addrMap  sync.Map
+	addrMap  sync.Map // key: clientAddr.String(), value: io.ReadWriteCloser
 	listener *net.UDPConn
 }
 
@@ -42,6 +42,7 @@ func (s *UdpModeServer) Start() error {
 		buf := common.BufPoolUdp.Get().([]byte)
 		n, addr, err := s.listener.ReadFromUDP(buf)
 		if err != nil {
+			common.PutBufPoolUdp(buf)
 			if strings.Contains(err.Error(), "use of closed network connection") {
 				break
 			}
@@ -50,21 +51,37 @@ func (s *UdpModeServer) Start() error {
 
 		// IP Black
 		if IsGlobalBlackIp(addr.String()) || common.IsBlackIp(addr.String(), s.task.Client.VerifyKey, s.task.Client.BlackIpList) {
-			break
+			common.PutBufPoolUdp(buf)
+			continue
 		}
 
 		logs.Trace("New udp connection,client %d,remote address %v", s.task.Client.Id, addr)
-		go s.process(addr, buf[:n])
+		//go s.process(addr, buf[:n])
+		go func(b []byte, ln int, a *net.UDPAddr) {
+			defer common.PutBufPoolUdp(b)
+			s.process(a, b[:ln])
+		}(buf, n, addr)
 	}
 	return nil
 }
 
 func (s *UdpModeServer) process(addr *net.UDPAddr, data []byte) {
+	if s.task.Target.ProxyProtocol != 0 {
+		hdr := conn.BuildProxyProtocolHeaderByAddr(addr, &net.UDPAddr{Port: s.task.Port}, s.task.Target.ProxyProtocol)
+		if len(hdr) != 0 {
+			tmp := make([]byte, len(hdr)+len(data))
+			copy(tmp, hdr)
+			copy(tmp[len(hdr):], data)
+			data = tmp
+		}
+	}
+
 	if v, ok := s.addrMap.Load(addr.String()); ok {
 		clientConn, ok := v.(io.ReadWriteCloser)
 		if ok {
 			_, err := clientConn.Write(data)
 			if err != nil {
+				s.addrMap.Delete(addr.String())
 				logs.Warn("%v", err)
 				return
 			}
@@ -72,6 +89,7 @@ func (s *UdpModeServer) process(addr *net.UDPAddr, data []byte) {
 			dataLength := int64(len(data))
 			s.task.Flow.Add(dataLength, 0)
 			s.task.Client.Flow.Add(dataLength, dataLength)
+			return
 		}
 	} else {
 		if err := s.CheckFlowAndConnNum(s.task.Client); err != nil {
@@ -81,6 +99,7 @@ func (s *UdpModeServer) process(addr *net.UDPAddr, data []byte) {
 		defer s.task.Client.CutConn()
 		s.task.AddConn()
 		defer s.task.CutConn()
+
 		link := conn.NewLink(common.CONN_UDP, s.task.Target.TargetStr, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, addr.String(), s.allowLocalProxy && s.task.Target.LocalProxy)
 		clientConn, err := s.bridge.SendLinkInfo(s.task.Client.Id, link, s.task)
 		if err != nil {
@@ -92,6 +111,7 @@ func (s *UdpModeServer) process(addr *net.UDPAddr, data []byte) {
 
 		_, err = target.Write(data)
 		if err != nil {
+			s.addrMap.Delete(addr.String())
 			logs.Warn("%v", err)
 			return
 		}
@@ -100,7 +120,7 @@ func (s *UdpModeServer) process(addr *net.UDPAddr, data []byte) {
 		s.task.Client.Flow.Add(dataLength, dataLength)
 
 		buf := common.BufPoolUdp.Get().([]byte)
-		defer common.BufPoolUdp.Put(buf)
+		defer common.PutBufPoolUdp(buf)
 
 		for {
 			clientConn.SetReadDeadline(time.Now().Add(60 * time.Second))
