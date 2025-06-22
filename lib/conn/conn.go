@@ -417,55 +417,84 @@ func CopyWaitGroup(conn1, conn2 net.Conn, crypt bool, snappy bool, rate *rate.Ra
 	}
 }
 
-// 构造 Proxy Protocol v1 头部
-func BuildProxyProtocolV1Header(clientAddr, targetAddr *net.TCPAddr) []byte {
-	var protocol, clientIP, targetIP string
-	// 判断是否是 IPv4 地址
-	if clientAddr.IP.To4() != nil {
-		protocol = "TCP4" // IPv4
-	} else {
-		protocol = "TCP6" // IPv6
+// 构造 Proxy-Protocol v1 头 (TCP / UDP)
+func BuildProxyProtocolV1Header(clientAddr, targetAddr net.Addr) []byte {
+	var (
+		protocol           = "UNKNOWN"
+		clientIP, targetIP string
+		srcPort, dstPort   int
+	)
+
+	switch c := clientAddr.(type) {
+	case *net.TCPAddr:
+		t := targetAddr.(*net.TCPAddr)
+		clientIP, targetIP = c.IP.String(), t.IP.String()
+		srcPort, dstPort = c.Port, t.Port
+		if c.IP.To4() != nil {
+			protocol = "TCP4"
+		} else {
+			protocol = "TCP6"
+		}
+	case *net.UDPAddr:
+		u := targetAddr.(*net.UDPAddr)
+		clientIP, targetIP = c.IP.String(), u.IP.String()
+		srcPort, dstPort = c.Port, u.Port
 	}
 
-	// 获取客户端和目标的 IP 地址
-	clientIP = clientAddr.IP.String()
-	targetIP = targetAddr.IP.String()
-
-	// 构建 Proxy 协议 v1 头部
 	header := "PROXY " + protocol + " " + clientIP + " " + targetIP + " " +
-		strconv.Itoa(clientAddr.Port) + " " + strconv.Itoa(targetAddr.Port) + "\r\n"
-
-	// 将字符串转换为字节数组并返回
+		strconv.Itoa(srcPort) + " " + strconv.Itoa(dstPort) + "\r\n"
 	return []byte(header)
 }
 
-// 构造 Proxy Protocol v2 头部
-func BuildProxyProtocolV2Header(clientAddr, targetAddr *net.TCPAddr) []byte {
-	var header []byte
-	if clientAddr.IP.To4() != nil {
-		// IPv4
-		header = make([]byte, 16+12) // v2 头部长度为 16 字节固定头 + 12 字节的 IPv4 地址信息
-		copy(header[0:12], []byte{0x0d, 0x0a, 0x0d, 0x0a, 0x00, 0x0d, 0x0a, 0x51, 0x55, 0x49, 0x54, 0x0a})
-		header[12] = 0x21                             // Proxy Protocol v2 的版本和命令
-		header[13] = 0x11                             // 地址族和传输协议 (TCP over IPv4)
-		binary.BigEndian.PutUint16(header[14:16], 12) // 地址信息长度
-		copy(header[16:20], clientAddr.IP.To4())
-		copy(header[20:24], targetAddr.IP.To4())
-		binary.BigEndian.PutUint16(header[24:26], uint16(clientAddr.Port))
-		binary.BigEndian.PutUint16(header[26:28], uint16(targetAddr.Port))
-	} else {
-		// IPv6
-		header = make([]byte, 16+36) // v2 头部长度为 16 字节固定头 + 36 字节的 IPv6 地址信息
-		copy(header[0:12], []byte{0x0d, 0x0a, 0x0d, 0x0a, 0x00, 0x0d, 0x0a, 0x51, 0x55, 0x49, 0x54, 0x0a})
-		header[12] = 0x21                             // Proxy Protocol v2 的版本和命令
-		header[13] = 0x21                             // 地址族和传输协议 (TCP over IPv6)
-		binary.BigEndian.PutUint16(header[14:16], 36) // 地址信息长度
-		copy(header[16:32], clientAddr.IP.To16())
-		copy(header[32:48], targetAddr.IP.To16())
-		binary.BigEndian.PutUint16(header[48:50], uint16(clientAddr.Port))
-		binary.BigEndian.PutUint16(header[50:52], uint16(targetAddr.Port))
+// 构造 Proxy-Protocol v2 头 (TCP / UDP)
+func BuildProxyProtocolV2Header(clientAddr, targetAddr net.Addr) []byte {
+	const sig = "\r\n\r\n\000\r\nQUIT\n" // 12-byte v2 signature
+	var (
+		header           []byte
+		famProto         byte
+		addrBytes        uint16
+		srcIP, dstIP     net.IP
+		srcPort, dstPort uint16
+	)
+
+	switch c := clientAddr.(type) {
+	case *net.TCPAddr:
+		t := targetAddr.(*net.TCPAddr)
+		srcIP, dstIP = c.IP, t.IP
+		srcPort, dstPort = uint16(c.Port), uint16(t.Port)
+		if c.IP.To4() != nil {
+			famProto, addrBytes = 0x11, 12 // TCPv4
+		} else {
+			famProto, addrBytes = 0x21, 36 // TCPv6
+		}
+	case *net.UDPAddr:
+		u := targetAddr.(*net.UDPAddr)
+		srcIP, dstIP = c.IP, u.IP
+		srcPort, dstPort = uint16(c.Port), uint16(u.Port)
+		if c.IP.To4() != nil {
+			famProto, addrBytes = 0x12, 12 // UDPv4
+		} else {
+			famProto, addrBytes = 0x22, 36 // UDPv6
+		}
 	}
 
+	header = make([]byte, 16+addrBytes)
+	copy(header[:12], sig)
+	header[12] = 0x21 // v2 + PROXY
+	header[13] = famProto
+	binary.BigEndian.PutUint16(header[14:16], addrBytes)
+
+	if addrBytes == 12 { // IPv4
+		copy(header[16:20], srcIP.To4())
+		copy(header[20:24], dstIP.To4())
+		binary.BigEndian.PutUint16(header[24:26], srcPort)
+		binary.BigEndian.PutUint16(header[26:28], dstPort)
+	} else { // IPv6
+		copy(header[16:32], srcIP.To16())
+		copy(header[32:48], dstIP.To16())
+		binary.BigEndian.PutUint16(header[48:50], srcPort)
+		binary.BigEndian.PutUint16(header[50:52], dstPort)
+	}
 	return header
 }
 
@@ -474,10 +503,8 @@ func BuildProxyProtocolHeader(c net.Conn, proxyProtocol int) []byte {
 	if proxyProtocol == 0 {
 		return nil
 	}
-
-	// 获取客户端和目标地址信息
-	clientAddr := c.RemoteAddr().(*net.TCPAddr)
-	targetAddr := c.LocalAddr().(*net.TCPAddr)
+	clientAddr := c.RemoteAddr()
+	targetAddr := c.LocalAddr()
 
 	if proxyProtocol == 2 {
 		return BuildProxyProtocolV2Header(clientAddr, targetAddr)
@@ -488,11 +515,17 @@ func BuildProxyProtocolHeader(c net.Conn, proxyProtocol int) []byte {
 	return nil
 }
 
-func BuildProxyProtocolHeaderByAddr(clientAddr, targetAddr *net.TCPAddr, proxyProtocol int) []byte {
+func BuildProxyProtocolHeaderByAddr(clientAddr, targetAddr net.Addr, proxyProtocol int) []byte {
 	if proxyProtocol == 0 {
 		return nil
 	}
-	targetAddr = normalizeTarget(clientAddr, targetAddr)
+
+	if cs, ok := clientAddr.(*net.TCPAddr); ok {
+		if ts, ok2 := targetAddr.(*net.TCPAddr); ok2 {
+			targetAddr = normalizeTarget(cs, ts)
+		}
+	}
+
 	if proxyProtocol == 2 {
 		return BuildProxyProtocolV2Header(clientAddr, targetAddr)
 	}
@@ -523,7 +556,6 @@ func normalizeTarget(src, dst *net.TCPAddr) *net.TCPAddr {
 			dst.IP = net.ParseIP("::")
 		}
 	}
-
 	return dst
 }
 
