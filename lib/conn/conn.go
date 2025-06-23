@@ -658,7 +658,7 @@ func NewFlowConn(conn io.ReadWriteCloser, task, client *file.Flow) *FlowConn {
 	}
 }
 
-func checkFlowLimits(f *file.Flow, label string, now time.Time) error {
+func CheckFlowLimits(f *file.Flow, label string, now time.Time) error {
 	if f.FlowLimit > 0 && (f.InletFlow+f.ExportFlow) > (f.FlowLimit<<20) {
 		return fmt.Errorf("%s: flow limit exceeded", label)
 	}
@@ -674,10 +674,10 @@ func (c *FlowConn) Read(p []byte) (int, error) {
 	c.taskFlow.Add(0, n64)
 	c.clientFlow.Add(n64, n64)
 	now := time.Now()
-	if err := checkFlowLimits(c.taskFlow, "Task", now); err != nil {
+	if err := CheckFlowLimits(c.taskFlow, "Task", now); err != nil {
 		return n, err
 	}
-	if err := checkFlowLimits(c.clientFlow, "Client", now); err != nil {
+	if err := CheckFlowLimits(c.clientFlow, "Client", now); err != nil {
 		return n, err
 	}
 	return n, err
@@ -689,10 +689,10 @@ func (c *FlowConn) Write(p []byte) (int, error) {
 	c.taskFlow.Add(n64, 0)
 	c.clientFlow.Add(n64, n64)
 	now := time.Now()
-	if err := checkFlowLimits(c.taskFlow, "Task", now); err != nil {
+	if err := CheckFlowLimits(c.taskFlow, "Task", now); err != nil {
 		return n, err
 	}
-	if err := checkFlowLimits(c.clientFlow, "Client", now); err != nil {
+	if err := CheckFlowLimits(c.clientFlow, "Client", now); err != nil {
 		return n, err
 	}
 	return n, err

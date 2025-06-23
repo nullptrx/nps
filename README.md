@@ -141,6 +141,15 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.25 (2025-06-24)**
+  - 优化UDP流量统计
+  - 优化流量限制机制
+  - 优化安装逻辑
+  - 重构UDP隧道
+  - 添加缓冲队列
+  - 优化内存拷贝
+  - 优化资源释放
+
 - **v0.29.24 (2025-06-23)**
   - 自动生成唯一标识密钥
   - UDP添加Proxy Protocol支持 [#99](https://github.com/djylb/nps/issues/99)

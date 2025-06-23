@@ -123,6 +123,10 @@ func (s *UdpModeServer) clientWorker(addr *net.UDPAddr, ent *entry) {
 		logs.Warn("client id %d, task id %d flow/conn limit: %v", s.task.Client.Id, s.task.Id, err)
 		return
 	}
+	if err := conn.CheckFlowLimits(s.task.Flow, "Task", time.Now()); err != nil {
+		logs.Warn("client id %d, task id %d flow/conn limit: %v", s.task.Client.Id, s.task.Id, err)
+		return
+	}
 	s.task.AddConn()
 	defer s.task.CutConn()
 	defer s.task.Client.CutConn()
