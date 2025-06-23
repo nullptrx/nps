@@ -1,7 +1,7 @@
 package proxy
 
 import (
-	"io"
+	"context"
 	"net"
 	"strings"
 	"sync"
@@ -14,30 +14,48 @@ import (
 	"github.com/djylb/nps/lib/logs"
 )
 
+type packet struct {
+	buf []byte
+	n   int
+}
+
+type entry struct {
+	ch       chan packet
+	flowConn *conn.FlowConn
+	ctx      context.Context
+	cancel   context.CancelFunc
+}
+
 type UdpModeServer struct {
 	BaseServer
-	addrMap  sync.Map // key: clientAddr.String(), value: io.ReadWriteCloser
-	listener *net.UDPConn
+	listener    *net.UDPConn
+	entries     sync.Map      // key: clientAddr.String(), value: *entry
+	readTimeout time.Duration // idle timeout for back-channel reads
 }
 
 func NewUdpModeServer(bridge NetBridge, task *file.Tunnel) *UdpModeServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
-	s := new(UdpModeServer)
-	s.bridge = bridge
-	s.task = task
-	s.allowLocalProxy = allowLocalProxy
-	return s
+	return &UdpModeServer{
+		BaseServer: BaseServer{
+			bridge:          bridge,
+			task:            task,
+			allowLocalProxy: allowLocalProxy,
+		},
+		readTimeout: 60 * time.Second,
+	}
 }
 
 func (s *UdpModeServer) Start() error {
-	var err error
 	if s.task.ServerIp == "" {
 		s.task.ServerIp = "0.0.0.0"
 	}
-	s.listener, err = net.ListenUDP("udp", &net.UDPAddr{net.ParseIP(s.task.ServerIp), s.task.Port, ""})
+
+	var err error
+	s.listener, err = net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(s.task.ServerIp), Port: s.task.Port})
 	if err != nil {
 		return err
 	}
+
 	for {
 		buf := common.BufPoolUdp.Get().([]byte)
 		n, addr, err := s.listener.ReadFromUDP(buf)
@@ -49,100 +67,146 @@ func (s *UdpModeServer) Start() error {
 			continue
 		}
 
-		// IP Black
+		// IP blacklist check
 		if IsGlobalBlackIp(addr.String()) || common.IsBlackIp(addr.String(), s.task.Client.VerifyKey, s.task.Client.BlackIpList) {
 			common.PutBufPoolUdp(buf)
 			continue
 		}
 
-		logs.Trace("New udp connection,client %d,remote address %v", s.task.Client.Id, addr)
-		//go s.process(addr, buf[:n])
-		go func(b []byte, ln int, a *net.UDPAddr) {
-			defer common.PutBufPoolUdp(b)
-			s.process(a, b[:ln])
-		}(buf, n, addr)
+		logs.Trace("New udp packet from client %d: %v", s.task.Client.Id, addr)
+		key := addr.String()
+		v, loaded := s.entries.Load(key)
+		if !loaded {
+			ctx, cancel := context.WithCancel(context.Background())
+			ent := &entry{
+				ch:     make(chan packet, 1024),
+				ctx:    ctx,
+				cancel: cancel,
+			}
+			s.entries.Store(key, ent)
+			go s.clientWorker(addr, ent)
+			v = ent
+		}
+		ent := v.(*entry)
+
+		select {
+		case <-ent.ctx.Done():
+			common.PutBufPoolUdp(buf)
+		case ent.ch <- packet{buf: buf, n: n}:
+		default:
+			common.PutBufPoolUdp(buf)
+		}
 	}
+
 	return nil
 }
 
-func (s *UdpModeServer) process(addr *net.UDPAddr, data []byte) {
-	if s.task.Target.ProxyProtocol != 0 {
-		hdr := conn.BuildProxyProtocolHeaderByAddr(addr, &net.UDPAddr{Port: s.task.Port}, s.task.Target.ProxyProtocol)
-		if len(hdr) != 0 {
-			tmp := make([]byte, len(hdr)+len(data))
-			copy(tmp, hdr)
-			copy(tmp[len(hdr):], data)
-			data = tmp
+func (s *UdpModeServer) clientWorker(addr *net.UDPAddr, ent *entry) {
+	key := addr.String()
+	defer func() {
+		ent.cancel()
+		s.entries.Delete(key)
+		if ent.flowConn != nil {
+			ent.flowConn.Close()
 		}
-	}
-
-	if v, ok := s.addrMap.Load(addr.String()); ok {
-		clientConn, ok := v.(io.ReadWriteCloser)
-		if ok {
-			_, err := clientConn.Write(data)
-			if err != nil {
-				s.addrMap.Delete(addr.String())
-				logs.Warn("%v", err)
+		for {
+			select {
+			case pkt := <-ent.ch:
+				common.PutBufPoolUdp(pkt.buf)
+			default:
 				return
 			}
-
-			dataLength := int64(len(data))
-			s.task.Flow.Add(dataLength, 0)
-			s.task.Client.Flow.Add(dataLength, dataLength)
-			return
 		}
-	} else {
-		if err := s.CheckFlowAndConnNum(s.task.Client); err != nil {
-			logs.Warn("client id %d, task id %d,error %v, when udp connection", s.task.Client.Id, s.task.Id, err)
-			return
-		}
-		defer s.task.Client.CutConn()
-		s.task.AddConn()
-		defer s.task.CutConn()
+	}()
 
-		link := conn.NewLink(common.CONN_UDP, s.task.Target.TargetStr, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, addr.String(), s.allowLocalProxy && s.task.Target.LocalProxy)
-		clientConn, err := s.bridge.SendLinkInfo(s.task.Client.Id, link, s.task)
-		if err != nil {
-			return
-		}
-		target := conn.GetConn(clientConn, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, nil, true)
-		s.addrMap.Store(addr.String(), target)
-		defer target.Close()
+	if err := s.CheckFlowAndConnNum(s.task.Client); err != nil {
+		logs.Warn("client id %d, task id %d flow/conn limit: %v", s.task.Client.Id, s.task.Id, err)
+		return
+	}
+	s.task.AddConn()
+	defer s.task.CutConn()
+	defer s.task.Client.CutConn()
 
-		_, err = target.Write(data)
-		if err != nil {
-			s.addrMap.Delete(addr.String())
-			logs.Warn("%v", err)
-			return
-		}
-		dataLength := int64(len(data))
-		s.task.Flow.Add(dataLength, 0)
-		s.task.Client.Flow.Add(dataLength, dataLength)
+	link := conn.NewLink(common.CONN_UDP, s.task.Target.TargetStr, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, key, s.allowLocalProxy && s.task.Target.LocalProxy)
+	clientConn, err := s.bridge.SendLinkInfo(s.task.Client.Id, link, s.task)
+	if err != nil {
+		logs.Trace("SendLinkInfo error: %v", err)
+		return
+	}
+	target := conn.GetConn(clientConn, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, nil, true)
+	ent.flowConn = conn.NewFlowConn(target, s.task.Flow, s.task.Client.Flow)
 
+	var hdr []byte
+	var mergeBuf []byte
+	if s.task.Target.ProxyProtocol != 0 {
+		hdr = conn.BuildProxyProtocolHeaderByAddr(addr, &net.UDPAddr{Port: s.task.Port}, s.task.Target.ProxyProtocol)
+		if len(hdr) > 0 {
+			mergeBuf = make([]byte, len(hdr)+common.PoolSizeUdp)
+			copy(mergeBuf, hdr)
+		}
+	}
+	hdrLen := len(hdr)
+
+	go func() {
 		buf := common.BufPoolUdp.Get().([]byte)
 		defer common.PutBufPoolUdp(buf)
 
 		for {
-			clientConn.SetReadDeadline(time.Now().Add(60 * time.Second))
-			n, err := target.Read(buf)
-			if err != nil {
-				s.addrMap.Delete(addr.String())
-				logs.Warn("%v", err)
+			select {
+			case <-ent.ctx.Done():
 				return
-			}
-			_, err = s.listener.WriteTo(buf[:n], addr)
-			if err != nil {
-				logs.Warn("%v", err)
-				return
+			default:
 			}
 
-			n64 := int64(n)
-			s.task.Flow.Add(0, n64)
-			s.task.Client.Flow.Add(n64, n64)
+			clientConn.SetReadDeadline(time.Now().Add(s.readTimeout))
+			nr, err := ent.flowConn.Read(buf)
+			if err != nil {
+				logs.Trace("back-channel read error or idle: %v", err)
+				ent.cancel()
+				return
+			}
+			if _, err := s.listener.WriteTo(buf[:nr], addr); err != nil {
+				logs.Warn("error writing back to client: %v", err)
+				ent.cancel()
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-ent.ctx.Done():
+			return
+		case pkt, ok := <-ent.ch:
+			if !ok {
+				return
+			}
+			data := pkt.buf[:pkt.n]
+
+			if hdrLen != 0 {
+				bufLen := hdrLen + len(data)
+				copy(mergeBuf[hdrLen:bufLen], data)
+				data = mergeBuf[:bufLen]
+			}
+
+			if _, err := ent.flowConn.Write(data); err != nil {
+				common.PutBufPoolUdp(pkt.buf)
+				ent.cancel()
+				return
+			}
+			common.PutBufPoolUdp(pkt.buf)
 		}
 	}
 }
 
 func (s *UdpModeServer) Close() error {
-	return s.listener.Close()
+	if s.listener != nil {
+		s.listener.Close()
+	}
+	s.entries.Range(func(key, value interface{}) bool {
+		ent := value.(*entry)
+		ent.cancel()
+		return true
+	})
+	return nil
 }

@@ -226,6 +226,8 @@ func (s *TunnelModeServer) handleUDP(c net.Conn) {
 		return
 	}
 
+	flowConn := conn.NewFlowConn(target, s.task.Flow, s.task.Client.Flow)
+
 	var clientAddr net.Addr
 	// copy buffer
 	go func() {
@@ -242,7 +244,7 @@ func (s *TunnelModeServer) handleUDP(c net.Conn) {
 			if clientAddr == nil {
 				clientAddr = laddr
 			}
-			if _, err := target.Write(b[:n]); err != nil {
+			if _, err := flowConn.Write(b[:n]); err != nil {
 				logs.Debug("write data to client error %v", err)
 				return
 			}
@@ -255,11 +257,11 @@ func (s *TunnelModeServer) handleUDP(c net.Conn) {
 		defer common.BufPoolUdp.Put(b)
 		defer c.Close()
 		for {
-			if err := binary.Read(target, binary.LittleEndian, &l); err != nil || l >= common.PoolSizeUdp || l <= 0 {
+			if err := binary.Read(flowConn, binary.LittleEndian, &l); err != nil || l >= common.PoolSizeUdp || l <= 0 {
 				logs.Debug("read len bytes error %v", err)
 				return
 			}
-			binary.Read(target, binary.LittleEndian, b[:l])
+			binary.Read(flowConn, binary.LittleEndian, b[:l])
 			if err != nil {
 				logs.Warn("read data form client error %v", err)
 				return
