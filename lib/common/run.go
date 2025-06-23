@@ -51,6 +51,9 @@ func GetInstallPath() string {
 
 // Get the absolute path to the running directory
 func GetAppPath() string {
+	if exePath, err := os.Executable(); err == nil {
+		return filepath.Dir(exePath)
+	}
 	if path, err := filepath.Abs(filepath.Dir(os.Args[0])); err == nil {
 		return path
 	}

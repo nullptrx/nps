@@ -254,19 +254,28 @@ func copyStaticFile(srcPath, bin string) string {
 	path := common.GetInstallPath()
 	if bin == "nps" {
 		if err := CopyDir(filepath.Join(srcPath, "web", "views"), filepath.Join(path, "web", "views")); err != nil {
+			if exists, _ := pathExists(filepath.Join(path, "web", "views")); exists {
+				goto ExecPath
+			}
 			log.Fatalln(err)
 		}
 		chMod(filepath.Join(path, "web", "views"), 0766)
 		if err := CopyDir(filepath.Join(srcPath, "web", "static"), filepath.Join(path, "web", "static")); err != nil {
+			if exists, _ := pathExists(filepath.Join(path, "web", "static")); exists {
+				goto ExecPath
+			}
 			log.Fatalln(err)
 		}
 		chMod(filepath.Join(path, "web", "static"), 0766)
 		if _, err := copyFile(filepath.Join(srcPath, "conf", "nps.conf"), filepath.Join(path, "conf", "nps.conf.default")); err != nil {
+			if exists, _ := pathExists(filepath.Join(path, "conf", "nps.conf")); exists {
+				goto ExecPath
+			}
 			log.Fatalln(err)
 		}
 		chMod(filepath.Join(path, "conf", "nps.conf.default"), 0766)
 	}
-
+ExecPath:
 	binPath, err := os.Executable()
 	if err != nil {
 		binPath, _ = filepath.Abs(os.Args[0])
@@ -348,7 +357,8 @@ func MkidrDirAll(path string, v ...string) {
 func CopyDir(srcPath string, destPath string) error {
 	//检测目录正确性
 	if srcInfo, err := os.Stat(srcPath); err != nil {
-		fmt.Println(err.Error())
+		//fmt.Println(err.Error())
+		log.Println("Failed to copy source directory.")
 		return err
 	} else {
 		if !srcInfo.IsDir() {
