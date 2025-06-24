@@ -145,6 +145,7 @@ npc update && npc restart
   - 添加QUIC连接方式
   - 弃用`bridge_type`和`bridge_port`配置，通过指定端口号是否为0控制开关
   - 更新相关依赖包
+  - 统一日志输出
 
 - **v0.29.25 (2025-06-24)**
   - 优化UDP流量统计

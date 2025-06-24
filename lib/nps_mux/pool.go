@@ -30,7 +30,7 @@ func newWindowBufferPool() *windowBufferPool {
 //	for i := 0; i < n; i++ {
 //		f := runtime.FuncForPC(pc[i])
 //		file, line := f.FileLine(pc[i])
-//		log.Printf("%v %p %s:%d %s\n", ty, buf, file, line, f.Name())
+//		logs.Printf("%v %p %s:%d %s\n", ty, buf, file, line, f.Name())
 //	}
 //}
 

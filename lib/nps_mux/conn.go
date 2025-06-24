@@ -3,13 +3,14 @@ package nps_mux
 import (
 	"errors"
 	"io"
-	"log"
 	"math"
 	"net"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/djylb/nps/lib/logs"
 )
 
 type conn struct {
@@ -241,7 +242,7 @@ func (Self *receiveWindow) calcSize() {
 			if connBw > 0 && muxBw > 0 {
 				limit := uint32(maximumWindowSize * (connBw / (muxBw + connBw)))
 				if n > limit {
-					log.Println("window too large, calculated:", n, "limit:", limit, connBw, muxBw)
+					logs.Println("window too large, calculated:", n, "limit:", limit, connBw, muxBw)
 					n = limit
 				}
 			}
@@ -468,7 +469,7 @@ func (Self *sendWindow) SetSize(currentMaxSizeDone uint64) (closed bool) {
 		ptrs := atomic.LoadUint64(&Self.maxSizeDone)
 		maxsize, send, wait = Self.unpack(ptrs)
 		if read > send {
-			log.Println("window read > send: max size:", currentMaxSize, "read:", read, "send", send)
+			logs.Println("window read > send: max size:", currentMaxSize, "read:", read, "send", send)
 			return
 		}
 		if read == 0 && currentMaxSize == maxsize {
@@ -482,7 +483,7 @@ func (Self *sendWindow) SetSize(currentMaxSizeDone uint64) (closed bool) {
 		}
 		// remain > 0, change wait to false. or remain == 0, wait is false, just keep it
 		if atomic.CompareAndSwapUint64(&Self.maxSizeDone, ptrs, Self.pack(currentMaxSize, send, newWait)) {
-			//log.Printf("currentMaxSize:%d read:%d send:%d", currentMaxSize, read, send)
+			//logs.Printf("currentMaxSize:%d read:%d send:%d", currentMaxSize, read, send)
 			break
 		}
 		// anther goroutine change wait status or window size

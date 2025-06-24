@@ -65,6 +65,7 @@ func (s *httpServer) Start() error {
 		s.errorContent = []byte("nps 404")
 	}
 
+	certmagic.Default.Logger = logs.ZapLogger
 	certmagic.DefaultACME.Agreed = true
 	certmagic.DefaultACME.Email = beego.AppConfig.String("ssl_email")
 	switch strings.ToLower(beego.AppConfig.DefaultString("ssl_ca", "LetsEncrypt")) {

@@ -3,13 +3,14 @@ package nps_mux
 import (
 	"errors"
 	"io"
-	"log"
 	"math"
 	"net"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/djylb/nps/lib/logs"
 )
 
 const (
@@ -45,7 +46,7 @@ type Mux struct {
 	connType           string
 	writeQueue         priorityQueue
 	newConnQueue       connQueue
-	once sync.Once
+	once               sync.Once
 }
 
 func NewMux(c net.Conn, connType string, pingCheckThreshold int) *Mux {
@@ -53,7 +54,7 @@ func NewMux(c net.Conn, connType string, pingCheckThreshold int) *Mux {
 	//c.(*net.TCPConn).SetWriteBuffer(0)
 	fd, err := getConnFd(c)
 	if err != nil {
-		log.Println(err)
+		logs.Println(err)
 	}
 	var checkThreshold uint32
 	if pingCheckThreshold <= 0 {
@@ -132,7 +133,7 @@ func (s *Mux) sendInfo(flag uint8, id int32, data interface{}) {
 	err = pack.Set(flag, id, data)
 	if err != nil {
 		muxPack.Put(pack)
-		log.Println("mux: New Pack err", err)
+		logs.Println("mux: New Pack err", err)
 		_ = s.Close()
 		return
 	}
@@ -152,15 +153,15 @@ func (s *Mux) writeSession() {
 			}
 			//if pack.flag == muxNewMsg || pack.flag == muxNewMsgPart {
 			//	if pack.length >= 100 {
-			//		log.Println("write session id", pack.id, "\n", string(pack.content[:100]))
+			//		logs.Println("write session id", pack.id, "\n", string(pack.content[:100]))
 			//	} else {
-			//		log.Println("write session id", pack.id, "\n", string(pack.content[:pack.length]))
+			//		logs.Println("write session id", pack.id, "\n", string(pack.content[:pack.length]))
 			//	}
 			//}
 			err := pack.Pack(s.conn)
 			muxPack.Put(pack)
 			if err != nil {
-				log.Println("mux: Pack err", err)
+				logs.Println("mux: Pack err", err)
 				_ = s.Close()
 				break
 			}
@@ -183,7 +184,7 @@ func (s *Mux) ping() {
 			case <-ticker.C:
 			}
 			if atomic.LoadUint32(&s.pingCheckTime) > s.pingCheckThreshold {
-				log.Println("mux: ping time out, checktime", s.pingCheckTime, "threshold", s.pingCheckThreshold)
+				logs.Println("mux: ping time out, checktime", s.pingCheckTime, "threshold", s.pingCheckThreshold)
 				_ = s.Close()
 				// more than limit times not receive the ping return package,
 				// mux conn is damaged, maybe a packet drop, close it
@@ -214,7 +215,7 @@ func (s *Mux) ping() {
 			if latency > 0 {
 				atomic.StoreUint64(&s.latency, math.Float64bits(s.counter.Latency(latency)))
 				// convert float64 to bits, store it atomic
-				//log.Println("ping", math.Float64frombits(atomic.LoadUint64(&s.latency)))
+				//logs.Println("ping", math.Float64frombits(atomic.LoadUint64(&s.latency)))
 			}
 			if cap(data) > 0 && !s.IsClose {
 				windowBuff.Put(data)
@@ -250,16 +251,16 @@ func (s *Mux) readSession() {
 			pack = muxPack.Get()
 			s.bw.StartRead()
 			if l, err = pack.UnPack(s.conn); err != nil {
-				log.Println("mux: read session unpack from connection err", err)
+				logs.Println("mux: read session unpack from connection err", err)
 				_ = s.Close()
 				break
 			}
 			s.bw.SetCopySize(l)
 			//if pack.flag == muxNewMsg || pack.flag == muxNewMsgPart {
 			//	if pack.length >= 100 {
-			//		log.Printf("read session id %d pointer %p\n%v", pack.id, pack.content, string(pack.content[:100]))
+			//		logs.Printf("read session id %d pointer %p\n%v", pack.id, pack.content, string(pack.content[:100]))
 			//	} else {
-			//		log.Printf("read session id %d pointer %p\n%v", pack.id, pack.content, string(pack.content[:pack.length]))
+			//		logs.Printf("read session id %d pointer %p\n%v", pack.id, pack.content, string(pack.content[:pack.length]))
 			//	}
 			//}
 			switch pack.flag {
@@ -280,7 +281,7 @@ func (s *Mux) readSession() {
 				case muxNewMsg, muxNewMsgPart: //New msg from remote connection
 					err = s.newMsg(connection, pack)
 					if err != nil {
-						log.Println("mux: read session connection New msg err", err)
+						logs.Println("mux: read session connection New msg err", err)
 						_ = connection.Close()
 					}
 					continue
@@ -331,7 +332,7 @@ func (s *Mux) Close() (err error) {
 
 	s.once.Do(func() {
 		s.IsClose = true
-		log.Println("close mux")
+		logs.Println("close mux")
 		s.connMap.Close()
 		//s.connMap = nil
 		s.closeChan <- struct{}{}
@@ -414,7 +415,7 @@ func (Self *bandwidth) calcBandWidth() {
 	t := Self.readStart.Sub(Self.lastReadStart)
 	bufferSize, err := sysGetSock(Self.fd)
 	if err != nil {
-		log.Println(err)
+		logs.Println(err)
 		Self.bufLength = 0
 		return
 	}
