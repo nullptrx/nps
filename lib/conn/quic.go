@@ -37,7 +37,6 @@ func (q *QuicConn) LocalAddr() net.Addr {
 	return q.sess.LocalAddr()
 }
 
-// RemoteAddr returns the remote network address.
 func (q *QuicConn) RemoteAddr() net.Addr {
 	return q.sess.RemoteAddr()
 }
