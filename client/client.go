@@ -69,7 +69,7 @@ func (s *TRPClient) Start() {
 	logs.Info("Successful connection with server %s", s.svrAddr)
 	s.signal = c
 	//start a channel connection
-	go s.newChan()
+	s.newChan()
 	//monitor the connection
 	go s.ping()
 	//start health check if it's open
@@ -84,6 +84,7 @@ func (s *TRPClient) Start() {
 
 // handle main connection
 func (s *TRPClient) handleMain() {
+	defer s.Close()
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -132,7 +133,6 @@ func (s *TRPClient) handleMain() {
 			}
 		}
 	}
-	s.Close()
 }
 
 func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
@@ -167,7 +167,9 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 			conn.SetUdpSession(udpTunnel)
 			logs.Trace("successful connection with client ,address %v", udpTunnel.RemoteAddr())
 			//read link info from remote
-			conn.Accept(nps_mux.NewMux(udpTunnel, s.bridgeConnType, s.disconnectTime), func(c net.Conn) {
+			tunnel := nps_mux.NewMux(udpTunnel, s.bridgeConnType, s.disconnectTime)
+			defer tunnel.Close()
+			conn.Accept(tunnel, func(c net.Conn) {
 				go s.handleChan(c)
 			})
 			return
@@ -183,20 +185,22 @@ func (s *TRPClient) newChan() {
 		return
 	}
 	s.tunnel = nps_mux.NewMux(tunnel.Conn, s.bridgeConnType, s.disconnectTime)
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		default:
+	go func() {
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+			}
+			src, err := s.tunnel.Accept()
+			if err != nil {
+				logs.Warn("%v", err)
+				s.Close()
+				return
+			}
+			go s.handleChan(src)
 		}
-		src, err := s.tunnel.Accept()
-		if err != nil {
-			logs.Warn("%v", err)
-			s.Close()
-			return
-		}
-		go s.handleChan(src)
-	}
+	}()
 }
 
 func (s *TRPClient) handleChan(src net.Conn) {

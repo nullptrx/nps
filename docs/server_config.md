@@ -80,7 +80,7 @@ nps.exe -conf_path=D:\test\nps
 | `bridge_key_file`           | 客户端与服务端通信 TLS 证书密钥文件路径                                               |
 | `quic_alpn`                 | QUIC 握手时允许协商的 ALPN 列表，逗号分隔（默认 `nps`）                                 |
 | `quic_keep_alive_period`    | QUIC 空闲保活周期（单位：s，默认 `10`）                                            |
-| `quic_max_idle_timeout`     | QUIC 最大空闲超时时间（单位：秒，默认 `20`）                                          |
+| `quic_max_idle_timeout`     | QUIC 最大空闲超时时间（单位：秒，默认 `30`）                                          |
 | `quic_max_incoming_streams` | QUIC 最大并发接收流数量（默认 `100000`）                                          |
 
 

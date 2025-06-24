@@ -28,14 +28,14 @@ func NewTcpListenerAndProcess(addr string, f func(c net.Conn), listener *net.Lis
 func NewKcpListenerAndProcess(addr string, f func(c net.Conn)) error {
 	kcpListener, err := kcp.ListenWithOptions(addr, nil, 150, 3)
 	if err != nil {
-		logs.Error("%v", err)
+		logs.Error("KCP listen error: %v", err)
 		return err
 	}
 	for {
 		c, err := kcpListener.AcceptKCP()
 		SetUdpSession(c)
 		if err != nil {
-			logs.Warn("%v", err)
+			logs.Trace("KCP accept session error: %v", err)
 			continue
 		}
 		go f(c)
@@ -45,7 +45,7 @@ func NewKcpListenerAndProcess(addr string, f func(c net.Conn)) error {
 
 func NewQuicListenerAndProcess(addr string, tlsConfig *tls.Config, f func(c net.Conn)) error {
 	keepAliveSec := beego.AppConfig.DefaultInt("quic_keep_alive_period", 10)
-	idleTimeoutSec := beego.AppConfig.DefaultInt("quic_max_idle_timeout", 20)
+	idleTimeoutSec := beego.AppConfig.DefaultInt("quic_max_idle_timeout", 30)
 	maxStreams := beego.AppConfig.DefaultInt64("quic_max_incoming_streams", 100000)
 
 	quicConfig := &quic.Config{
@@ -68,7 +68,7 @@ func NewQuicListenerAndProcess(addr string, tlsConfig *tls.Config, f func(c net.
 			for {
 				stream, err := sess.AcceptStream(context.Background())
 				if err != nil {
-					logs.Warn("QUIC accept stream error: %v", err)
+					logs.Trace("QUIC accept stream error: %v", err)
 					return
 				}
 				conn := NewQuicConn(stream, sess)

@@ -357,7 +357,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		}
 		quicConfig := &quic.Config{
 			KeepAlivePeriod:    10 * time.Second,
-			MaxIdleTimeout:     20 * time.Second,
+			MaxIdleTimeout:     30 * time.Second,
 			MaxIncomingStreams: 100000,
 		}
 		ctx := context.Background()

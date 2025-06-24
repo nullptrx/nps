@@ -115,7 +115,7 @@ func (s *Mux) Accept() (net.Conn, error) {
 	}
 	conn := <-s.newConnCh
 	if conn == nil {
-		return nil, errors.New("accpet error,the conn has closed")
+		return nil, errors.New("accpet error, the connection has been closed")
 	}
 	return conn, nil
 }
@@ -208,7 +208,7 @@ func (s *Mux) ping() {
 			case data = <-s.pingCh:
 				atomic.StoreUint32(&s.pingCheckTime, 0)
 			case <-s.closeChan:
-				break
+				return
 			}
 			_ = now.UnmarshalText(data)
 			latency := time.Now().UTC().Sub(now).Seconds()
@@ -229,11 +229,11 @@ func (s *Mux) readSession() {
 		var connection *conn
 		for {
 			if s.IsClose {
-				break
+				return
 			}
 			connection = s.newConnQueue.Pop()
 			if s.IsClose {
-				break // make sure that is closed
+				return
 			}
 			s.connMap.Set(connection.connId, connection) //it has been Set before send ok
 			s.newConnCh <- connection
@@ -251,9 +251,14 @@ func (s *Mux) readSession() {
 			pack = muxPack.Get()
 			s.bw.StartRead()
 			if l, err = pack.UnPack(s.conn); err != nil {
+				if s.IsClose {
+					muxPack.Put(pack)
+					return
+				}
 				logs.Println("mux: read session unpack from connection err", err)
 				_ = s.Close()
-				break
+				muxPack.Put(pack)
+				return
 			}
 			s.bw.SetCopySize(l)
 			//if pack.flag == muxNewMsg || pack.flag == muxNewMsgPart {
@@ -326,6 +331,10 @@ func (s *Mux) newMsg(connection *conn, pack *muxPackager) (err error) {
 }
 
 func (s *Mux) Close() (err error) {
+	//buf := make([]byte, 1024*8)
+	//n := runtime.Stack(buf, false)
+	//fmt.Print(string(buf[:n]))
+
 	if s.IsClose {
 		return errors.New("the mux has closed")
 	}

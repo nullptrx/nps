@@ -231,10 +231,23 @@ func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 		return
 	}
 
+	var retry int
+	const maxRetry = 3
+
 	for {
-		if info, status, err := c.GetHealthInfo(); err != nil {
+		info, status, err := c.GetHealthInfo()
+		if err != nil {
+			//logs.Trace("GetHealthInfo error, id=%d, retry=%d, err=%v", id, retry, err)
+			if ne, ok := err.(interface{ Temporary() bool }); ok && ne.Temporary() && retry < maxRetry {
+				retry++
+				continue
+			}
 			break
-		} else if !status { //the status is true , return target to the targetArr
+		}
+
+		retry = 0
+
+		if !status { //the status is true , return target to the targetArr
 			file.GetDb().JsonDb.Tasks.Range(func(key, value interface{}) bool {
 				v := value.(*file.Tunnel)
 				if v.Client.Id == id && v.Mode == "tcp" && strings.Contains(v.Target.TargetStr, info) {
