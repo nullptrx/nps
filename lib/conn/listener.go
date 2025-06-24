@@ -64,7 +64,7 @@ func NewQuicListenerAndProcess(addr string, tlsConfig *tls.Config, f func(c net.
 			logs.Warn("QUIC accept session error: %v", err)
 			continue
 		}
-		go func(sess quic.Connection) {
+		go func(sess *quic.Conn) {
 			for {
 				stream, err := sess.AcceptStream(context.Background())
 				if err != nil {
