@@ -119,6 +119,9 @@
                 {{if index . "tls_p"}}
                 + '<b langtag="word-commandclient-tls"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.ip}}:{{.tls_p}} -vkey=" + row.VerifyKey + " -type=tls</code>&emsp;<br/><br/>"
                 {{end}}
+                {{if index . "quic_p"}}
+                + '<b langtag="word-commandclient-quic"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.ip}}:{{.quic_p}} -vkey=" + row.VerifyKey + " -type=quic</code>&emsp;<br/><br/>"
+                {{end}}
                 {{if index . "ws_p"}}
                 + '<b langtag="word-commandclient-ws"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.ip}}:{{.ws_p}}{{.ws_path}} -vkey=" + row.VerifyKey + " -type=ws</code>&emsp;<br/><br/>"
                 {{end}}

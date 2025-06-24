@@ -99,6 +99,9 @@ func (s *BaseController) display(tpl ...string) {
 	if beego.AppConfig.DefaultBool("bridge_tls_show", bridge.ServerTlsEnable) {
 		s.Data["tls_p"] = beego.AppConfig.DefaultString("bridge_tls_show_port", connection.BridgeTlsPort)
 	}
+	if beego.AppConfig.DefaultBool("bridge_quic_show", bridge.ServerQuicEnable) {
+		s.Data["quic_p"] = beego.AppConfig.DefaultString("bridge_quic_show_port", connection.BridgeQuicPort)
+	}
 	if wsPath := beego.AppConfig.String("bridge_path"); wsPath != "" {
 		s.Data["ws_path"] = beego.AppConfig.DefaultString("bridge_show_path", wsPath)
 		if beego.AppConfig.DefaultBool("bridge_ws_show", bridge.ServerWsEnable) {
@@ -253,6 +256,10 @@ func GetBestBridge(ip string) (bridgeType, bridgeAddr, bridgeIp, bridgePort stri
 	if beego.AppConfig.DefaultBool("bridge_tls_show", bridge.ServerTlsEnable) {
 		bridgeType = "tls"
 		bridgePort = beego.AppConfig.DefaultString("bridge_tls_show_port", connection.BridgeTlsPort)
+		bridgeAddr = bridgeIp + ":" + bridgePort
+	} else if beego.AppConfig.DefaultBool("bridge_quic_show", bridge.ServerQuicEnable) {
+		bridgeType = "quic"
+		bridgePort = beego.AppConfig.DefaultString("bridge_quic_show_port", connection.BridgeQuicPort)
 		bridgeAddr = bridgeIp + ":" + bridgePort
 	} else if beego.AppConfig.DefaultBool("bridge_wss_show", bridge.ServerWssEnable) {
 		bridgeType = "wss"
