@@ -78,11 +78,13 @@ func main() {
 	if logPath == "" || strings.EqualFold(logPath, "on") || strings.EqualFold(logPath, "true") {
 		logPath = common.GetLogPath()
 	}
-	if !filepath.IsAbs(logPath) {
-		logPath = filepath.Join(common.GetRunPath(), logPath)
-	}
-	if common.IsWindows() {
-		logPath = strings.Replace(logPath, "\\", "\\\\", -1)
+	if !strings.EqualFold(logPath, "off") && !strings.EqualFold(logPath, "false") && !strings.EqualFold(logPath, "docker") && logPath != "/dev/null" {
+		if !filepath.IsAbs(logPath) {
+			logPath = filepath.Join(common.GetRunPath(), logPath)
+		}
+		if common.IsWindows() {
+			logPath = strings.Replace(logPath, "\\", "\\\\", -1)
+		}
 	}
 	logMaxFiles := beego.AppConfig.DefaultInt("log_max_files", 30)
 	logMaxDays := beego.AppConfig.DefaultInt("log_max_days", 30)
