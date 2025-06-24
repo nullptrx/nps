@@ -238,9 +238,9 @@ func run() {
 	task := &file.Tunnel{
 		Mode: "webServer",
 	}
-	bridgePort, err := beego.AppConfig.Int("bridge_port")
-	if err != nil {
-		logs.Error("Getting bridge_port error %v", err)
+	bridgePort := beego.AppConfig.DefaultInt("bridge_port", beego.AppConfig.DefaultInt("bridge_tcp_port", 0))
+	if bridgePort == 0 {
+		logs.Error("Getting bridge port error")
 		os.Exit(0)
 	}
 
@@ -261,12 +261,14 @@ func run() {
 	}
 	bridgeTcpPort := beego.AppConfig.DefaultInt("bridge_tcp_port", bridgePort)
 	bridgeKcpPort := beego.AppConfig.DefaultInt("bridge_kcp_port", bridgePort)
+	bridgeQuicPort, _ := beego.AppConfig.Int("bridge_quic_port")
 	bridgeTlsPort := beego.AppConfig.DefaultInt("bridge_tls_port", beego.AppConfig.DefaultInt("tls_bridge_port", 0))
 	bridgeWsPort, _ := beego.AppConfig.Int("bridge_ws_port")
 	bridgeWssPort, _ := beego.AppConfig.Int("bridge_wss_port")
 	bridgePath := beego.AppConfig.String("bridge_path")
-	bridgeType := beego.AppConfig.String("bridge_type")
-	bridge.ServerKcpEnable = beego.AppConfig.DefaultBool("kcp_enable", true) && bridgeKcpPort != 0 && (bridgeType == "kcp" || bridgeType == "both")
+	bridgeType := beego.AppConfig.DefaultString("bridge_type", "both")
+	bridge.ServerKcpEnable = beego.AppConfig.DefaultBool("kcp_enable", true) && bridgeKcpPort != 0 && (bridgeType == "kcp" || bridgeType == "udp" || bridgeType == "both")
+	bridge.ServerQuicEnable = beego.AppConfig.DefaultBool("quic_enable", true) && bridgeQuicPort != 0 && (bridgeType == "quic" || bridgeType == "udp" || bridgeType == "both")
 	if bridgeType == "both" {
 		bridgeType = "tcp"
 	}

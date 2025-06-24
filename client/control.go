@@ -30,6 +30,7 @@ import (
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/version"
+	"github.com/quic-go/quic-go"
 	"github.com/xtaci/kcp-go/v5"
 	"golang.org/x/net/proxy"
 )
@@ -211,19 +212,7 @@ func StartFromFile(path string) {
 	}
 }
 
-func VerifyTLS(connection net.Conn, host string) (fingerprint []byte, verified bool) {
-	var tlsConn *tls.Conn
-	if tc, ok := connection.(*conn.TlsConn); ok {
-		tlsConn = tc.Conn
-	} else if std, ok := connection.(*tls.Conn); ok {
-		tlsConn = std
-	} else {
-		return nil, false
-	}
-	if err := tlsConn.Handshake(); err != nil {
-		return nil, false
-	}
-	state := tlsConn.ConnectionState()
+func VerifyState(state tls.ConnectionState, host string) (fingerprint []byte, verified bool) {
 	if len(state.PeerCertificates) == 0 {
 		return nil, false
 	}
@@ -244,8 +233,22 @@ func VerifyTLS(connection net.Conn, host string) (fingerprint []byte, verified b
 		verified = true
 	}
 	sum := sha256.Sum256(leaf.Raw)
-	fingerprint = sum[:]
-	return fingerprint, verified
+	return sum[:], verified
+}
+
+func VerifyTLS(connection net.Conn, host string) (fingerprint []byte, verified bool) {
+	var tlsConn *tls.Conn
+	if tc, ok := connection.(*conn.TlsConn); ok {
+		tlsConn = tc.Conn
+	} else if std, ok := connection.(*tls.Conn); ok {
+		tlsConn = std
+	} else {
+		return nil, false
+	}
+	if err := tlsConn.Handshake(); err != nil {
+		return nil, false
+	}
+	return VerifyState(tlsConn.ConnectionState(), host)
 }
 
 func EnsurePort(server string, tp string) string {
@@ -272,7 +275,13 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 
 	timeout := time.Second * 10
 	dialer := net.Dialer{Timeout: timeout}
+	alpn := "nps"
 	server, path = common.SplitServerAndPath(server)
+	if path == "" {
+		path = "/ws"
+	} else {
+		alpn = strings.TrimSpace(strings.TrimPrefix(path, "/"))
+	}
 	server = EnsurePort(server, tp)
 	host := common.GetIpByAddr(server)
 	if common.IsDomain(host) {
@@ -340,6 +349,29 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			}
 			connection = conn.NewWsConn(wsConn)
 		}
+	} else if tp == "quic" {
+		isTls = true
+		tlsCfg := &tls.Config{
+			InsecureSkipVerify: true,
+			NextProtos:         []string{alpn},
+		}
+		quicConfig := &quic.Config{
+			KeepAlivePeriod:    10 * time.Second,
+			MaxIdleTimeout:     20 * time.Second,
+			MaxIncomingStreams: 100000,
+		}
+		ctx := context.Background()
+		sess, err := quic.DialAddr(ctx, server, tlsCfg, quicConfig)
+		if err != nil {
+			return nil, fmt.Errorf("quic dial error: %w", err)
+		}
+		state := sess.ConnectionState().TLS
+		tlsFp, tlsVerify = VerifyState(state, host)
+		stream, err := sess.OpenStreamSync(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("quic open stream error: %w", err)
+		}
+		connection = conn.NewQuicConn(stream, sess)
 	} else {
 		sess, err = kcp.DialWithOptions(server, nil, 10, 3)
 		if err == nil {

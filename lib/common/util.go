@@ -137,7 +137,7 @@ func BuildAddress(host string, port string) string {
 func SplitServerAndPath(s string) (server, path string) {
 	index := strings.Index(s, "/")
 	if index == -1 {
-		return s, "/ws"
+		return s, ""
 	}
 	return s[:index], s[index:]
 }

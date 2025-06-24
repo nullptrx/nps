@@ -29,6 +29,7 @@ import (
 var (
 	ServerTcpEnable  bool = false
 	ServerKcpEnable  bool = false
+	ServerQuicEnable bool = false
 	ServerTlsEnable  bool = false
 	ServerWsEnable   bool = false
 	ServerWssEnable  bool = false
@@ -117,88 +118,110 @@ func NewTunnel(tunnelPort int, tunnelType string, ipVerify bool, runList *sync.M
 
 func (s *Bridge) StartTunnel() error {
 	go s.ping()
-	if s.tunnelType == "kcp" {
-		logs.Info("server start, the bridge type is %s, the bridge port is %d", s.tunnelType, s.TunnelPort)
-		return conn.NewKcpListenerAndProcess(common.BuildAddress(beego.AppConfig.String("bridge_ip"), beego.AppConfig.String("bridge_port")), func(c net.Conn) {
-			s.cliProcess(conn.NewConn(c), "kcp")
-		})
-	} else {
-		// tcp
-		if ServerTcpEnable {
-			go func() {
-				listener, err := connection.GetBridgeTcpListener()
-				if err != nil {
-					logs.Error("%v", err)
-					os.Exit(0)
-					return
-				}
-				conn.Accept(listener, func(c net.Conn) {
-					s.cliProcess(conn.NewConn(c), "tcp")
-				})
-			}()
-		}
+	//if s.tunnelType == "kcp" {
+	//	logs.Info("server start, the bridge type is %s, the bridge port is %d", s.tunnelType, s.TunnelPort)
+	//	return conn.NewKcpListenerAndProcess(common.BuildAddress(beego.AppConfig.String("bridge_ip"), beego.AppConfig.String("bridge_port")), func(c net.Conn) {
+	//		s.cliProcess(conn.NewConn(c), "kcp")
+	//	})
+	//}
 
-		// tls
-		if ServerTlsEnable {
-			go func() {
-				tlsListener, tlsErr := connection.GetBridgeTlsListener()
-				if tlsErr != nil {
-					logs.Error("%v", tlsErr)
-					os.Exit(0)
-					return
-				}
-				conn.Accept(tlsListener, func(c net.Conn) {
-					s.cliProcess(conn.NewConn(tls.Server(c, &tls.Config{Certificates: []tls.Certificate{crypt.GetCert()}})), "tls")
-				})
-			}()
-		}
-
-		// ws
-		if ServerWsEnable {
-			go func() {
-				wsListener, wsErr := connection.GetBridgeWsListener()
-				if wsErr != nil {
-					logs.Error("%v", wsErr)
-					os.Exit(0)
-					return
-				}
-				wsLn := conn.NewWSListener(wsListener, beego.AppConfig.String("bridge_path"))
-				conn.Accept(wsLn, func(c net.Conn) {
-					s.cliProcess(conn.NewConn(c), "ws")
-				})
-			}()
-		}
-
-		// wss
-		if ServerWssEnable {
-			go func() {
-				wssListener, wssErr := connection.GetBridgeWssListener()
-				if wssErr != nil {
-					logs.Error("%v", wssErr)
-					os.Exit(0)
-					return
-				}
-				wssLn := conn.NewWSSListener(wssListener, beego.AppConfig.String("bridge_path"), crypt.GetCert())
-				conn.Accept(wssLn, func(c net.Conn) {
-					s.cliProcess(conn.NewConn(c), "wss")
-				})
-			}()
-		}
-
-		// kcp
-		if ServerKcpEnable {
-			kcpIp := beego.AppConfig.DefaultString("bridge_kcp_ip", beego.AppConfig.String("bridge_ip"))
-			kcpPort := beego.AppConfig.DefaultString("bridge_kcp_port", beego.AppConfig.String("bridge_port"))
-			logs.Info("server start, the bridge type is kcp, the bridge port is %s", kcpPort)
-			go func() {
-				bridgeKcp := *s
-				bridgeKcp.tunnelType = "kcp"
-				conn.NewKcpListenerAndProcess(common.BuildAddress(kcpIp, kcpPort), func(c net.Conn) {
-					bridgeKcp.cliProcess(conn.NewConn(c), "kcp")
-				})
-			}()
-		}
+	// tcp
+	if ServerTcpEnable {
+		go func() {
+			listener, err := connection.GetBridgeTcpListener()
+			if err != nil {
+				logs.Error("%v", err)
+				os.Exit(0)
+				return
+			}
+			conn.Accept(listener, func(c net.Conn) {
+				s.cliProcess(conn.NewConn(c), "tcp")
+			})
+		}()
 	}
+
+	// tls
+	if ServerTlsEnable {
+		go func() {
+			tlsListener, tlsErr := connection.GetBridgeTlsListener()
+			if tlsErr != nil {
+				logs.Error("%v", tlsErr)
+				os.Exit(0)
+				return
+			}
+			conn.Accept(tlsListener, func(c net.Conn) {
+				s.cliProcess(conn.NewConn(tls.Server(c, &tls.Config{Certificates: []tls.Certificate{crypt.GetCert()}})), "tls")
+			})
+		}()
+	}
+
+	// ws
+	if ServerWsEnable {
+		go func() {
+			wsListener, wsErr := connection.GetBridgeWsListener()
+			if wsErr != nil {
+				logs.Error("%v", wsErr)
+				os.Exit(0)
+				return
+			}
+			wsLn := conn.NewWSListener(wsListener, beego.AppConfig.String("bridge_path"))
+			conn.Accept(wsLn, func(c net.Conn) {
+				s.cliProcess(conn.NewConn(c), "ws")
+			})
+		}()
+	}
+
+	// wss
+	if ServerWssEnable {
+		go func() {
+			wssListener, wssErr := connection.GetBridgeWssListener()
+			if wssErr != nil {
+				logs.Error("%v", wssErr)
+				os.Exit(0)
+				return
+			}
+			wssLn := conn.NewWSSListener(wssListener, beego.AppConfig.String("bridge_path"), crypt.GetCert())
+			conn.Accept(wssLn, func(c net.Conn) {
+				s.cliProcess(conn.NewConn(c), "wss")
+			})
+		}()
+	}
+
+	// kcp
+	if ServerKcpEnable {
+		logs.Info("server start, the bridge type is kcp, the bridge port is %s", connection.BridgeKcpPort)
+		go func() {
+			bridgeKcp := *s
+			bridgeKcp.tunnelType = "kcp"
+			err := conn.NewKcpListenerAndProcess(common.BuildAddress(connection.BridgeKcpIp, connection.BridgeKcpPort), func(c net.Conn) {
+				bridgeKcp.cliProcess(conn.NewConn(c), "kcp")
+			})
+			if err != nil {
+				logs.Error("KCP listener error: %v", err)
+			}
+		}()
+	}
+
+	// quic
+	if ServerQuicEnable {
+		logs.Info("server start, the bridge type is quic, the bridge port is %s", connection.BridgeQuicPort)
+		go func() {
+			tlsCfg := &tls.Config{
+				Certificates: []tls.Certificate{crypt.GetCert()},
+			}
+			alpnList := beego.AppConfig.DefaultString("quic_alpn", "nps")
+			protocols := strings.Split(alpnList, ",")
+			tlsCfg.NextProtos = protocols
+			addr := common.BuildAddress(connection.BridgeQuicIp, connection.BridgeQuicPort)
+			err := conn.NewQuicListenerAndProcess(addr, tlsCfg, func(c net.Conn) {
+				s.cliProcess(conn.NewConn(c), "quic")
+			})
+			if err != nil {
+				logs.Error("QUIC listener error: %v", err)
+			}
+		}()
+	}
+
 	return nil
 }
 

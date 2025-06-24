@@ -14,12 +14,14 @@ var pMux *pmux.PortMux
 var BridgeIp string
 var BridgeTcpIp string
 var BridgeKcpIp string
+var BridgeQuicIp string
 var BridgeTlsIp string
 var BridgeWsIp string
 var BridgeWssIp string
 var BridgePort string
 var BridgeTcpPort string
 var BridgeKcpPort string
+var BridgeQuicPort string
 var BridgeTlsPort string
 var BridgeWsPort string
 var BridgeWssPort string
@@ -29,15 +31,17 @@ var HttpPort string
 var WebPort string
 
 func InitConnectionService() {
-	BridgeIp = beego.AppConfig.String("bridge_ip")
+	BridgeIp = beego.AppConfig.DefaultString("bridge_ip", beego.AppConfig.String("bridge_tcp_ip"))
 	BridgeTcpIp = beego.AppConfig.DefaultString("bridge_tcp_ip", BridgeIp)
 	BridgeKcpIp = beego.AppConfig.DefaultString("bridge_kcp_ip", BridgeIp)
+	BridgeQuicIp = beego.AppConfig.DefaultString("bridge_quic_ip", BridgeIp)
 	BridgeTlsIp = beego.AppConfig.DefaultString("bridge_tls_ip", BridgeIp)
 	BridgeWsIp = beego.AppConfig.DefaultString("bridge_ws_ip", BridgeIp)
 	BridgeWssIp = beego.AppConfig.DefaultString("bridge_wss_ip", BridgeIp)
-	BridgePort = beego.AppConfig.String("bridge_port")
+	BridgePort = beego.AppConfig.DefaultString("bridge_port", beego.AppConfig.String("bridge_tcp_port"))
 	BridgeTcpPort = beego.AppConfig.DefaultString("bridge_tcp_port", BridgePort)
 	BridgeKcpPort = beego.AppConfig.DefaultString("bridge_kcp_port", BridgePort)
+	BridgeQuicPort = beego.AppConfig.String("bridge_quic_port")
 	BridgeTlsPort = beego.AppConfig.DefaultString("bridge_tls_port", beego.AppConfig.String("tls_bridge_port"))
 	BridgeWsPort = beego.AppConfig.String("bridge_ws_port")
 	BridgeWssPort = beego.AppConfig.String("bridge_wss_port")

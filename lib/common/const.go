@@ -45,9 +45,10 @@ const (
 )
 
 var DefaultPort = map[string]string{
-	"tcp": "8024",
-	"kcp": "8024",
-	"tls": "8025",
-	"ws":  "80",
-	"wss": "443",
+	"tcp":  "8024",
+	"kcp":  "8024",
+	"tls":  "8025",
+	"quic": "8025",
+	"ws":   "80",
+	"wss":  "443",
 }
