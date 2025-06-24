@@ -8,11 +8,11 @@ import (
 )
 
 type QuicConn struct {
-	stream quic.Stream
-	sess   quic.Connection
+	stream *quic.Stream
+	sess   *quic.Conn
 }
 
-func NewQuicConn(stream quic.Stream, sess quic.Connection) *QuicConn {
+func NewQuicConn(stream *quic.Stream, sess *quic.Conn) *QuicConn {
 	return &QuicConn{stream: stream, sess: sess}
 }
 
@@ -25,12 +25,11 @@ func (q *QuicConn) Write(p []byte) (int, error) {
 }
 
 func (q *QuicConn) Close() error {
-	err1 := q.stream.Close()
-	err2 := q.sess.CloseWithError(0, "")
-	if err1 != nil {
-		return err1
+	err := q.stream.Close()
+	if err != nil {
+		return err
 	}
-	return err2
+	return q.sess.CloseWithError(0, "")
 }
 
 func (q *QuicConn) LocalAddr() net.Addr {
@@ -41,6 +40,14 @@ func (q *QuicConn) RemoteAddr() net.Addr {
 	return q.sess.RemoteAddr()
 }
 
-func (q *QuicConn) SetDeadline(t time.Time) error      { return nil }
-func (q *QuicConn) SetReadDeadline(t time.Time) error  { return nil }
-func (q *QuicConn) SetWriteDeadline(t time.Time) error { return nil }
+func (q *QuicConn) SetDeadline(t time.Time) error {
+	return q.stream.SetDeadline(t)
+}
+
+func (q *QuicConn) SetReadDeadline(t time.Time) error {
+	return q.stream.SetReadDeadline(t)
+}
+
+func (q *QuicConn) SetWriteDeadline(t time.Time) error {
+	return q.stream.SetWriteDeadline(t)
+}
