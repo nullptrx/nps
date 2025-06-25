@@ -143,6 +143,7 @@ npc update && npc restart
 
 - **v0.29.27 (2025-06-25)**
   - 调整UDP的Proxy Protocol处理逻辑
+  - 允许bridge端口全部为0 [#100](https://github.com/djylb/nps/issues/100)
 
 - **v0.29.26 (2025-06-25)**
   - 添加QUIC连接方式

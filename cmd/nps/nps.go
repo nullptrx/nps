@@ -241,10 +241,10 @@ func run() {
 		Mode: "webServer",
 	}
 	bridgePort := beego.AppConfig.DefaultInt("bridge_port", beego.AppConfig.DefaultInt("bridge_tcp_port", 0))
-	if bridgePort == 0 {
-		logs.Error("Getting bridge port error")
-		os.Exit(0)
-	}
+	//if bridgePort == 0 {
+	//	logs.Error("Getting bridge port error")
+	//	os.Exit(0)
+	//}
 
 	logs.Info("the config path is:" + common.GetRunPath())
 	logs.Info("the version of server is %s ,allow client core version to be %s", version.VERSION, version.GetLatest())
