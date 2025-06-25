@@ -2,12 +2,10 @@ package nps_mux
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"math"
 	"net"
 	"os"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -343,9 +341,9 @@ func (s *Mux) newMsg(connection *conn, pack *muxPackager) (err error) {
 }
 
 func (s *Mux) Close() (err error) {
-	buf := make([]byte, 1024*8)
-	n := runtime.Stack(buf, false)
-	fmt.Print(string(buf[:n]))
+	//buf := make([]byte, 1024*8)
+	//n := runtime.Stack(buf, false)
+	//fmt.Print(string(buf[:n]))
 
 	if s.IsClose {
 		return errors.New("the mux has closed")

@@ -480,7 +480,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		}
 		b, err := c.GetShortContent(32)
 		if err != nil {
-			logs.Error("%v", err)
+			logs.Error("error reading server response: %v", err)
 			return nil, errors.New(fmt.Sprintf("Validation key %s incorrect", vkey))
 		}
 		if !bytes.Equal(b, crypt.ComputeHMAC(vkey, ts, hmacBuf, []byte(version.GetVersion(Ver)))) {
