@@ -141,6 +141,9 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.27 (2025-06-25)**
+  - 调整UDP的Proxy Protocol处理逻辑
+
 - **v0.29.26 (2025-06-25)**
   - 添加QUIC连接方式
   - 弃用`bridge_type`和`bridge_port`配置，通过指定端口号是否为0控制开关
