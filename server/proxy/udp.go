@@ -24,6 +24,7 @@ type entry struct {
 	flowConn *conn.FlowConn
 	ctx      context.Context
 	cancel   context.CancelFunc
+	once     sync.Once
 }
 
 type UdpModeServer struct {
@@ -140,17 +141,6 @@ func (s *UdpModeServer) clientWorker(addr *net.UDPAddr, ent *entry) {
 	target := conn.GetConn(clientConn, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, nil, true)
 	ent.flowConn = conn.NewFlowConn(target, s.task.Flow, s.task.Client.Flow)
 
-	var hdr []byte
-	var mergeBuf []byte
-	if s.task.Target.ProxyProtocol != 0 {
-		hdr = conn.BuildProxyProtocolHeaderByAddr(addr, &net.UDPAddr{Port: s.task.Port}, s.task.Target.ProxyProtocol)
-		if len(hdr) > 0 {
-			mergeBuf = make([]byte, len(hdr)+common.PoolSizeUdp)
-			copy(mergeBuf, hdr)
-		}
-	}
-	hdrLen := len(hdr)
-
 	go func() {
 		buf := common.BufPoolUdp.Get().([]byte)
 		defer common.PutBufPoolUdp(buf)
@@ -186,12 +176,18 @@ func (s *UdpModeServer) clientWorker(addr *net.UDPAddr, ent *entry) {
 				return
 			}
 			data := pkt.buf[:pkt.n]
-
-			if hdrLen != 0 {
-				bufLen := hdrLen + len(data)
-				copy(mergeBuf[hdrLen:bufLen], data)
-				data = mergeBuf[:bufLen]
-			}
+			ent.once.Do(func() {
+				if s.task.Target.ProxyProtocol != 0 {
+					hdr := conn.BuildProxyProtocolHeaderByAddr(addr, &net.UDPAddr{Port: s.task.Port}, s.task.Target.ProxyProtocol)
+					hdrLen := len(hdr)
+					if hdrLen > 0 {
+						mergeBuf := make([]byte, hdrLen+len(data))
+						copy(mergeBuf, hdr)
+						copy(mergeBuf[hdrLen:], data)
+						data = mergeBuf
+					}
+				}
+			})
 
 			if _, err := ent.flowConn.Write(data); err != nil {
 				common.PutBufPoolUdp(pkt.buf)
