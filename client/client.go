@@ -181,7 +181,7 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 func (s *TRPClient) newChan() {
 	tunnel, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_CHAN, s.proxyUrl)
 	if err != nil {
-		logs.Error("connect to %s error: %v", s.svrAddr, err)
+		logs.Error("failed to connect to server %s error: %v", s.svrAddr, err)
 		return
 	}
 	s.tunnel = nps_mux.NewMux(tunnel.Conn, s.bridgeConnType, s.disconnectTime)
@@ -194,7 +194,7 @@ func (s *TRPClient) newChan() {
 			}
 			src, err := s.tunnel.Accept()
 			if err != nil {
-				logs.Warn("%v", err)
+				logs.Warn("Accept error on mux: %v", err)
 				s.Close()
 				return
 			}

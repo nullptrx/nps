@@ -2,10 +2,12 @@ package nps_mux
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net"
 	"os"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -115,7 +117,7 @@ func (s *Mux) Accept() (net.Conn, error) {
 	}
 	conn := <-s.newConnCh
 	if conn == nil {
-		return nil, errors.New("accpet error, the connection has been closed")
+		return nil, errors.New("accept error, the connection has been closed")
 	}
 	return conn, nil
 }
@@ -184,7 +186,7 @@ func (s *Mux) ping() {
 			case <-ticker.C:
 			}
 			if atomic.LoadUint32(&s.pingCheckTime) > s.pingCheckThreshold {
-				logs.Println("mux: ping time out, checktime", s.pingCheckTime, "threshold", s.pingCheckThreshold)
+				logs.Println("mux: ping time out, check-time", s.pingCheckTime, "threshold", s.pingCheckThreshold)
 				_ = s.Close()
 				// more than limit times not receive the ping return package,
 				// mux conn is damaged, maybe a packet drop, close it
@@ -272,13 +274,16 @@ func (s *Mux) readSession() {
 			case muxNewConn: //New connection
 				connection := NewConn(pack.id, s)
 				s.newConnQueue.Push(connection)
+				muxPack.Put(pack)
 				continue
 			case muxPingFlag: //ping
 				s.sendInfo(muxPingReturn, muxPing, pack.content)
 				windowBuff.Put(pack.content)
+				muxPack.Put(pack)
 				continue
 			case muxPingReturn:
 				s.pingCh <- pack.content
+				muxPack.Put(pack)
 				continue
 			}
 			if connection, ok := s.connMap.Get(pack.id); ok && !connection.isClose {
@@ -289,25 +294,32 @@ func (s *Mux) readSession() {
 						logs.Println("mux: read session connection New msg err", err)
 						_ = connection.Close()
 					}
+					muxPack.Put(pack)
 					continue
 				case muxNewConnOk: //connection ok
 					connection.connStatusOkCh <- struct{}{}
+					muxPack.Put(pack)
 					continue
 				case muxNewConnFail:
 					connection.connStatusFailCh <- struct{}{}
+					muxPack.Put(pack)
 					continue
 				case muxMsgSendOk:
 					if connection.isClose {
+						muxPack.Put(pack)
 						continue
 					}
 					connection.sendWindow.SetSize(pack.window)
+					muxPack.Put(pack)
 					continue
 				case muxConnClose: //close the connection
 					connection.closingFlag = true
 					connection.receiveWindow.Stop() // close signal to receive window
+					muxPack.Put(pack)
 					continue
 				}
 			} else if pack.flag == muxConnClose {
+				muxPack.Put(pack)
 				continue
 			}
 			muxPack.Put(pack)
@@ -331,9 +343,9 @@ func (s *Mux) newMsg(connection *conn, pack *muxPackager) (err error) {
 }
 
 func (s *Mux) Close() (err error) {
-	//buf := make([]byte, 1024*8)
-	//n := runtime.Stack(buf, false)
-	//fmt.Print(string(buf[:n]))
+	buf := make([]byte, 1024*8)
+	n := runtime.Stack(buf, false)
+	fmt.Print(string(buf[:n]))
 
 	if s.IsClose {
 		return errors.New("the mux has closed")
@@ -344,7 +356,8 @@ func (s *Mux) Close() (err error) {
 		logs.Println("close mux")
 		s.connMap.Close()
 		//s.connMap = nil
-		s.closeChan <- struct{}{}
+		//s.closeChan <- struct{}{}
+		close(s.closeChan)
 		close(s.newConnCh)
 		// while target host close socket without finish steps, conn.Close method maybe blocked
 		// and tcp status change to CLOSE WAIT or TIME WAIT, so we close it in other goroutine
