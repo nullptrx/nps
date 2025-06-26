@@ -141,6 +141,9 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.28 (2025-06-26)**
+  - 域名转发支持 HTTP/3
+
 - **v0.29.27 (2025-06-25)**
   - 调整UDP的Proxy Protocol处理逻辑
   - 允许bridge端口全部为0 [#100](https://github.com/djylb/nps/issues/100)
