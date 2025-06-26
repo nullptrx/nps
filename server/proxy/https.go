@@ -23,7 +23,7 @@ import (
 )
 
 type HttpsServer struct {
-	httpServer
+	HttpServer
 	listener        net.Listener
 	httpsListener   *HttpsListener
 	srv             *http.Server
@@ -35,13 +35,14 @@ type HttpsServer struct {
 	defaultCertFile string
 	defaultKeyFile  string
 	ticketKeys      [][32]byte
+	tlsNextProtos   []string
 }
 
 func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel, srv *http.Server, magic *certmagic.Config) *HttpsServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
 	https := &HttpsServer{
 		listener: l,
-		httpServer: httpServer{
+		HttpServer: HttpServer{
 			BaseServer: BaseServer{
 				task:            task,
 				bridge:          bridge,
@@ -50,6 +51,7 @@ func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel, srv *ht
 			},
 			httpPort:  beego.AppConfig.DefaultInt("http_proxy_port", 0),
 			httpsPort: beego.AppConfig.DefaultInt("https_proxy_port", 0),
+			http3Port: beego.AppConfig.DefaultInt("http3_proxy_port", 0),
 		},
 		defaultCertFile: beego.AppConfig.String("https_default_cert_file"),
 		defaultKeyFile:  beego.AppConfig.String("https_default_key_file"),
@@ -65,6 +67,11 @@ func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel, srv *ht
 	https.httpsListener = NewHttpsListener(l)
 	https.srv = srv
 
+	https.tlsNextProtos = []string{"h2", "http/1.1"}
+	if https.http3Port != 0 {
+		https.tlsNextProtos = append([]string{"h3"}, https.tlsNextProtos...)
+	}
+
 	var key [32]byte
 	if _, err := io.ReadFull(rand.Reader, key[:]); err != nil {
 		logs.Error("failed to generate session ticket key: %v", err)
@@ -75,7 +82,7 @@ func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel, srv *ht
 
 	https.certMagic = magic
 	https.certMagicTls = magic.TLSConfig()
-	https.certMagicTls.NextProtos = append([]string{"h2", "http/1.1"}, https.certMagicTls.NextProtos...)
+	https.certMagicTls.NextProtos = append(https.tlsNextProtos, https.certMagicTls.NextProtos...)
 	https.certMagicTls.SetSessionTicketKeys(https.ticketKeys)
 
 	go func() {
@@ -138,8 +145,8 @@ func (https *HttpsServer) Start() error {
 			}
 			tlsConfig = &tls.Config{
 				Certificates: []tls.Certificate{*cert},
-				NextProtos:   []string{"h2", "http/1.1"},
 			}
+			tlsConfig.NextProtos = https.tlsNextProtos
 			tlsConfig.SetSessionTicketKeys(https.ticketKeys)
 		}
 

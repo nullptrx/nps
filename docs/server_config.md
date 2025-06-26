@@ -50,12 +50,13 @@ nps.exe -conf_path=D:\test\nps
 ## 3. 代理端口相关
 | 名称                          | 说明                                                                   |
 |-----------------------------|----------------------------------------------------------------------|
-| `bridge_port`               | 客户端与服务端通信端口（默认 `8024`）（已弃用）                                          |
+| `bridge_port`               | 客户端与服务端通信端口（默认 `8024`，仅在端口复用时需要配置）                                   |
 | `bridge_ip`                 | 监听地址（默认 `0.0.0.0`，监听所有 IP）                                           |
 | `bridge_type`               | 连接方式（`tcp`、`udp`、`both`，默认 `both`）（已弃用）                              |
 | `http_proxy_ip`             | HTTP 代理监听地址（默认 `0.0.0.0`）                                            |
 | `http_proxy_port`           | HTTP 代理监听端口（默认 `80`，留空不启用）                                           |
 | `https_proxy_port`          | HTTPS 代理监听端口（默认 `443`，留空不启用）                                         |
+| `http3_proxy_port`          | HTTP/3 代理监听端口（默认 `https_proxy_port`，配置`0`关闭）                         |
 | `ssl_path`                  | 自动申请证书保存路径（默认 `ssl`）                                                 |
 | `ssl_email`                 | 自动申请证书使用的邮箱                                                          |
 | `ssl_ca`                    | 自动申请证书使用的 CA（`LetsEncrypt`、`ZeroSSL`、`GoogleTrust`，默认 `LetsEncrypt`） |

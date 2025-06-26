@@ -25,24 +25,27 @@ import (
 	"github.com/djylb/nps/server/connection"
 )
 
-type httpServer struct {
+type HttpServer struct {
 	BaseServer
-	httpPort      int
-	httpsPort     int
-	httpServer    *http.Server
-	httpsServer   *http.Server
-	httpsListener net.Listener
-	httpOnlyPass  string
-	addOrigin     bool
-	httpPortStr   string
-	httpsPortStr  string
-	magic         *certmagic.Config
-	acme          *certmagic.ACMEIssuer
+	httpPort        int
+	httpsPort       int
+	http3Port       int
+	httpServer      *http.Server
+	httpsServer     *http.Server
+	httpsListener   net.Listener
+	http3PacketConn net.PacketConn
+	httpOnlyPass    string
+	addOrigin       bool
+	httpPortStr     string
+	httpsPortStr    string
+	http3PortStr    string
+	magic           *certmagic.Config
+	acme            *certmagic.ACMEIssuer
 }
 
-func NewHttp(bridge NetBridge, task *file.Tunnel, httpPort, httpsPort int, httpOnlyPass string, addOrigin bool) *httpServer {
+func NewHttp(bridge NetBridge, task *file.Tunnel, httpPort, httpsPort, http3Port int, httpOnlyPass string, addOrigin bool) *HttpServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
-	return &httpServer{
+	return &HttpServer{
 		BaseServer: BaseServer{
 			task:            task,
 			bridge:          bridge,
@@ -51,14 +54,16 @@ func NewHttp(bridge NetBridge, task *file.Tunnel, httpPort, httpsPort int, httpO
 		},
 		httpPort:     httpPort,
 		httpsPort:    httpsPort,
+		http3Port:    http3Port,
 		httpOnlyPass: httpOnlyPass,
 		addOrigin:    addOrigin,
 		httpPortStr:  strconv.Itoa(httpPort),
 		httpsPortStr: strconv.Itoa(httpsPort),
+		http3PortStr: strconv.Itoa(http3Port),
 	}
 }
 
-func (s *httpServer) Start() error {
+func (s *HttpServer) Start() error {
 	var err error
 	s.errorContent, err = common.ReadAllFromFile(common.ResolvePath(beego.AppConfig.DefaultString("error_page", "web/static/page/error.html")))
 	if err != nil {
@@ -121,23 +126,40 @@ func (s *httpServer) Start() error {
 
 	if s.httpsPort > 0 {
 		s.httpsServer = s.NewServer(s.httpsPort, "https")
+		s.httpsListener, err = connection.GetHttpsListener()
+		if err != nil {
+			logs.Error("Failed to start HTTPS listener: %v", err)
+			os.Exit(0)
+		}
+		logs.Info("HTTPS server listening on port %d", s.httpsPort)
+		httpsServer := NewHttpsServer(s.httpsListener, s.bridge, s.task, s.httpsServer, s.magic)
 		go func() {
-			s.httpsListener, err = connection.GetHttpsListener()
-			if err != nil {
-				logs.Error("Failed to start HTTPS listener: %v", err)
-				os.Exit(0)
-			}
-			logs.Info("HTTPS server listening on port %d", s.httpsPort)
-			if err := NewHttpsServer(s.httpsListener, s.bridge, s.task, s.httpsServer, s.magic).Start(); err != nil {
+			if err := httpsServer.Start(); err != nil {
 				logs.Error("HTTPS server stopped: %v", err)
 				os.Exit(0)
 			}
 		}()
+
+		if s.http3Port > 0 {
+			s.http3PacketConn, err = net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(connection.HttpIp), Port: s.http3Port})
+			if err != nil {
+				logs.Error("Failed to start HTTP/3 listener: %v", err)
+				os.Exit(0)
+			}
+			logs.Info("HTTP/3 server listening on port %d", s.http3Port)
+			http3Server := NewHttp3Server(httpsServer, s.http3PacketConn)
+			go func() {
+				if err := http3Server.Start(); err != nil {
+					logs.Error("HTTP/3 server stopped: %v", err)
+					os.Exit(0)
+				}
+			}()
+		}
 	}
 	return nil
 }
 
-func (s *httpServer) Close() error {
+func (s *HttpServer) Close() error {
 	if s.httpServer != nil {
 		s.httpServer.Close()
 	}
@@ -147,10 +169,13 @@ func (s *httpServer) Close() error {
 	if s.httpsListener != nil {
 		s.httpsListener.Close()
 	}
+	if s.http3PacketConn != nil {
+		s.http3PacketConn.Close()
+	}
 	return nil
 }
 
-func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
+func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	// Get host
 	host, err := file.GetDb().GetInfoByHost(r.Host, r)
 	if err != nil {
@@ -318,6 +343,10 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 					resp.Header.Set("Access-Control-Allow-Credentials", "true")
 				}
 			}
+			// H3
+			if s.http3Port > 0 && r.TLS != nil && !host.HttpsJustProxy && !host.CompatMode {
+				resp.Header.Set("Alt-Svc", `h3=":`+s.http3PortStr+`"; ma=86400`)
+			}
 			return nil
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
@@ -346,7 +375,7 @@ func (s *httpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	proxy.ServeHTTP(w, r)
 }
 
-func (s *httpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, host *file.Host, targetAddr string, isHttpOnlyRequest bool) {
+func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, host *file.Host, targetAddr string, isHttpOnlyRequest bool) {
 	logs.Info("%s websocket request, method %s, host %s, url %s, remote address %s, target %s", r.URL.Scheme, r.Method, r.Host, r.URL.Path, r.RemoteAddr, targetAddr)
 
 	link := conn.NewLink("tcp", targetAddr, host.Client.Cnf.Crypt, host.Client.Cnf.Compress, r.RemoteAddr, host.Target.LocalProxy)
@@ -482,7 +511,7 @@ func (s *httpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 	goroutine.Join(clientConn, netConn, []*file.Flow{host.Flow, host.Client.Flow}, s.task, r.RemoteAddr)
 }
 
-func (s *httpServer) NewServer(port int, scheme string) *http.Server {
+func (s *HttpServer) NewServer(port int, scheme string) *http.Server {
 	return &http.Server{
 		Addr: ":" + strconv.Itoa(port),
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

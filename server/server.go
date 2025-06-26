@@ -161,11 +161,12 @@ func NewMode(Bridge *bridge.Bridge, c *file.Tunnel) proxy.Service {
 	case "httpHostServer":
 		httpPort, _ := beego.AppConfig.Int("http_proxy_port")
 		httpsPort, _ := beego.AppConfig.Int("https_proxy_port")
+		http3Port := beego.AppConfig.DefaultInt("http3_proxy_port", httpsPort)
 		//useCache, _ := beego.AppConfig.Bool("http_cache")
 		//cacheLen, _ := beego.AppConfig.Int("http_cache_length")
 		addOrigin, _ := beego.AppConfig.Bool("http_add_origin_header")
 		httpOnlyPass := beego.AppConfig.String("x_nps_http_only")
-		service = proxy.NewHttp(Bridge, c, httpPort, httpsPort, httpOnlyPass, addOrigin)
+		service = proxy.NewHttp(Bridge, c, httpPort, httpsPort, http3Port, httpOnlyPass, addOrigin)
 	}
 	return service
 }

@@ -26,8 +26,11 @@ var BridgeTlsPort string
 var BridgeWsPort string
 var BridgeWssPort string
 var BridgePath string
-var HttpsPort string
+var HttpIp string
 var HttpPort string
+var HttpsPort string
+var Http3Port string
+var WebIp string
 var WebPort string
 
 func InitConnectionService() {
@@ -46,8 +49,11 @@ func InitConnectionService() {
 	BridgeWsPort = beego.AppConfig.String("bridge_ws_port")
 	BridgeWssPort = beego.AppConfig.String("bridge_wss_port")
 	BridgePath = beego.AppConfig.String("bridge_path")
-	HttpsPort = beego.AppConfig.String("https_proxy_port")
+	HttpIp = beego.AppConfig.String("http_proxy_ip")
 	HttpPort = beego.AppConfig.String("http_proxy_port")
+	HttpsPort = beego.AppConfig.String("https_proxy_port")
+	Http3Port = beego.AppConfig.DefaultString("http3_proxy_port", HttpsPort)
+	WebIp = beego.AppConfig.String("web_ip")
 	WebPort = beego.AppConfig.String("web_port")
 
 	if HttpPort == BridgePort || HttpsPort == BridgePort || WebPort == BridgePort || BridgeTlsPort == BridgePort {
@@ -118,7 +124,7 @@ func GetHttpListener() (net.Listener, error) {
 		return pMux.GetHttpListener(), nil
 	}
 	logs.Info("start http listener, port is %s", HttpPort)
-	return getTcpListener(beego.AppConfig.String("http_proxy_ip"), HttpPort)
+	return getTcpListener(HttpIp, HttpPort)
 }
 
 func GetHttpsListener() (net.Listener, error) {
@@ -127,7 +133,7 @@ func GetHttpsListener() (net.Listener, error) {
 		return pMux.GetHttpsListener(), nil
 	}
 	logs.Info("start https listener, port is %s", HttpsPort)
-	return getTcpListener(beego.AppConfig.String("http_proxy_ip"), HttpsPort)
+	return getTcpListener(HttpIp, HttpsPort)
 }
 
 func GetWebManagerListener() (net.Listener, error) {
@@ -136,7 +142,7 @@ func GetWebManagerListener() (net.Listener, error) {
 		return pMux.GetManagerListener(), nil
 	}
 	logs.Info("web management start, access port is %s", WebPort)
-	return getTcpListener(beego.AppConfig.String("web_ip"), WebPort)
+	return getTcpListener(WebIp, WebPort)
 }
 
 func getTcpListener(ip, p string) (net.Listener, error) {
