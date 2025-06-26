@@ -112,7 +112,7 @@ func (https *HttpsServer) Start() error {
 		}
 
 		host, err := file.GetDb().FindCertByHost(serverName)
-		if err != nil {
+		if err != nil || host.IsClose {
 			c.Close()
 			logs.Debug("The URL %s cannot be parsed! Remote address: %v", serverName, c.RemoteAddr())
 			return

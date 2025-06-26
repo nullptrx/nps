@@ -31,7 +31,7 @@ func (h3 *Http3Server) Start() error {
 		NextProtos: []string{"h3"},
 		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 			host, err := file.GetDb().FindCertByHost(info.ServerName)
-			if err != nil || host.HttpsJustProxy {
+			if err != nil || host.HttpsJustProxy || host.IsClose {
 				return nil, nil
 			}
 

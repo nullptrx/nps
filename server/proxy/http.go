@@ -178,7 +178,7 @@ func (s *HttpServer) Close() error {
 func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	// Get host
 	host, err := file.GetDb().GetInfoByHost(r.Host, r)
-	if err != nil {
+	if err != nil || host.IsClose {
 		//http.Error(w, "404 Host not found", http.StatusNotFound)
 		//w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		//w.WriteHeader(http.StatusNotFound)
