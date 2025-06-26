@@ -51,7 +51,7 @@ func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel, srv *ht
 			},
 			httpPort:  beego.AppConfig.DefaultInt("http_proxy_port", 0),
 			httpsPort: beego.AppConfig.DefaultInt("https_proxy_port", 0),
-			http3Port: beego.AppConfig.DefaultInt("http3_proxy_port", 0),
+			http3Port: beego.AppConfig.DefaultInt("http3_proxy_port", beego.AppConfig.DefaultInt("https_proxy_port", 0)),
 		},
 		defaultCertFile: beego.AppConfig.String("https_default_cert_file"),
 		defaultKeyFile:  beego.AppConfig.String("https_default_key_file"),

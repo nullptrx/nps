@@ -143,6 +143,8 @@ npc update && npc restart
 
 - **v0.29.28 (2025-06-26)**
   - 域名转发支持 HTTP/3
+  - 更新相关依赖包
+  - 避免插入Connection: close [#102](https://github.com/djylb/nps/issues/102)
 
 - **v0.29.27 (2025-06-25)**
   - 调整UDP的Proxy Protocol处理逻辑

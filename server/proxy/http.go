@@ -446,6 +446,7 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		return
 	}
 	//defer clientConn.Close()
+	r.Close = false
 	if err := r.Write(netConn); err != nil {
 		logs.Error("handleWebsocket: failed to write handshake to backend: %v", err)
 		netConn.Close()
