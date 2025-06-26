@@ -2,10 +2,11 @@ package proxy
 
 import (
 	"crypto/tls"
+	"net"
+
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/quic-go/quic-go/http3"
-	"net"
 )
 
 type Http3Server struct {
