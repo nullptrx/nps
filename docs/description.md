@@ -1,5 +1,11 @@
 # 说明
 
+## 旧版连接支持
+
+服务端如需支持旧版本客户端需要在`nps.conf`中设置`secure_mode=false`
+
+客户端如果需要连接旧版服务端需要在启动时添加`-proto_version=0`参数
+
 ## 获取用户真实ip
 
 如需使用需要在`nps.conf`中设置`http_add_origin_header=true`
