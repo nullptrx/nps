@@ -1,6 +1,6 @@
 package version
 
-const VERSION = "0.29.28"
+const VERSION = "0.29.29"
 
 var MinVersions = []string{
 	"0.26.0",

@@ -501,7 +501,7 @@ func ChangeResponseHeader(resp *http.Response, header string) {
 			"${server_port}", serverPort,
 			"${server_port_http}", httpPort,
 			"${server_port_https}", httpsPort,
-			"${server_port_h3}", http3Port,
+			"${server_port_http3}", http3Port,
 
 			// Host info
 			"${host}", hostOnly,

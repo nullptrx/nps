@@ -2,7 +2,7 @@
 
 ## ~~缓存支持~~ （已弃用）
 
-~~对于web站点来说，一些静态文件往往消耗更大的流量，且在内网穿透中，静态文件还需到客户端获取一次，这将导致更大的流量消耗。nps在域名解析代理中支持对静态文件进行缓存。~~
+~~对于Web站点来说，一些静态文件往往消耗更大的流量，且在内网穿透中，静态文件还需到客户端获取一次，这将导致更大的流量消耗。nps在域名解析代理中支持对静态文件进行缓存。~~
 
 ~~即假设一个站点有a.css，nps将只需从npc客户端读取一次该文件，然后把该文件的内容放在内存中，下一次将不再对npc客户端进行请求而直接返回内存中的对应内容。该功能默认是关闭的，如需开启请在
 `nps.conf`中设置`http_cache=true`，并设置`http_cache_length`（缓存文件的个数，消耗内存，不宜过大，0表示不限制个数）~~
@@ -14,7 +14,7 @@
 由于是内网穿透，内网客户端与服务端之间的隧道存在大量的数据交换，为节省流量，加快传输速度，由此本程序支持SNNAPY形式的压缩。
 
 - 所有模式均支持数据压缩
-- 在web管理或客户端配置文件中设置
+- 在Web管理或客户端配置文件中设置
 
 ## 加密传输
 
@@ -45,15 +45,15 @@ Http Basic Auth 来保护，访问时需要输入正确的用户名和密码。
 ## Proxy Protocol
 该功能用于 **TCP隧道** 、 **UDP隧道** 和 **域名转发** 向后端传递真实 IP 时使用，需要后端服务支持。
 
-## host修改
+## Host 修改
 
-由于内网站点需要的host可能与公网域名不一致，域名代理支持host修改功能，即修改request的header中的host字段。
+由于内网站点需要的Host可能与公网域名不一致，域名代理支持host修改功能，即修改Request的Header中的host字段。
 
-**使用方法：在web管理中设置**
+**使用方法：在Web管理中设置**
 
-## 自定义header
+## 自定义请求 Header
 
-支持对header进行新增或者修改，以配合服务的需要。
+支持对请求Header进行新增或者修改，以配合服务的需要。
 
 使用示例：
 ```
@@ -86,6 +86,48 @@ X-Forwarded-Ssl: ${ssl}
 | `${http_range}`                | 原始请求的 `Range` 头                        |
 | `${http_if_range}`             | 原始请求的 `If-Range` 头                     |
 
+## 自定义响应 Header
+
+支持对 HTTP 响应头进行新增或修改，以配合服务的需要。
+
+使用示例：
+```
+Access-Control-Allow-Origin: ${origin}
+Access-Control-Allow-Credentials: true
+```
+
+| 占位符                    | 含义                                        |
+|------------------------|-------------------------------------------|
+| `${scheme}`            | 请求协议，值为 `http` 或 `https`                  |
+| `${ssl}`               | 是否启用 SSL，值为 `on`（HTTPS）或 `off`（HTTP）      |
+| `${server_port}`       | 当前代理监听的端口                                 |
+| `${server_port_http}`  | HTTP 监听端口                                 |
+| `${server_port_https}` | HTTPS 监听端口                                |
+| `${server_port_http3}` | HTTP/3 监听端口                               |
+| `${host}`              | 不含端口的原始主机名（类似 Nginx 的 `$host`）            |
+| `${http_host}`         | 原始 Host 头部内容（类似 Nginx 的 `$http_host`）     |
+| `${remote_addr}`       | 客户端 IP 和端口（例如 `192.168.1.10:52345`）       |
+| `${remote_ip}`         | 客户端 IP 地址（不含端口）                           |
+| `${remote_port}`       | 客户端源端口                                    |
+| `${request_method}`    | 请求方法，例如 `GET`、`POST`                      |
+| `${request_host}`      | 请求的 Host                                  |
+| `${request_uri}`       | 完整的请求 URI，包含查询字符串，如 `/foo/bar?name=value` |
+| `${request_path}`      | 请求路径（不含查询字符串），如 `/foo/bar`                |
+| `${uri}`               | 与 `${request_path}` 相同                    |
+| `${query_string}`      | 查询字符串（不含 `?`），与 `${args}` 相同              |
+| `${args}`              | 同 `${query_string}`                       |
+| `${origin}`            | 请求头 `Origin` 的值                           |
+| `${user_agent}`        | 请求头 `User-Agent` 的值                       |
+| `${http_referer}`      | 请求头 `Referer` 的值                          |
+| `${scheme_host}`       | 协议和主机拼接，如 `https://example.com`           |
+| `${status}`            | 后端响应状态行，例如 `200 OK`                       |
+| `${status_code}`       | 后端响应状态码，例如 `200`                          |
+| `${content_length}`    | 响应体长度（字节数）。若未知为 `-1`                      |
+| `${content_type}`      | 响应头 `Content-Type` 的值                     |
+| `${via}`               | 响应头 `Via` 的值                              |
+| `${date}`              | 当前 UTC 时间，格式符合 HTTP Date（RFC 1123）        |
+| `${timestamp}`         | 当前时间戳（秒）                                  |
+| `${timestamp_ms}`      | 当前时间戳（毫秒）                                 |
 
 ## 404页面配置
 
