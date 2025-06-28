@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"html"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -453,6 +454,7 @@ func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly b
 				continue
 			}
 			val := strings.TrimSpace(hd[1])
+			val = html.UnescapeString(val)
 			val = expandVars(val)
 			r.Header.Set(key, val)
 		}
@@ -550,6 +552,7 @@ func ChangeResponseHeader(resp *http.Response, header string) {
 				continue
 			}
 			val := strings.TrimSpace(hd[1])
+			val = html.UnescapeString(val)
 			val = expandVars(val)
 			resp.Header.Set(key, val)
 		}
