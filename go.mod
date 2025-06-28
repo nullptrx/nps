@@ -5,7 +5,7 @@ go 1.24
 require (
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
 	github.com/beego/beego v1.12.14
-	github.com/brianvoe/gofakeit/v7 v7.2.1
+	github.com/brianvoe/gofakeit/v7 v7.3.0
 	github.com/c4milo/unpackit v1.0.0
 	github.com/caddyserver/certmagic v0.23.0
 	github.com/ccding/go-stun v0.1.5

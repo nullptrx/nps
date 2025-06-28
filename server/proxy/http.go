@@ -347,6 +347,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			if s.http3Port > 0 && r.TLS != nil && !host.HttpsJustProxy && !host.CompatMode {
 				resp.Header.Set("Alt-Svc", `h3=":`+s.http3PortStr+`"; ma=86400`)
 			}
+			common.ChangeResponseHeader(resp, host.RespHeaderChange)
 			return nil
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {

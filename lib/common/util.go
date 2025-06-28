@@ -401,6 +401,10 @@ func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly b
 		r.Header.Set("X-Real-IP", clientIP)
 	}
 
+	if header == "" {
+		return
+	}
+
 	expandVars := func(val string) string {
 		rep := strings.NewReplacer(
 			// 协议/SSL
@@ -440,16 +444,114 @@ func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly b
 	}
 
 	// 设置自定义头部信息
-	if header != "" {
-		h := strings.Split(strings.ReplaceAll(header, "\r\n", "\n"), "\n")
-		for _, v := range h {
-			hd := strings.SplitN(v, ":", 2)
-			if len(hd) == 2 {
-				key := strings.TrimSpace(hd[0])
-				val := strings.TrimSpace(hd[1])
-				val = expandVars(val)
-				r.Header.Set(key, val)
+	h := strings.Split(strings.ReplaceAll(header, "\r\n", "\n"), "\n")
+	for _, v := range h {
+		hd := strings.SplitN(v, ":", 2)
+		if len(hd) == 2 {
+			key := strings.TrimSpace(hd[0])
+			if key == "" {
+				continue
 			}
+			val := strings.TrimSpace(hd[1])
+			val = expandVars(val)
+			r.Header.Set(key, val)
+		}
+	}
+}
+
+// Change headers of response
+func ChangeResponseHeader(resp *http.Response, header string) {
+	if header == "" {
+		return
+	}
+
+	if resp == nil || resp.Request == nil {
+		return
+	}
+
+	httpPort := beego.AppConfig.DefaultString("http_proxy_port", "80")
+	httpsPort := beego.AppConfig.DefaultString("https_proxy_port", "443")
+	http3Port := beego.AppConfig.DefaultString("http3_proxy_port", httpsPort)
+
+	scheme := "http"
+	ssl := "off"
+	serverPort := httpPort
+	if resp.Request.TLS != nil {
+		scheme = "https"
+		ssl = "on"
+		serverPort = httpsPort
+	}
+
+	origHost := resp.Request.Host
+	hostOnly := RemovePortFromHost(origHost)
+
+	remoteAddr := resp.Request.RemoteAddr
+	clientIP := GetIpByAddr(remoteAddr)
+	clientPort := GetPortStrByAddr(remoteAddr)
+
+	timeNow := time.Now()
+
+	expandVars := func(val string) string {
+		rep := strings.NewReplacer(
+			// Protocol/SSL
+			"${scheme}", scheme,
+			"${ssl}", ssl,
+
+			// Ports
+			"${server_port}", serverPort,
+			"${server_port_http}", httpPort,
+			"${server_port_https}", httpsPort,
+			"${server_port_h3}", http3Port,
+
+			// Host info
+			"${host}", hostOnly,
+			"${http_host}", origHost,
+
+			// Client info
+			"${remote_addr}", remoteAddr,
+			"${remote_ip}", clientIP,
+			"${remote_port}", clientPort,
+
+			// Request info
+			"${request_method}", resp.Request.Method,
+			"${request_host}", resp.Request.Host,
+			"${request_uri}", resp.Request.RequestURI,
+			"${request_path}", resp.Request.URL.Path,
+			"${uri}", resp.Request.URL.Path,
+			"${query_string}", resp.Request.URL.RawQuery,
+			"${args}", resp.Request.URL.RawQuery,
+			"${origin}", resp.Request.Header.Get("Origin"),
+			"${user_agent}", resp.Request.Header.Get("User-Agent"),
+			"${http_referer}", resp.Request.Header.Get("Referer"),
+			"${scheme_host}", scheme+"://"+origHost,
+
+			// Response info
+			"${status}", resp.Status,
+			"${status_code}", strconv.Itoa(resp.StatusCode),
+			"${content_length}", strconv.FormatInt(resp.ContentLength, 10),
+			"${content_type}", resp.Header.Get("Content-Type"),
+			"${via}", resp.Header.Get("Via"),
+
+			// Time variables
+			"${date}", timeNow.UTC().Format(http.TimeFormat),
+			"${timestamp}", strconv.FormatInt(timeNow.UTC().Unix(), 10),
+			"${timestamp_ms}", strconv.FormatInt(timeNow.UTC().UnixNano()/1e6, 10),
+		)
+		return rep.Replace(val)
+	}
+
+	// 设置自定义头部信息
+	h := strings.Split(strings.ReplaceAll(header, "\r\n", "\n"), "\n")
+	for _, v := range h {
+		hd := strings.SplitN(v, ":", 2)
+		if len(hd) == 2 {
+			key := strings.TrimSpace(hd[0])
+			if key == "" {
+				continue
+			}
+			val := strings.TrimSpace(hd[1])
+			val = expandVars(val)
+			resp.Header.Set(key, val)
 		}
 	}
 }

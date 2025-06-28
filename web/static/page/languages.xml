@@ -584,7 +584,11 @@
 	</lang>
 	<lang id="word-requestheader">
 		<zh-CN>请求头部信息修改</zh-CN>
-		<en-US>Header Modify</en-US>
+		<en-US>Request Header Modify</en-US>
+	</lang>
+	<lang id="word-responseheader">
+		<zh-CN>返回头部信息修改</zh-CN>
+		<en-US>Response Header Modify</en-US>
 	</lang>
 	<lang id="word-requesthost">
 		<zh-CN>请求域名信息修改</zh-CN>

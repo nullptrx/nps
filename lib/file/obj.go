@@ -205,33 +205,34 @@ type Health struct {
 }
 
 type Host struct {
-	Id             int
-	Host           string //host
-	HeaderChange   string //header change
-	HostChange     string //host change
-	Location       string //url router
-	PathRewrite    string //url rewrite
-	Remark         string //remark
-	Scheme         string //http https all
-	HttpsJustProxy bool
-	AutoSSL        bool
-	CertType       string
-	CertHash       string
-	CertFile       string
-	KeyFile        string
-	NoStore        bool
-	IsClose        bool
-	AutoHttps      bool
-	AutoCORS       bool
-	CompatMode     bool
-	Flow           *Flow
-	NowConn        int32
-	Client         *Client
-	TargetIsHttps  bool
-	Target         *Target //目标
-	UserAuth       *MultiAccount
-	MultiAccount   *MultiAccount
-	Health         `json:"-"`
+	Id               int
+	Host             string //host
+	HeaderChange     string //request header change
+	RespHeaderChange string //response header change
+	HostChange       string //host change
+	Location         string //url router
+	PathRewrite      string //url rewrite
+	Remark           string //remark
+	Scheme           string //http https all
+	HttpsJustProxy   bool
+	AutoSSL          bool
+	CertType         string
+	CertHash         string
+	CertFile         string
+	KeyFile          string
+	NoStore          bool
+	IsClose          bool
+	AutoHttps        bool
+	AutoCORS         bool
+	CompatMode       bool
+	Flow             *Flow
+	NowConn          int32
+	Client           *Client
+	TargetIsHttps    bool
+	Target           *Target //目标
+	UserAuth         *MultiAccount
+	MultiAccount     *MultiAccount
+	Health           `json:"-"`
 	sync.RWMutex
 }
 

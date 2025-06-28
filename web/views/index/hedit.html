@@ -178,6 +178,13 @@
                             <span class="help-block m-b-none" langtag="info-header"></span>
                         </div>
                     </div>
+                    <div class="form-group" id="resp_header">
+                        <label class="control-label font-bold" langtag="word-responseheader"></label>
+                        <div class="col-sm-12">
+                            <textarea class="form-control" name="resp_header" placeholder="Strict-Transport-Security: max-age=31536000; includeSubDomains; preload" rows="4" type="text">{{.h.RespHeaderChange}}</textarea>
+                            <span class="help-block m-b-none" langtag="info-header"></span>
+                        </div>
+                    </div>
                     <div class="form-group" id="hostchange">
                         <label class="control-label font-bold" langtag="word-requesthost"></label>
                         <div class="col-sm-12">

@@ -448,11 +448,12 @@ func (s *IndexController) AddHost() {
 				Content:    s.getEscapeString("auth"),
 				AccountMap: common.DealMultiUser(s.getEscapeString("auth")),
 			},
-			HeaderChange: s.getEscapeString("header"),
-			HostChange:   s.getEscapeString("hostchange"),
-			Remark:       s.getEscapeString("remark"),
-			Location:     s.getEscapeString("location"),
-			PathRewrite:  s.getEscapeString("path_rewrite"),
+			HeaderChange:     s.getEscapeString("header"),
+			RespHeaderChange: s.getEscapeString("resp_header"),
+			HostChange:       s.getEscapeString("hostchange"),
+			Remark:           s.getEscapeString("remark"),
+			Location:         s.getEscapeString("location"),
+			PathRewrite:      s.getEscapeString("path_rewrite"),
 			Flow: &file.Flow{
 				FlowLimit: int64(s.GetIntNoErr("flow_limit")),
 				TimeLimit: common.GetTimeNoErrByStr(s.getEscapeString("time_limit")),
@@ -524,6 +525,7 @@ func (s *IndexController) EditHost() {
 			h.Target = &file.Target{TargetStr: strings.ReplaceAll(s.getEscapeString("target"), "\r\n", "\n")}
 			h.UserAuth = &file.MultiAccount{Content: s.getEscapeString("auth"), AccountMap: common.DealMultiUser(s.getEscapeString("auth"))}
 			h.HeaderChange = s.getEscapeString("header")
+			h.RespHeaderChange = s.getEscapeString("resp_header")
 			h.HostChange = s.getEscapeString("hostchange")
 			h.Remark = s.getEscapeString("remark")
 			h.Location = s.getEscapeString("location")
