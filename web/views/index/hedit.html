@@ -213,6 +213,16 @@
 
 <script>
     $(function () {
+        ["header", "resp_header"].forEach(function(name){
+            var el = document.getElementsByName(name)[0];
+            if (el) {
+                var div = document.createElement("div");
+                div.innerHTML = el.value;
+                div.innerHTML = div.textContent;
+                el.value = div.textContent;
+            }
+        });
+
         if ($("#scheme_select").val() == "all" || $("#scheme_select").val() == "https") {
             $("#auto_https").css("display", "block")
             $("#https_just_proxy").css("display", "block")

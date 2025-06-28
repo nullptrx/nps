@@ -145,6 +145,7 @@ npc update && npc restart
   - 添加返回头修改 [具体说明](https://d-jy.net/docs/nps/#/feature?id=%e8%87%aa%e5%ae%9a%e4%b9%89%e5%93%8d%e5%ba%94-header)
   - 更新相关依赖包
   - 优化页面显示
+  - 避免替换转义
 
 - **v0.29.28 (2025-06-26)**
   - 域名转发支持 HTTP/3
