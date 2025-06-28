@@ -84,7 +84,9 @@
             version      : "{{.version}}",
             publicKey    : `{{.public_key}}`,
             loginNonce   : "{{.login_nonce}}",
-            powBits      : 0
+            totpLen      : {{.totp_len}},
+            powBits      : {{.pow_bits}},
+            powEnable    : {{if .pow_enable}}true{{else}}false{{end}}
         };
         function encryptWithRSA(plain) {
             const crypt = new JSEncrypt();
@@ -135,7 +137,8 @@
             });
             const encPwd  = encryptWithRSA(payload);
             data.password = encPwd;
-            if (window.nps.powBits > 0) {
+            const needPow = window.nps.powBits > 0 && (window.nps.powEnable || (data.captcha && data.captcha.length === window.nps.totpLen));
+            if (needPow) {
                 const powX = await calcPowX(encPwd, window.nps.powBits);
                 data.powx  = powX;
                 data.bits  = window.nps.powBits;
@@ -150,6 +153,13 @@
                             window.location.href = window.nps.web_base_url + "/index/index";
                         });
                     } else {
+                        {{if eq true .captcha_open}}
+                        var $img = $('.captcha-img');
+                        if ($img.length) {
+                            $img.trigger('click');
+                        }
+                        $('input[name="captcha"]').val('');
+                        {{end}}
                         showMsg(langreply(res.msg), 'error', 3000, function() {
                             if (res.nonce) {
                                 window.nps.loginNonce = res.nonce;
@@ -159,14 +169,8 @@
                             }
                             if (res.bits) {
                                 window.nps.powBits = res.bits;
+                                window.nps.powEnable = true;
                             }
-                            {{if eq true .captcha_open}}
-                            var $img = $('.captcha-img');
-                            if ($img.length) {
-                                $img.trigger('click');
-                            }
-                            $('input[name="captcha"]').val('');
-                            {{end}}
                         });
                     }
                 }

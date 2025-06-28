@@ -68,6 +68,7 @@ type Client struct {
 	NowConn         int32      //the connection num of now
 	WebUserName     string     //the username of web login
 	WebPassword     string     //the password of web login
+	WebTotpSecret   string     //the totp secret of web login
 	ConfigConnAllow bool       //is allowed connected by config file
 	MaxTunnelNum    int
 	Version         string
@@ -159,13 +160,18 @@ func (s *Client) HasHost(h *Host) bool {
 }
 
 func (s *Client) EnsureWebPassword() {
+	if s.WebTotpSecret != "" {
+		if !crypt.IsValidTOTPSecret(s.WebTotpSecret) {
+			s.WebTotpSecret, _ = crypt.GenerateTOTPSecret()
+		}
+	}
 	if idx := strings.LastIndex(s.WebPassword, common.TOTP_SEQ); idx != -1 {
-		storedPwd := s.WebPassword[:idx]
 		secret := s.WebPassword[idx+len(common.TOTP_SEQ):]
+		s.WebPassword = s.WebPassword[:idx]
 		if !crypt.IsValidTOTPSecret(secret) {
 			secret, _ = crypt.GenerateTOTPSecret()
-			s.WebPassword = storedPwd + common.TOTP_SEQ + secret
 		}
+		s.WebTotpSecret = secret
 	}
 }
 

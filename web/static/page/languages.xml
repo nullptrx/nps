@@ -806,6 +806,10 @@
 		<zh-CN>Web登陆密码</zh-CN>
 		<en-US>Password of Web Login</en-US>
 	</lang>
+	<lang id="word-webtotpsecret">
+		<zh-CN>Web登陆TOTP密钥</zh-CN>
+		<en-US>TOTP Secret of Web Login</en-US>
+	</lang>
 	<lang id="word-webusername">
 		<zh-CN>Web登陆用户名</zh-CN>
 		<en-US>Username of Web Login</en-US>

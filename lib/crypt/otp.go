@@ -7,10 +7,15 @@ import (
 	"encoding/base32"
 	"encoding/binary"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/skip2/go-qrcode"
 )
+
+const TotpLen = 6
 
 var b32 = base32.StdEncoding.WithPadding(base32.NoPadding)
 
@@ -85,6 +90,26 @@ func IsValidTOTPSecret(secret string) bool {
 	return true
 }
 
+func BuildTotpUri(issuer, accountName, secret string) string {
+	if issuer == "" {
+		encodedLabel := url.QueryEscape(accountName)
+		return fmt.Sprintf(
+			"otpauth://totp/%s?secret=%s",
+			encodedLabel,
+			secret,
+		)
+	}
+	label := fmt.Sprintf("%s:%s", issuer, accountName)
+	encodedLabel := url.QueryEscape(label)
+	encodedIssuer := url.QueryEscape(issuer)
+	return fmt.Sprintf(
+		"otpauth://totp/%s?secret=%s&issuer=%s",
+		encodedLabel,
+		secret,
+		encodedIssuer,
+	)
+}
+
 func PrintTOTPSecret() {
 	secret, err := GenerateTOTPSecret()
 	if err != nil {
@@ -92,6 +117,13 @@ func PrintTOTPSecret() {
 		return
 	}
 	fmt.Printf("Your new 2FA secret is: %s\nPlease add this secret to your nps.conf configuration file.\n", secret)
+	totpUrl := BuildTotpUri("", "NPS", secret)
+	qr, err := qrcode.New(totpUrl, qrcode.Medium)
+	if err != nil {
+		panic(err)
+	}
+	ascii := qr.ToString(false)
+	fmt.Println(ascii)
 }
 
 func PrintTOTPCode(secret string) {

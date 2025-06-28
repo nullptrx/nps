@@ -37,6 +37,21 @@
         </div>
     </div>
 </div>
+<div class="modal fade" id="qrModal" tabindex="-1" role="dialog" aria-labelledby="qrModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="qrModalLabel">TOTP</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="qrImg" src="" alt="QR" style="max-width: 100%; height: auto;" />
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
     /*bootstrap table*/
@@ -62,7 +77,7 @@
         onExpandRow: function () {$('body').setLang ('.detail-view');},
         onPostBody: function (data) { if ($(this)[0].locale != undefined ) $('body').setLang ('#table'); },
         detailFormatter: function (index, row, element) {
-            return '<b langtag="word-maxconnections"></b>: '
+            tmp = '<b langtag="word-maxconnections"></b>: '
                 {{if eq true .isAdmin}}
                 + '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/client/clear\', {\'id\':' + row.Id + ', \'mode\': \'conn_limit\'})">' + row.MaxConn + '</span>'
                 {{else}}
@@ -102,11 +117,18 @@
                 + '<b langtag="word-lastonlinetime"></b>: ' + row.LastOnlineTime + '&emsp;'
                 + '<b langtag="word-address"></b>: <span onclick="oCopy(this)">' + row.Addr + '</span>&emsp;'
                 + '<b langtag="word-localaddress"></b>: <span onclick="oCopy(this)">' + row.LocalAddr + '</span>&emsp;<br/><br/>'
-                + '<b langtag="word-webusername"></b>: ' + row.WebUserName + '&emsp;'
+            if (row.WebUserName || row.WebPassword) {
+                tmp += '<b langtag="word-webusername"></b>: ' + row.WebUserName + '&emsp;'
                 + '<b langtag="word-webpassword"></b>: ' + row.WebPassword + '&emsp;'
-                + '<b langtag="word-basicusername"></b>: ' + row.Cnf.U + '&emsp;'
+            }
+            if (row.WebUserName && row.WebTotpSecret) {
+                tmp += '<b langtag="word-webtotpsecret"></b>: <span class="btn btn-primary btn-sm" data-url="{{.web_base_url}}/client/qr?account=' + row.WebUserName + '&secret=' + row.WebTotpSecret + '" style="cursor: pointer;" onclick="showQr(this)">' + row.WebTotpSecret + '</span>&emsp;'
+            }
+            if (row.Cnf.U || row.Cnf.P) {
+                tmp += '<b langtag="word-basicusername"></b>: ' + row.Cnf.U + '&emsp;'
                 + '<b langtag="word-basicpassword"></b>: ' + row.Cnf.P + '&emsp;<br/><br/>'
-                + '<b langtag="word-crypt"></b>: <span langtag="word-' + row.Cnf.Crypt + '"></span>&emsp;'
+            }
+            tmp += '<b langtag="word-crypt"></b>: <span langtag="word-' + row.Cnf.Crypt + '"></span>&emsp;'
                 + '<b langtag="word-compress"></b>: <span langtag="word-' + row.Cnf.Compress + '"></span>&emsp;'
                 + '<b langtag="word-connectbyconfig"></b>: <span langtag="word-' + row.ConfigConnAllow + '"></span>&emsp;<br/><br/>'
                 + '<b langtag="word-blackip"></b>: ' + row.BlackIpList + '&emsp;<br/><br/>'
@@ -128,6 +150,7 @@
                 {{if index . "wss_p"}}
                 + '<b langtag="word-commandclient-wss"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.ip}}:{{.wss_p}}{{.ws_path}} -vkey=" + row.VerifyKey + " -type=wss</code>&emsp;<br/><br/>"
                 {{end}}
+            return tmp
         },
         //表格的列
         columns: [
@@ -345,4 +368,10 @@
             }
         ]
     });
+
+    function showQr(el) {
+        var url = el.getAttribute('data-url');
+        document.getElementById('qrImg').src = url;
+        $('#qrModal').modal('show');
+    }
 </script>
