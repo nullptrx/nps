@@ -142,7 +142,7 @@ npc update && npc restart
 ### Stable
 
 - **v0.29.29 (2025-06-28)**
-  - 添加返回头修改
+  - 添加返回头修改 [具体说明](https://d-jy.net/docs/nps/#/feature?id=%e8%87%aa%e5%ae%9a%e4%b9%89%e5%93%8d%e5%ba%94-header)
   - 更新相关依赖包
   - 优化页面显示
 
@@ -191,7 +191,7 @@ npc update && npc restart
   - 更新时自动创建不存在的文件夹
 
 - **v0.29.20 (2025-06-10)**
-  - 头部替换支持变量替换 [具体说明](https://d-jy.net/docs/nps/#/feature?id=%e8%87%aa%e5%ae%9a%e4%b9%89header)
+  - 头部替换支持变量替换 [具体说明](https://d-jy.net/docs/nps/#/feature?id=%e8%87%aa%e5%ae%9a%e4%b9%89%e8%af%b7%e6%b1%82-header)
   - 避免重复添加 X-Forwarded-For
   - 修复上游错误导致发布失败 [#93](https://github.com/djylb/nps/issues/93)
 
