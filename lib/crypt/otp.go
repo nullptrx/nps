@@ -75,6 +75,16 @@ func GetTOTPCode(secret string) (string, int64, error) {
 	return code, remaining, nil
 }
 
+func IsValidTOTPSecret(secret string) bool {
+	if _, err := b32.DecodeString(secret); err != nil {
+		return false
+	}
+	if _, _, err := GetTOTPCode(secret); err != nil {
+		return false
+	}
+	return true
+}
+
 func PrintTOTPSecret() {
 	secret, err := GenerateTOTPSecret()
 	if err != nil {

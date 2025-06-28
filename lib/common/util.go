@@ -3,6 +3,7 @@ package common
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
@@ -1161,6 +1162,29 @@ func TimestampToBytes(ts int64) []byte {
 // BytesToTimestamp 8bit
 func BytesToTimestamp(b []byte) int64 {
 	return int64(binary.BigEndian.Uint64(b))
+}
+
+func ValidatePoW(bits int, parts ...string) bool {
+	if bits < 1 || bits > 256 {
+		return false
+	}
+
+	data := strings.Join(parts, "")
+	sum := sha256.Sum256([]byte(data))
+	fullBytes := bits / 8
+	for i := 0; i < fullBytes; i++ {
+		if sum[i] != 0 {
+			return false
+		}
+	}
+	remBits := bits % 8
+	if remBits > 0 {
+		mask := byte(0xFF << (8 - remBits))
+		if (sum[fullBytes] & mask) != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func PrintVersion(ver int) {

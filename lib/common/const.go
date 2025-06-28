@@ -28,6 +28,8 @@ const (
 	CONN_UDP          = "udp"
 	CONN_TEST         = "TST"
 
+	TOTP_SEQ = "totp:" // TOTP Separator
+
 	UnauthorizedBytes = "HTTP/1.1 401 Unauthorized\r\n" +
 		"Content-Type: text/plain; charset=utf-8\r\n" +
 		"WWW-Authenticate: Basic realm=\"easyProxy\"\r\n" +

@@ -22,15 +22,25 @@ type LoginController struct {
 	beego.Controller
 }
 
-var ipRecord sync.Map
+const BanTime int64 = 5
+const IpBanTime int64 = 180
+const UserBanTime int64 = 3600
+const MaxFailTimes int = 10
+const MaxLoginBody = 1024
+
+var loginRecord sync.Map
 var cpt *captcha.Captcha
+var powBits int
+var secureMode bool
 
 type record struct {
 	hasLoginFailTimes int
 	lastLoginTime     time.Time
 }
 
-func InitCaptcha() {
+func InitLogin() {
+	secureMode = beego.AppConfig.DefaultBool("secure_mode", false)
+	powBits = beego.AppConfig.DefaultInt("pow_bits", 20)
 	// use beego cache system store the captcha data
 	store := cache.NewMemoryCache()
 	cpt = captcha.NewWithFilter(beego.AppConfig.String("web_base_url")+"/captcha/", store)
@@ -60,6 +70,10 @@ func (self *LoginController) Index() {
 }
 
 func (self *LoginController) Verify() {
+	if self.Ctx.Request.ContentLength > MaxLoginBody {
+		self.CustomAbort(413, "Payload too large")
+		return
+	}
 	nonce := crypt.GetRandomString(16)
 	stored := self.GetSession("login_nonce")
 	self.SetSession("login_nonce", nonce)
@@ -76,15 +90,30 @@ func (self *LoginController) Verify() {
 	if captchaOpen {
 		if !cpt.VerifyReq(self.Ctx.Request) {
 			logs.Warn("Captcha failed for user %s from %s", username, ip)
+			IfLoginFail(ip, true)
 			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "the verification code is wrong, please get it again and try again", "nonce": nonce}
 			self.SetSession("login_nonce", nonce)
 			self.ServeJSON()
 			return
 		}
 	}
-	pl, err := crypt.ParseLoginPayload(self.GetString("password"))
+	plRaw := self.GetString("password")
+	if IsLoginBan(username, UserBanTime) {
+		powX := self.GetString("pow")
+		bits, _ := self.GetInt("bits", 0)
+		if bits == powBits && common.ValidatePoW(powBits, plRaw, powX) {
+			logs.Warn("PoW failed for user %s from %s", username, ip)
+			IfLoginFail(ip, true)
+			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "pow verification failed", "nonce": nonce, "bits": powBits}
+			self.SetSession("login_nonce", nonce)
+			self.ServeJSON()
+			return
+		}
+	}
+	pl, err := crypt.ParseLoginPayload(plRaw)
 	if err != nil {
 		logs.Warn("Decrypt error for user %s from %s: %v", username, ip, err)
+		IfLoginFail(ip, true)
 		cert, _ := crypt.GetPublicKeyPEM()
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error", "nonce": nonce, "cert": cert}
 		self.ServeJSON()
@@ -92,6 +121,7 @@ func (self *LoginController) Verify() {
 	}
 	if stored == nil || stored.(string) != pl.Nonce {
 		logs.Warn("Invalid nonce for user %s from %s", username, ip)
+		IfLoginFail(ip, true)
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "invalid nonce", "nonce": nonce}
 		self.ServeJSON()
 		return
@@ -99,10 +129,12 @@ func (self *LoginController) Verify() {
 	now := time.Now().UnixMilli()
 	if pl.Timestamp < now-5*60*1000 || pl.Timestamp > now+60*1000 {
 		logs.Warn("Timestamp expired for user %s from %s", username, ip)
+		IfLoginFail(ip, true)
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired", "nonce": nonce}
 		self.ServeJSON()
 		return
 	}
+	time.Sleep(time.Millisecond * time.Duration(rand.Intn(20)))
 	if self.doLogin(username, pl.Password, true) {
 		logs.Info("Login success for user %s from %s", username, ip)
 		self.DelSession("login_nonce")
@@ -124,16 +156,11 @@ func (self *LoginController) doLogin(username, password string, explicit bool) b
 			ip = realIP
 		}
 	}
-	if v, ok := ipRecord.Load(ip); ok {
-		vv := v.(*record)
-		if (time.Now().Unix() - vv.lastLoginTime.Unix()) >= 60 {
-			vv.hasLoginFailTimes = 0
-		}
-		if vv.hasLoginFailTimes >= 10 {
-			logs.Warn("IP %s has reached maximum failed attempts, login blocked", ip)
-			return false
-		}
+
+	if IsLoginBan(ip, IpBanTime) {
+		return false
 	}
+
 	var auth bool
 	if adminAuth(username, password) {
 		self.SetSession("isAdmin", true)
@@ -156,8 +183,24 @@ func (self *LoginController) doLogin(username, password string, explicit bool) b
 					auth = true
 				}
 			}
-			if !auth && v.WebPassword == password && v.WebUserName == username {
-				auth = true
+			if !auth && v.WebUserName == username {
+				if v.WebPassword == password {
+					auth = true
+				}
+				if idx := strings.LastIndex(v.WebPassword, common.TOTP_SEQ); !auth && idx != -1 {
+					pLen := len(password)
+					const codeLen = 6
+					if pLen >= codeLen {
+						storedPwd := v.WebPassword[:idx]
+						secret := v.WebPassword[idx+len(common.TOTP_SEQ):]
+						pwdInput := password[:pLen-codeLen]
+						code := password[pLen-codeLen:]
+						ok, _ := crypt.ValidateTOTPCode(secret, code)
+						if ok && pwdInput == storedPwd {
+							auth = true
+						}
+					}
+				}
 			}
 			if auth {
 				self.SetSession("isAdmin", false)
@@ -170,15 +213,37 @@ func (self *LoginController) doLogin(username, password string, explicit bool) b
 	}
 	if auth {
 		self.SetSession("auth", true)
-		ipRecord.Delete(ip)
+		loginRecord.Delete(ip)
 		return true
-
 	}
-	if v, load := ipRecord.LoadOrStore(ip, &record{hasLoginFailTimes: 1, lastLoginTime: time.Now()}); load && explicit {
+	IfLoginFail(ip, explicit)
+	return false
+}
+
+func IfLoginFail(key string, explicit bool) {
+	if v, load := loginRecord.LoadOrStore(key, &record{hasLoginFailTimes: 1, lastLoginTime: time.Now()}); load && explicit {
 		vv := v.(*record)
 		vv.lastLoginTime = time.Now()
 		vv.hasLoginFailTimes += 1
-		ipRecord.Store(ip, vv)
+		loginRecord.Store(key, vv)
+	}
+}
+
+func IsLoginBan(key string, ti int64) bool {
+	if v, ok := loginRecord.Load(key); ok {
+		vv := v.(*record)
+		duration := time.Now().Unix() - vv.lastLoginTime.Unix()
+		if duration < BanTime {
+			logs.Warn("%s request rate too high, login blocked", key)
+			return true
+		}
+		if duration >= ti {
+			vv.hasLoginFailTimes = 0
+		}
+		if vv.hasLoginFailTimes >= MaxFailTimes {
+			logs.Warn("%s has reached maximum failed attempts, login blocked", key)
+			return true
+		}
 	}
 	return false
 }
@@ -263,10 +328,10 @@ func clearIprecord() {
 	rand.Seed(time.Now().UnixNano())
 	x := rand.Intn(100)
 	if x == 1 {
-		ipRecord.Range(func(key, value interface{}) bool {
+		loginRecord.Range(func(key, value interface{}) bool {
 			v := value.(*record)
-			if time.Now().Unix()-v.lastLoginTime.Unix() >= 60 {
-				ipRecord.Delete(key)
+			if time.Now().Unix()-v.lastLoginTime.Unix() >= UserBanTime {
+				loginRecord.Delete(key)
 			}
 			return true
 		})
@@ -281,17 +346,21 @@ func adminAuth(username, password string) bool {
 		return false
 	}
 	totpSecret := beego.AppConfig.String("totp_secret")
+	expectedPass := beego.AppConfig.String("web_password")
 	if totpSecret != "" {
-		//logs.Error("use totp")
-		valid, err := crypt.ValidateTOTPCode(totpSecret, password)
-		if err != nil {
-			//logs.Error("use totp")
+		pLen := len(password)
+		const codeLen = 6
+		if pLen < codeLen {
 			return false
 		}
-		//logs.Error("use totp %t", valid)
-		return valid
+		pwdInput := password[:pLen-codeLen]
+		code := password[pLen-codeLen:]
+		ok, _ := crypt.ValidateTOTPCode(totpSecret, code)
+		if ok && pwdInput == expectedPass {
+			return true
+		}
+		return false
 	}
-	expectedPass := beego.AppConfig.String("web_password")
 	return password == expectedPass
 }
 

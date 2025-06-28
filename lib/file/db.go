@@ -357,6 +357,7 @@ func (s *DbUtils) NewClient(c *Client) error {
 	if c.WebUserName != "" && !s.VerifyUserName(c.WebUserName, c.Id) {
 		return errors.New("web login username duplicate, please reset")
 	}
+	c.EnsureWebPassword()
 reset:
 	if c.VerifyKey == "" || isNotSet {
 		isNotSet = true

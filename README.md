@@ -141,6 +141,13 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.30 (2025-06-29)**
+  - 同时配置密码和TOTP时要在登陆密码后面追加动态验证码
+  - 支持用户配置TOTP（格式：密码+totp:+密钥）
+  - 限制高频登录请求
+  - 登录添加PoW验证
+  - 调整IP封禁时间
+
 - **v0.29.29 (2025-06-28)**
   - 添加返回头修改 [具体说明](https://d-jy.net/docs/nps/#/feature?id=%e8%87%aa%e5%ae%9a%e4%b9%89%e5%93%8d%e5%ba%94-header)
   - 更新相关依赖包

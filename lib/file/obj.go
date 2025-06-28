@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/djylb/nps/lib/common"
+	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/rate"
 	"github.com/pkg/errors"
 )
@@ -154,6 +156,17 @@ func (s *Client) HasHost(h *Host) bool {
 		return true
 	})
 	return has
+}
+
+func (s *Client) EnsureWebPassword() {
+	if idx := strings.LastIndex(s.WebPassword, common.TOTP_SEQ); idx != -1 {
+		storedPwd := s.WebPassword[:idx]
+		secret := s.WebPassword[idx+len(common.TOTP_SEQ):]
+		if !crypt.IsValidTOTPSecret(secret) {
+			secret, _ = crypt.GenerateTOTPSecret()
+			s.WebPassword = storedPwd + common.TOTP_SEQ + secret
+		}
+	}
 }
 
 type Tunnel struct {

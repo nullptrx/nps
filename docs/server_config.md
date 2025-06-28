@@ -41,6 +41,7 @@ nps.exe -conf_path=D:\test\nps
 | `web_key_file`      | Web HTTPS 证书密钥文件路径                     |
 | `web_base_url`      | Web 管理主路径（默认 `/`，适用于 Web 反向代理时调整路径）    |
 | `open_captcha`      | 是否启用验证码                                |
+| `pow_bits`          | PoW 验证位数（默认 `20`）                      |
 | `totp_secret`       | 两步验证密钥 开启后 `web_password` 失效 使用动态验证码登录 |
 | `allow_x_real_ip`   | 允许通过 X-Real-IP 头获取真实IP                 |
 | `trusted_proxy_ips` | 受信任的代理服务器 IP 地址（多个用逗号分隔）               |

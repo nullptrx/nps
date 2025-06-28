@@ -80,17 +80,49 @@
 
     <script type="text/javascript">
         window.nps = {
-            web_base_url: "{{.web_base_url}}",
-            version: "{{.version}}",
-            publicKey: `{{.public_key}}`,
-            loginNonce: "{{.login_nonce}}"
+            web_base_url : "{{.web_base_url}}",
+            version      : "{{.version}}",
+            publicKey    : `{{.public_key}}`,
+            loginNonce   : "{{.login_nonce}}",
+            powBits      : 0
         };
         function encryptWithRSA(plain) {
             const crypt = new JSEncrypt();
             crypt.setPublicKey(window.nps.publicKey);
             return crypt.encrypt(plain);
         }
-        function login() {
+        async function sha256Uint8(text) {
+            const enc = new TextEncoder().encode(text);
+            const buf = await crypto.subtle.digest('SHA-256', enc);
+            return new Uint8Array(buf);
+        }
+        function prefixZero(hashBytes, bits) {
+            const full = Math.floor(bits / 8);
+            const rem  = bits % 8;
+            for (let i = 0; i < full; i++) {
+                if (hashBytes[i] !== 0) return false;
+            }
+            if (rem) {
+                const mask = 0xFF << (8 - rem);
+                return (hashBytes[full] & mask) === 0;
+            }
+            return true;
+        }
+        async function calcPowX(encPwd, bits) {
+            let nonce = Math.floor(Math.random() * 2 ** 32);
+            const cores = navigator.hardwareConcurrency || 1;
+            const step  = cores;
+            while (true) {
+                const hash = await sha256Uint8(encPwd + nonce);
+                if (prefixZero(hash, bits)) return nonce.toString();
+                nonce += step;
+                if ((nonce % 8192) < step) {
+                    await new Promise(r => setTimeout(r, 0));
+                }
+            }
+        }
+        async function login() {
+            showMsg(langreply('Processing'), 'loading', 15000);
             const data = {};
             $("form").serializeArray().forEach(item => {
                 data[item.name] = item.value;
@@ -101,14 +133,20 @@
                 t: ts,
                 p: data.password
             });
-            data.password = encryptWithRSA(payload);
+            const encPwd  = encryptWithRSA(payload);
+            data.password = encPwd;
+            if (window.nps.powBits > 0) {
+                const powX = await calcPowX(encPwd, window.nps.powBits);
+                data.powx  = powX;
+                data.bits  = window.nps.powBits;
+            }
             $.ajax({
                 type: "POST",
-                url: window.nps.web_base_url + "/login/verify",
+                url : window.nps.web_base_url + "/login/verify",
                 data: data,
                 success: function (res) {
                     if (res.status) {
-                        showMsg(langreply(res.msg), 'success', 1000, function() {
+                        showMsg(langreply(res.msg), 'success', 1000, function () {
                             window.location.href = window.nps.web_base_url + "/index/index";
                         });
                     } else {
@@ -118,6 +156,9 @@
                             }
                             if (res.cert) {
                                 window.nps.publicKey = res.cert;
+                            }
+                            if (res.bits) {
+                                window.nps.powBits = res.bits;
                             }
                             {{if eq true .captcha_open}}
                             var $img = $('.captcha-img');

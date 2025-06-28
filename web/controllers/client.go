@@ -148,6 +148,7 @@ func (s *ClientController) Edit() {
 				c.WebUserName = s.getEscapeString("web_username")
 			}
 			c.WebPassword = s.getEscapeString("web_password")
+			c.EnsureWebPassword()
 			c.ConfigConnAllow = s.GetBoolNoErr("config_conn_allow")
 			if c.Rate != nil {
 				c.Rate.Stop()
