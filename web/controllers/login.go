@@ -115,7 +115,7 @@ func (self *LoginController) Verify() {
 		}
 	}
 	plRaw := self.GetString("password")
-	if ((isUserBan && secureMode) || forcePow || totpCode != "" || isIpBan) && powBits > 0 {
+	if ((isUserBan && secureMode) || forcePow || (totpCode != "" && !cptVerify) || isIpBan) && powBits > 0 {
 		powX := self.GetString("powx")
 		bits, _ := self.GetInt("bits", 0)
 		if bits != powBits || !common.ValidatePoW(powBits, plRaw, powX) {
