@@ -291,7 +291,9 @@ function showMsg(text, type = 'success', dur = 1500, cb) {
       +'</div>';
     document.body.appendChild(w);
     setTimeout(function(){
-        w.parentNode.removeChild(w);
+        if (w && w.parentNode) {
+            w.parentNode.removeChild(w);
+        }
         if (typeof cb === 'function') cb();
     }, dur);
 }

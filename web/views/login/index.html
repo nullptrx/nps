@@ -14,6 +14,7 @@
     <script src="{{.web_base_url}}/static/js/jquery-3.7.1.min.js"></script>
     <script src="{{.web_base_url}}/static/js/bootstrap.min.js"></script>
     <script src="{{.web_base_url}}/static/js/jsencrypt.min.js"></script>
+    <script src="{{.web_base_url}}/static/js/crypto-js.min.js"></script>
     <!-- Latest compiled and minified Locales -->
     <script src="{{.web_base_url}}/static/js/language.js?v={{.version}}" type="text/javascript"></script>
     {{.head_custom_code}}
@@ -88,47 +89,62 @@
             powBits      : {{.pow_bits}},
             powEnable    : {{if .pow_enable}}true{{else}}false{{end}}
         };
+        const rsaEncryptor = new JSEncrypt();
+        rsaEncryptor.setPublicKey(window.nps.publicKey);
         function encryptWithRSA(plain) {
-            const crypt = new JSEncrypt();
-            crypt.setPublicKey(window.nps.publicKey);
-            return crypt.encrypt(plain);
+            return rsaEncryptor.encrypt(plain);
         }
-        async function sha256Uint8(text) {
-            const enc = new TextEncoder().encode(text);
-            const buf = await crypto.subtle.digest('SHA-256', enc);
-            return new Uint8Array(buf);
+        async function sha256Uint8(encPwd, nonce) {
+            const hex = CryptoJS.SHA256(encPwd + nonce).toString(CryptoJS.enc.Hex);
+            const out = new Uint8Array(hex.length >> 1);
+            for (let i = 0; i < out.length; i++) {
+                out[i] = parseInt(hex.substr(i << 1, 2), 16);
+            }
+            return out;
         }
         function prefixZero(hashBytes, bits) {
-            const full = Math.floor(bits / 8);
-            const rem  = bits % 8;
-            for (let i = 0; i < full; i++) {
-                if (hashBytes[i] !== 0) return false;
-            }
-            if (rem) {
-                const mask = 0xFF << (8 - rem);
-                return (hashBytes[full] & mask) === 0;
-            }
-            return true;
+            const full = bits >> 3, rem = bits & 7;
+            for (let i = 0; i < full; i++) if (hashBytes[i]) return false;
+            return rem ? (hashBytes[full] & (0xFF << (8 - rem))) === 0 : true;
         }
-        async function calcPowX(encPwd, bits) {
-            let nonce = Math.floor(Math.random() * 2 ** 32);
-            const cores = navigator.hardwareConcurrency || 1;
-            const step  = cores;
-            while (true) {
-                const hash = await sha256Uint8(encPwd + nonce);
-                if (prefixZero(hash, bits)) return nonce.toString();
-                nonce += step;
-                if ((nonce % 8192) < step) {
-                    await new Promise(r => setTimeout(r, 0));
+        async function calcPowX(encPwd, bits, timeoutMs = 60000) {
+            if (window.Worker) {
+                return new Promise((resolve, reject) => {
+                    const w = new Worker(window.nps.web_base_url + '/static/js/pow-worker.js');
+                    const timer = setTimeout(() => {
+                        w.terminate();
+                        reject('PoW timeout');
+                    }, timeoutMs + 500);
+                    w.onmessage = ({ data }) => {
+                        if (data.ok) {
+                            clearTimeout(timer);
+                            w.terminate();
+                            resolve(data.nonce.toString());
+                        } else if (!data.progress) {
+                            clearTimeout(timer);
+                            w.terminate();
+                            reject('PoW timeout');
+                        }
+                    };
+                    w.postMessage({ encPwd, bits, timeout: timeoutMs });
+                });
+            } else {
+                const endTime = Date.now() + timeoutMs;
+                let nonce = (Math.random() * 0xFFFFFFFF) >>> 0;
+                while (Date.now() < endTime) {
+                    const hash = await sha256Uint8(encPwd, nonce);
+                    if (prefixZero(hash, bits)) return nonce.toString();
+                    nonce = (nonce + 1) >>> 0;
+                    if ((nonce & 0xFFF) === 0) await Promise.resolve();
                 }
+                throw new Error("PoW timeout");
             }
         }
         async function login() {
-            showMsg(langreply('Processing'), 'loading', 15000);
-            const data = {};
-            $("form").serializeArray().forEach(item => {
-                data[item.name] = item.value;
-            });
+            showMsg(langreply('Processing'), 'loading', 60000);
+            await new Promise(requestAnimationFrame);
+            await new Promise(resolve => setTimeout(resolve, 600));
+            const data = Object.fromEntries(new FormData(document.querySelector('form')).entries());
             const ts = Date.now();
             const payload = JSON.stringify({
                 n: window.nps.loginNonce,
@@ -139,9 +155,13 @@
             data.password = encPwd;
             const needPow = window.nps.powBits > 0 && (window.nps.powEnable || (data.captcha && data.captcha.length === window.nps.totpLen));
             if (needPow) {
-                const powX = await calcPowX(encPwd, window.nps.powBits);
-                data.powx  = powX;
-                data.bits  = window.nps.powBits;
+                try {
+                    data.powx = await calcPowX(encPwd, window.nps.powBits);
+                    data.bits = window.nps.powBits;
+                } catch (e) {
+                    showMsg(e.toString(), 'error', 4000);
+                    return false;
+                }
             }
             $.ajax({
                 type: "POST",
@@ -166,6 +186,7 @@
                             }
                             if (res.cert) {
                                 window.nps.publicKey = res.cert;
+                                rsaEncryptor.setPublicKey(res.cert);
                             }
                             if (res.bits) {
                                 window.nps.powBits = res.bits;

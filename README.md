@@ -149,6 +149,8 @@ npc update && npc restart
   - 登录添加PoW验证
   - 调整IP封禁时间
   - 自动判断风险选择验证方式
+  - `-gen2fa`添加二维码生成
+  - 客户端列表TOTP支持生成二维码
 
 - **v0.29.29 (2025-06-28)**
   - 添加返回头修改 [具体说明](https://d-jy.net/docs/nps/#/feature?id=%e8%87%aa%e5%ae%9a%e4%b9%89%e5%93%8d%e5%ba%94-header)
