@@ -3,7 +3,6 @@ package proxy
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -31,6 +30,7 @@ type ctxKey string
 const (
 	ctxRemoteAddr ctxKey = "nps_remote_addr"
 	ctxHost       ctxKey = "nps_host"
+	ctxSNI        ctxKey = "nps_sni"
 )
 
 type HttpServer struct {
@@ -266,6 +266,15 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	logs.Debug("%s request, method %s, host %s, url %s, remote address %s", r.URL.Scheme, r.Method, r.Host, r.URL.Path, r.RemoteAddr)
 
+	sni := r.Host
+	if host.HostChange != "" {
+		sni = host.HostChange
+	}
+	ctx := context.WithValue(r.Context(), ctxRemoteAddr, r.RemoteAddr)
+	ctx = context.WithValue(ctx, ctxHost, host)
+	ctx = context.WithValue(ctx, ctxSNI, sni)
+	r = r.WithContext(ctx)
+
 	// WebSocket
 	if r.Method == http.MethodConnect || r.Header.Get("Upgrade") != "" || r.Header.Get(":protocol") != "" {
 		logs.Trace("Handling websocket from %s", r.RemoteAddr)
@@ -280,44 +289,11 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		tr = &http.Transport{
 			ResponseHeaderTimeout: 60 * time.Second,
 			DisableKeepAlives:     host.CompatMode,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				//logs.Debug("DialContext: start dialing; network=%s, addr=%s, using targetAddr=%s", network, addr, targetAddr)
-				remote := ctx.Value(ctxRemoteAddr).(string)
-				host := ctx.Value(ctxHost).(*file.Host)
-				targetAddr, err := host.Target.GetRandomTarget()
-				if err != nil {
-					logs.Warn("No backend found for host: %s Err: %v", host.Id, err)
-					return nil, err
-				}
-				link := conn.NewLink("tcp", targetAddr, host.Client.Cnf.Crypt, host.Client.Cnf.Compress, remote, s.allowLocalProxy && host.Target.LocalProxy)
-				target, err := s.bridge.SendLinkInfo(host.Client.Id, link, nil)
-				if err != nil {
-					logs.Info("DialContext: connection to host %s (target %s) failed: %v", host.Id, targetAddr, err)
-					return nil, err
-				}
-				rawConn := conn.GetConn(target, link.Crypt, link.Compress, host.Client.Rate, true)
-				flowConn := conn.NewFlowConn(rawConn, host.Flow, host.Client.Flow)
-				if host.Target.ProxyProtocol != 0 {
-					ra, _ := net.ResolveTCPAddr("tcp", remote)
-					if ra == nil || ra.IP == nil {
-						ra = &net.TCPAddr{IP: net.IPv4zero, Port: 0}
-					}
-					la, _ := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
-					hdr := conn.BuildProxyProtocolHeaderByAddr(ra, la, host.Target.ProxyProtocol)
-					if hdr != nil {
-						flowConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-						if _, err := flowConn.Write(hdr); err != nil {
-							flowConn.Close()
-							return nil, fmt.Errorf("write PROXY header: %w", err)
-						}
-						flowConn.SetWriteDeadline(time.Time{})
-					}
-				}
-				return flowConn, nil
-			},
+			DialContext:           s.DialContext,
+			DialTLSContext:        s.DialTlsContext,
+			MaxIdleConns:          1000,
+			MaxIdleConnsPerHost:   100,
+			IdleConnTimeout:       90 * time.Second,
 		}
 		s.httpProxyCache.Add(host.Id, tr)
 	}
@@ -333,9 +309,6 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			//logs.Debug("Director: set req.URL.Scheme=%s, req.URL.Host=%s", req.URL.Scheme, req.URL.Host)
 			common.ChangeHostAndHeader(req, host.HostChange, host.HeaderChange, isHttpOnlyRequest)
 			req.URL.Host = r.Host
-			ctx := context.WithValue(r.Context(), ctxRemoteAddr, r.RemoteAddr)
-			ctx = context.WithValue(ctx, ctxHost, host)
-			req = req.WithContext(ctx)
 			if isHttpOnlyRequest {
 				req.Header["X-Forwarded-For"] = nil
 			}
@@ -432,25 +405,14 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 	}
 
 	if host.TargetIsHttps {
-		serverName := host.HostChange
-		if serverName == "" {
-			serverName = common.RemovePortFromHost(r.Host)
-		}
-		//logs.Debug("handleWebsocket: performing TLS handshake, serverName=%s", serverName)
-		tlsConf := &tls.Config{
-			InsecureSkipVerify: true,
-			ServerName:         serverName,
-		}
-		netConn = tls.Client(netConn, tlsConf)
-		if err := netConn.(*tls.Conn).Handshake(); err != nil {
-			logs.Error("handleWebsocket: TLS handshake with backend failed: %v", err)
-			//http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
+		sni := r.Context().Value(ctxSNI).(string)
+		netConn, err = conn.GetTlsConn(netConn, sni)
+		if err != nil {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusBadGateway)
 			w.Write(s.errorContent)
 			return
 		}
-		//logs.Debug("handleWebsocket: TLS handshake succeeded")
 	}
 
 	common.ChangeHostAndHeader(r, host.HostChange, host.HeaderChange, isHttpOnlyRequest || host.CompatMode)
@@ -544,4 +506,53 @@ func (s *HttpServer) NewServer(port int, scheme string) *http.Server {
 		// Disable HTTP/2.
 		//TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
+}
+
+func (s *HttpServer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	//logs.Debug("DialContext: start dialing; network=%s, addr=%s, using targetAddr=%s", network, addr, targetAddr)
+	remote := ctx.Value(ctxRemoteAddr).(string)
+	h := ctx.Value(ctxHost).(*file.Host)
+	targetAddr, err := h.Target.GetRandomTarget()
+	if err != nil {
+		logs.Warn("No backend found for h: %s Err: %v", h.Id, err)
+		return nil, err
+	}
+	link := conn.NewLink("tcp", targetAddr, h.Client.Cnf.Crypt, h.Client.Cnf.Compress, remote, s.allowLocalProxy && h.Target.LocalProxy)
+	target, err := s.bridge.SendLinkInfo(h.Client.Id, link, nil)
+	if err != nil {
+		logs.Info("DialContext: connection to h %s (target %s) failed: %v", h.Id, targetAddr, err)
+		return nil, err
+	}
+	rawConn := conn.GetConn(target, link.Crypt, link.Compress, h.Client.Rate, true)
+	flowConn := conn.NewFlowConn(rawConn, h.Flow, h.Client.Flow)
+	if h.Target.ProxyProtocol != 0 {
+		ra, _ := net.ResolveTCPAddr("tcp", remote)
+		if ra == nil || ra.IP == nil {
+			ra = &net.TCPAddr{IP: net.IPv4zero, Port: 0}
+		}
+		la, _ := ctx.Value(http.LocalAddrContextKey).(*net.TCPAddr)
+		hdr := conn.BuildProxyProtocolHeaderByAddr(ra, la, h.Target.ProxyProtocol)
+		if hdr != nil {
+			flowConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			if _, err := flowConn.Write(hdr); err != nil {
+				flowConn.Close()
+				return nil, fmt.Errorf("write PROXY header: %w", err)
+			}
+			flowConn.SetWriteDeadline(time.Time{})
+		}
+	}
+	return flowConn, nil
+}
+
+func (s *HttpServer) DialTlsContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	c, err := s.DialContext(ctx, network, addr)
+	if err != nil {
+		return nil, err
+	}
+	sni := ctx.Value(ctxSNI).(string)
+	c, err = conn.GetTlsConn(c, sni)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
 }

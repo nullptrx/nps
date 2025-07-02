@@ -697,3 +697,17 @@ func (c *FlowConn) Write(p []byte) (int, error) {
 	}
 	return n, err
 }
+
+func GetTlsConn(c net.Conn, sni string) (net.Conn, error) {
+	serverName := common.RemovePortFromHost(sni)
+	tlsConf := &tls.Config{
+		InsecureSkipVerify: true,
+		ServerName:         serverName,
+	}
+	c = tls.Client(c, tlsConf)
+	if err := c.(*tls.Conn).Handshake(); err != nil {
+		logs.Error("TLS handshake with backend failed: %v", err)
+		return nil, err
+	}
+	return c, nil
+}
