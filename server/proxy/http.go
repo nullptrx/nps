@@ -21,6 +21,7 @@ import (
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/goroutine"
+	"github.com/djylb/nps/lib/index"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/server/connection"
 )
@@ -34,6 +35,7 @@ type HttpServer struct {
 	httpsServer     *http.Server
 	httpsListener   net.Listener
 	http3PacketConn net.PacketConn
+	httpProxyCache  *index.AnyIntIndex
 	httpOnlyPass    string
 	addOrigin       bool
 	httpPortStr     string
@@ -43,7 +45,7 @@ type HttpServer struct {
 	acme            *certmagic.ACMEIssuer
 }
 
-func NewHttp(bridge NetBridge, task *file.Tunnel, httpPort, httpsPort, http3Port int, httpOnlyPass string, addOrigin bool) *HttpServer {
+func NewHttp(bridge NetBridge, task *file.Tunnel, httpPort, httpsPort, http3Port int, httpOnlyPass string, addOrigin bool, httpProxyCache *index.AnyIntIndex) *HttpServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
 	return &HttpServer{
 		BaseServer: BaseServer{
@@ -52,14 +54,15 @@ func NewHttp(bridge NetBridge, task *file.Tunnel, httpPort, httpsPort, http3Port
 			allowLocalProxy: allowLocalProxy,
 			Mutex:           sync.Mutex{},
 		},
-		httpPort:     httpPort,
-		httpsPort:    httpsPort,
-		http3Port:    http3Port,
-		httpOnlyPass: httpOnlyPass,
-		addOrigin:    addOrigin,
-		httpPortStr:  strconv.Itoa(httpPort),
-		httpsPortStr: strconv.Itoa(httpsPort),
-		http3PortStr: strconv.Itoa(http3Port),
+		httpPort:       httpPort,
+		httpsPort:      httpsPort,
+		http3Port:      http3Port,
+		httpProxyCache: httpProxyCache,
+		httpOnlyPass:   httpOnlyPass,
+		addOrigin:      addOrigin,
+		httpPortStr:    strconv.Itoa(httpPort),
+		httpsPortStr:   strconv.Itoa(httpsPort),
+		http3PortStr:   strconv.Itoa(http3Port),
 	}
 }
 
@@ -172,6 +175,7 @@ func (s *HttpServer) Close() error {
 	if s.http3PacketConn != nil {
 		s.http3PacketConn.Close()
 	}
+	s.httpProxyCache.Clear()
 	return nil
 }
 
@@ -185,8 +189,8 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		//w.Write(s.errorContent)
 		logs.Debug("Host not found: %s %s %s", r.URL.Scheme, r.Host, r.RequestURI)
 		if hj, ok := w.(http.Hijacker); ok {
-			conn, _, _ := hj.Hijack()
-			conn.Close()
+			c, _, _ := hj.Hijack()
+			c.Close()
 		}
 		return
 	}
@@ -197,8 +201,8 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		//http.Error(w, "403 Forbidden", http.StatusForbidden)
 		logs.Warn("Blocked IP: %s", clientIP)
 		if hj, ok := w.(http.Hijacker); ok {
-			conn, _, _ := hj.Hijack()
-			conn.Close()
+			c, _, _ := hj.Hijack()
+			c.Close()
 		}
 		return
 	}
@@ -273,7 +277,13 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proxy := &httputil.ReverseProxy{
+	if v, ok := s.httpProxyCache.Get(host.Id); ok {
+		rp := v.(*httputil.ReverseProxy)
+		rp.ServeHTTP(w, r)
+		return
+	}
+
+	rp := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			//req = req.WithContext(context.WithValue(req.Context(), "origReq", r))
 			if host.TargetIsHttps {
@@ -373,7 +383,8 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			}
 		},
 	}
-	proxy.ServeHTTP(w, r)
+	s.httpProxyCache.Add(host.Id, rp)
+	rp.ServeHTTP(w, r)
 }
 
 func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, host *file.Host, targetAddr string, isHttpOnlyRequest bool) {

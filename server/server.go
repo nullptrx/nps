@@ -14,6 +14,7 @@ import (
 	"github.com/djylb/nps/bridge"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/file"
+	"github.com/djylb/nps/lib/index"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/version"
 	"github.com/djylb/nps/server/proxy"
@@ -25,9 +26,10 @@ import (
 )
 
 var (
-	Bridge  *bridge.Bridge
-	RunList sync.Map //map[int]interface{}
-	once    sync.Once
+	Bridge         *bridge.Bridge
+	RunList        sync.Map //map[int]interface{}
+	once           sync.Once
+	HttpProxyCache = index.NewAnyIntIndex()
 )
 
 func init() {
@@ -166,7 +168,7 @@ func NewMode(Bridge *bridge.Bridge, c *file.Tunnel) proxy.Service {
 		//cacheLen, _ := beego.AppConfig.Int("http_cache_length")
 		addOrigin, _ := beego.AppConfig.Bool("http_add_origin_header")
 		httpOnlyPass := beego.AppConfig.String("x_nps_http_only")
-		service = proxy.NewHttp(Bridge, c, httpPort, httpsPort, http3Port, httpOnlyPass, addOrigin)
+		service = proxy.NewHttp(Bridge, c, httpPort, httpsPort, http3Port, httpOnlyPass, addOrigin, HttpProxyCache)
 	}
 	return service
 }
@@ -731,6 +733,7 @@ func DelTunnelAndHostByClientId(clientId int, justDelNoStore bool) {
 		return true
 	})
 	for _, id := range ids {
+		HttpProxyCache.Remove(id)
 		file.GetDb().DelHost(id)
 	}
 }

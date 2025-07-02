@@ -371,6 +371,7 @@ func (s *IndexController) GetHost() {
 
 func (s *IndexController) DelHost() {
 	id := s.GetIntNoErr("id")
+	server.HttpProxyCache.Remove(id)
 	if err := file.GetDb().DelHost(id); err != nil {
 		s.AjaxErr("delete error")
 	}
@@ -379,6 +380,7 @@ func (s *IndexController) DelHost() {
 
 func (s *IndexController) StartHost() {
 	id := s.GetIntNoErr("id")
+	server.HttpProxyCache.Remove(id)
 	mode := s.getEscapeString("mode")
 	if mode != "" {
 		if err := changeHostStatus(id, mode, "start"); err != nil {
@@ -398,6 +400,7 @@ func (s *IndexController) StartHost() {
 
 func (s *IndexController) StopHost() {
 	id := s.GetIntNoErr("id")
+	server.HttpProxyCache.Remove(id)
 	mode := s.getEscapeString("mode")
 	if mode != "" {
 		if err := changeHostStatus(id, mode, "stop"); err != nil {
@@ -417,6 +420,7 @@ func (s *IndexController) StopHost() {
 
 func (s *IndexController) ClearHost() {
 	id := s.GetIntNoErr("id")
+	server.HttpProxyCache.Remove(id)
 	mode := s.getEscapeString("mode")
 	if mode != "" {
 		if err := changeHostStatus(id, mode, "clear"); err != nil {
@@ -485,6 +489,7 @@ func (s *IndexController) AddHost() {
 
 func (s *IndexController) EditHost() {
 	id := s.GetIntNoErr("id")
+	server.HttpProxyCache.Remove(id)
 	if s.Ctx.Request.Method == "GET" {
 		s.Data["menu"] = "host"
 		if h, err := file.GetDb().GetHostById(id); err != nil {
