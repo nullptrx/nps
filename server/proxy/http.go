@@ -26,6 +26,13 @@ import (
 	"github.com/djylb/nps/server/connection"
 )
 
+type ctxKey string
+
+const (
+	ctxRemoteAddr ctxKey = "nps_remote_addr"
+	ctxHost       ctxKey = "nps_host"
+)
+
 type HttpServer struct {
 	BaseServer
 	httpPort        int
@@ -257,74 +264,44 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Get target addr
-	targetAddr, err := host.Target.GetRandomTarget()
-	if err != nil {
-		logs.Warn("No backend found for host: %s Err: %v", r.Host, err)
-		//http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusBadGateway)
-		w.Write(s.errorContent)
-		return
-	}
-
-	logs.Debug("%s request, method %s, host %s, url %s, remote address %s, target %s", r.URL.Scheme, r.Method, r.Host, r.URL.Path, r.RemoteAddr, targetAddr)
+	logs.Debug("%s request, method %s, host %s, url %s, remote address %s", r.URL.Scheme, r.Method, r.Host, r.URL.Path, r.RemoteAddr)
 
 	// WebSocket
 	if r.Method == http.MethodConnect || r.Header.Get("Upgrade") != "" || r.Header.Get(":protocol") != "" {
-		logs.Trace("Handling websocket from %s to %s", r.RemoteAddr, targetAddr)
-		s.handleWebsocket(w, r, host, targetAddr, isHttpOnlyRequest)
+		logs.Trace("Handling websocket from %s", r.RemoteAddr)
+		s.handleWebsocket(w, r, host, isHttpOnlyRequest)
 		return
 	}
 
+	var tr *http.Transport
 	if v, ok := s.httpProxyCache.Get(host.Id); ok {
-		rp := v.(*httputil.ReverseProxy)
-		rp.ServeHTTP(w, r)
-		return
-	}
-
-	rp := &httputil.ReverseProxy{
-		Director: func(req *http.Request) {
-			//req = req.WithContext(context.WithValue(req.Context(), "origReq", r))
-			if host.TargetIsHttps {
-				req.URL.Scheme = "https"
-			} else {
-				req.URL.Scheme = "http"
-			}
-			req.URL.Host = r.Host
-			//logs.Debug("Director: set req.URL.Scheme=%s, req.URL.Host=%s", req.URL.Scheme, req.URL.Host)
-			common.ChangeHostAndHeader(req, host.HostChange, host.HeaderChange, isHttpOnlyRequest)
-			if isHttpOnlyRequest {
-				req.Header["X-Forwarded-For"] = nil
-			}
-		},
-		Transport: &http.Transport{
+		tr = v.(*http.Transport)
+	} else {
+		tr = &http.Transport{
 			ResponseHeaderTimeout: 60 * time.Second,
 			DisableKeepAlives:     host.CompatMode,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
-				ServerName: func() string {
-					if host.TargetIsHttps {
-						if host.HostChange != "" {
-							return host.HostChange
-						}
-						return common.RemovePortFromHost(r.Host)
-					}
-					return ""
-				}(),
 			},
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				//logs.Debug("DialContext: start dialing; network=%s, addr=%s, using targetAddr=%s", network, addr, targetAddr)
-				link := conn.NewLink("tcp", targetAddr, host.Client.Cnf.Crypt, host.Client.Cnf.Compress, r.RemoteAddr, s.allowLocalProxy && host.Target.LocalProxy)
+				remote := ctx.Value(ctxRemoteAddr).(string)
+				host := ctx.Value(ctxHost).(*file.Host)
+				targetAddr, err := host.Target.GetRandomTarget()
+				if err != nil {
+					logs.Warn("No backend found for host: %s Err: %v", host.Id, err)
+					return nil, err
+				}
+				link := conn.NewLink("tcp", targetAddr, host.Client.Cnf.Crypt, host.Client.Cnf.Compress, remote, s.allowLocalProxy && host.Target.LocalProxy)
 				target, err := s.bridge.SendLinkInfo(host.Client.Id, link, nil)
 				if err != nil {
-					logs.Info("DialContext: connection to host %s (target %s) failed: %v", r.Host, targetAddr, err)
+					logs.Info("DialContext: connection to host %s (target %s) failed: %v", host.Id, targetAddr, err)
 					return nil, err
 				}
 				rawConn := conn.GetConn(target, link.Crypt, link.Compress, host.Client.Rate, true)
 				flowConn := conn.NewFlowConn(rawConn, host.Flow, host.Client.Flow)
 				if host.Target.ProxyProtocol != 0 {
-					ra, _ := net.ResolveTCPAddr("tcp", r.RemoteAddr)
+					ra, _ := net.ResolveTCPAddr("tcp", remote)
 					if ra == nil || ra.IP == nil {
 						ra = &net.TCPAddr{IP: net.IPv4zero, Port: 0}
 					}
@@ -341,7 +318,29 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 				}
 				return flowConn, nil
 			},
+		}
+		s.httpProxyCache.Add(host.Id, tr)
+	}
+
+	rp := &httputil.ReverseProxy{
+		Director: func(req *http.Request) {
+			//req = req.WithContext(context.WithValue(req.Context(), "origReq", r))
+			if host.TargetIsHttps {
+				req.URL.Scheme = "https"
+			} else {
+				req.URL.Scheme = "http"
+			}
+			//logs.Debug("Director: set req.URL.Scheme=%s, req.URL.Host=%s", req.URL.Scheme, req.URL.Host)
+			common.ChangeHostAndHeader(req, host.HostChange, host.HeaderChange, isHttpOnlyRequest)
+			req.URL.Host = r.Host
+			ctx := context.WithValue(r.Context(), ctxRemoteAddr, r.RemoteAddr)
+			ctx = context.WithValue(ctx, ctxHost, host)
+			req = req.WithContext(ctx)
+			if isHttpOnlyRequest {
+				req.Header["X-Forwarded-For"] = nil
+			}
 		},
+		Transport:     tr,
 		FlushInterval: 100 * time.Millisecond,
 		ModifyResponse: func(resp *http.Response) error {
 			// CORS
@@ -361,6 +360,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			return nil
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
+			s.httpProxyCache.Remove(host.Id)
 			if err == io.EOF {
 				logs.Info("ErrorHandler: io.EOF encountered, writing 521")
 				rw.WriteHeader(521)
@@ -383,11 +383,21 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			}
 		},
 	}
-	s.httpProxyCache.Add(host.Id, rp)
 	rp.ServeHTTP(w, r)
 }
 
-func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, host *file.Host, targetAddr string, isHttpOnlyRequest bool) {
+func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, host *file.Host, isHttpOnlyRequest bool) {
+	// Get target addr
+	targetAddr, err := host.Target.GetRandomTarget()
+	if err != nil {
+		logs.Warn("No backend found for host: %s Err: %v", r.Host, err)
+		//http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusBadGateway)
+		w.Write(s.errorContent)
+		return
+	}
+
 	logs.Info("%s websocket request, method %s, host %s, url %s, remote address %s, target %s", r.URL.Scheme, r.Method, r.Host, r.URL.Path, r.RemoteAddr, targetAddr)
 
 	link := conn.NewLink("tcp", targetAddr, host.Client.Cnf.Crypt, host.Client.Cnf.Compress, r.RemoteAddr, host.Target.LocalProxy)
