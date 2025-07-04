@@ -98,16 +98,16 @@
             }
             if (row.Mode == "p2p") {
                 return tmp + "<br/><br>"
-                    + '<b langtag="word-commandaccessp2p"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.addr}} -vkey=" + row.Client.VerifyKey
-                    + " -type=" + {{.bridgeType}} + " -password=" + row.Password + " -target=" + row.Target.TargetStr + "</code>" + "<br/><br>"
-                    + '<b langtag="word-commandaccessp2ps"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.addr}} -vkey=" + row.Client.VerifyKey
-                    + " -type=" + {{.bridgeType}} + " -password=" + row.Password + " -local_type=p2ps" + "</code>" + "<br/><br>"
-                    + '<b langtag="word-commandaccessp2pt"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.addr}} -vkey=" + row.Client.VerifyKey
-                    + " -type=" + {{.bridgeType}} + " -password=" + row.Password + " -local_type=p2pt" + "</code>"
+                    + '<b langtag="word-commandaccessp2p"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server=\"{{.addr}}\" -vkey=\"" + row.Client.VerifyKey
+                    + "\" -type=\"" + {{.bridgeType}} + "\" -password=\"" + row.Password + "\" -target=\"" + row.Target.TargetStr + "\"</code>" + "<br/><br>"
+                    + '<b langtag="word-commandaccessp2ps"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server=\"{{.addr}}\" -vkey=\"" + row.Client.VerifyKey
+                    + "\" -type=\"" + {{.bridgeType}} + "\" -password=\"" + row.Password + "\" -local_type=\"p2ps\"" + "</code>" + "<br/><br>"
+                    + '<b langtag="word-commandaccessp2pt"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server=\"{{.addr}}\" -vkey=\"" + row.Client.VerifyKey
+                    + "\" -type=\"" + {{.bridgeType}} + "\" -password=\"" + row.Password + "\" -local_type=\"p2pt\"" + "</code>"
             }
             if (row.Mode == "secret") {
-                return tmp + "<br/><br>" + '<b langtag="word-commandaccess"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server={{.addr}} -vkey=" + row.Client.VerifyKey
-                    + " -type=" + {{.bridgeType}} + " -password=" + row.Password + " -local_type=secret" + "</code>"
+                return tmp + "<br/><br>" + '<b langtag="word-commandaccess"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server=\"{{.addr}}\" -vkey=\"" + row.Client.VerifyKey
+                    + "\" -type=\"" + {{.bridgeType}} + "\" -password=\"" + row.Password + "\" -local_type=\"secret\"" + "</code>"
             }
             return tmp
         },

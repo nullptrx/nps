@@ -129,6 +129,7 @@ func (s *ClientController) Edit() {
 					s.AjaxErr("Vkey duplicate, please reset")
 					return
 				}
+				file.Blake2bVkeyIndex.Remove(crypt.Blake2b(c.VerifyKey))
 				c.VerifyKey = s.getEscapeString("vkey")
 				file.Blake2bVkeyIndex.Add(crypt.Blake2b(c.VerifyKey), c.Id)
 				c.Flow.FlowLimit = int64(s.GetIntNoErr("flow_limit"))
