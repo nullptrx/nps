@@ -5,13 +5,13 @@
 [![Release](https://github.com/djylb/nps/workflows/Release/badge.svg)](https://github.com/djylb/nps/actions)
 [![GitHub All Releases](https://img.shields.io/github/downloads/djylb/nps/total)](https://github.com/djylb/nps/releases)
 
+> ⭐️ Give us a star on [GitHub](https://github.com/djylb/nps) if you like it!
+
 - [中文文档](https://github.com/djylb/nps/blob/master/README.md)
 
 ---
 
 ## Introduction
-
-> ⭐️ Give us a star on [GitHub](https://github.com/djylb/nps) if you like it!
 
 NPS is a lightweight and efficient intranet tunneling proxy server that supports forwarding multiple protocols (TCP, UDP, HTTP, HTTPS, SOCKS5, etc.). It features an intuitive web management interface that allows secure and convenient access to intranet resources from external networks, addressing a wide range of complex scenarios.
 
