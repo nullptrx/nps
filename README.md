@@ -9,13 +9,15 @@
 
 - [English](https://github.com/djylb/nps/blob/master/README_en.md)
 
+> 在 [GitHub](https://github.com/djylb/nps) 点击右上角 ⭐ Star 以支持我在空闲时间继续开发
+
 ---
 
 ## 简介
 
 NPS 是一款轻量高效的内网穿透代理服务器，支持多种协议（TCP、UDP、HTTP、HTTPS、SOCKS5 等）转发。它提供直观的 Web 管理界面，使得内网资源能安全、便捷地在外网访问，同时满足多种复杂场景的需求。
 
-由于[NPS](https://github.com/ehang-io/nps)停更已久，本仓库基于 nps 0.26 整合社区更新二次开发而来。
+由于[NPS](https://github.com/ehang-io/nps)停更已久，本仓库整合社区更新二次开发而来。
 
 - **提问前请先查阅：**  [文档](https://d-jy.net/docs/nps/) 与 [Issues](https://github.com/djylb/nps/issues)
 - **欢迎参与：**  提交 PR、反馈问题或建议，共同推动项目发展。
@@ -29,7 +31,7 @@ NPS 是一款轻量高效的内网穿透代理服务器，支持多种协议（T
 ## 主要特性
 
 - **多协议支持**  
-  TCP/UDP 转发、HTTP/HTTPS 转发、HTTP/SOCKS5 代理、P2P 模式、Proxy Protocol支持等，满足各种内网访问场景。
+  TCP/UDP 转发、HTTP/HTTPS 转发、HTTP/SOCKS5 代理、P2P 模式、Proxy Protocol支持、HTTP/3支持等，满足各种内网访问场景。
 
 - **跨平台部署**  
   支持 Linux、Windows 等主流平台，可轻松安装为系统服务。
@@ -39,6 +41,9 @@ NPS 是一款轻量高效的内网穿透代理服务器，支持多种协议（T
 
 - **安全与扩展**  
   内置加密传输、流量限制、到期限制、证书管理续签等多重功能，保障数据安全。
+
+- **多连接协议**  
+  支持 TCP、KCP、TLS、QUIC、WS、WSS 协议连接服务器。
 
 ---
 

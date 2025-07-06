@@ -7,6 +7,8 @@
 
 - [中文文档](https://github.com/djylb/nps/blob/master/README.md)
 
+> ⭐️ Give us a star on [GitHub](https://github.com/djylb/nps) if you like it!
+
 ---
 
 ## Introduction
