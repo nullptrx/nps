@@ -11,6 +11,8 @@
 
 ## Introduction
 
+> ⭐️ Give us a star on [GitHub](https://github.com/djylb/nps) if you like it!
+
 NPS is a lightweight and efficient intranet tunneling proxy server that supports forwarding multiple protocols (TCP, UDP, HTTP, HTTPS, SOCKS5, etc.). It features an intuitive web management interface that allows secure and convenient access to intranet resources from external networks, addressing a wide range of complex scenarios.
 
 Due to the long-term discontinuation of [NPS](https://github.com/ehang-io/nps), this repository is a community-driven, updated fork based on nps 0.26.
@@ -20,8 +22,6 @@ Due to the long-term discontinuation of [NPS](https://github.com/ehang-io/nps), 
 - **Join the discussion:** Connect with other users in our [Telegram Group](https://t.me/npsdev).
 - **Android:**  [djylb/npsclient](https://github.com/djylb/npsclient)
 - **OpenWrt:**  [djylb/nps-openwrt](https://github.com/djylb/nps-openwrt)
-
-> ⭐️ Give us a star on [GitHub](https://github.com/djylb/nps) if you like it!
 
 ---
 

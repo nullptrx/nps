@@ -13,6 +13,8 @@
 
 ## 简介
 
+> 在 [GitHub](https://github.com/djylb/nps) 点击右上角 ⭐ Star 以支持我在空闲时间继续开发
+
 NPS 是一款轻量高效的内网穿透代理服务器，支持多种协议（TCP、UDP、HTTP、HTTPS、SOCKS5 等）转发。它提供直观的 Web 管理界面，使得内网资源能安全、便捷地在外网访问，同时满足多种复杂场景的需求。
 
 由于[NPS](https://github.com/ehang-io/nps)停更已久，本仓库整合社区更新二次开发而来。
@@ -23,8 +25,6 @@ NPS 是一款轻量高效的内网穿透代理服务器，支持多种协议（T
 - **Android：**  [djylb/npsclient](https://github.com/djylb/npsclient)
 - **OpenWrt：**  [djylb/nps-openwrt](https://github.com/djylb/nps-openwrt)
 - **Mirror：**  [djylb/nps-mirror](https://github.com/djylb/nps-mirror)
-
-> 在 [GitHub](https://github.com/djylb/nps) 点击右上角 ⭐ Star 以支持我在空闲时间继续开发
 
 ---
 
