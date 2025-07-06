@@ -7,8 +7,6 @@
 
 - [中文文档](https://github.com/djylb/nps/blob/master/README.md)
 
-> ⭐️ Give us a star on [GitHub](https://github.com/djylb/nps) if you like it!
-
 ---
 
 ## Introduction
@@ -22,6 +20,8 @@ Due to the long-term discontinuation of [NPS](https://github.com/ehang-io/nps), 
 - **Join the discussion:** Connect with other users in our [Telegram Group](https://t.me/npsdev).
 - **Android:**  [djylb/npsclient](https://github.com/djylb/npsclient)
 - **OpenWrt:**  [djylb/nps-openwrt](https://github.com/djylb/nps-openwrt)
+
+> ⭐️ Give us a star on [GitHub](https://github.com/djylb/nps) if you like it!
 
 ---
 

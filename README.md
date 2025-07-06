@@ -9,8 +9,6 @@
 
 - [English](https://github.com/djylb/nps/blob/master/README_en.md)
 
-> 在 [GitHub](https://github.com/djylb/nps) 点击右上角 ⭐ Star 以支持我在空闲时间继续开发
-
 ---
 
 ## 简介
@@ -25,6 +23,8 @@ NPS 是一款轻量高效的内网穿透代理服务器，支持多种协议（T
 - **Android：**  [djylb/npsclient](https://github.com/djylb/npsclient)
 - **OpenWrt：**  [djylb/nps-openwrt](https://github.com/djylb/nps-openwrt)
 - **Mirror：**  [djylb/nps-mirror](https://github.com/djylb/nps-mirror)
+
+> 在 [GitHub](https://github.com/djylb/nps) 点击右上角 ⭐ Star 以支持我在空闲时间继续开发
 
 ---
 
