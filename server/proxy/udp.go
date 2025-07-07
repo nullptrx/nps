@@ -128,9 +128,9 @@ func (s *UdpModeServer) clientWorker(addr *net.UDPAddr, ent *entry) {
 		logs.Warn("client id %d, task id %d flow/conn limit: %v", s.task.Client.Id, s.task.Id, err)
 		return
 	}
+	defer s.task.Client.CutConn()
 	s.task.AddConn()
 	defer s.task.CutConn()
-	defer s.task.Client.CutConn()
 
 	link := conn.NewLink(common.CONN_UDP, s.task.Target.TargetStr, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, key, s.allowLocalProxy && s.task.Target.LocalProxy)
 	clientConn, err := s.bridge.SendLinkInfo(s.task.Client.Id, link, s.task)

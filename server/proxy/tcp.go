@@ -53,8 +53,6 @@ func (s *TunnelModeServer) Start() error {
 	return conn.NewTcpListenerAndProcess(common.BuildAddress(s.task.ServerIp, strconv.Itoa(s.task.Port)), func(c net.Conn) {
 		s.activeConnections.Store(c, struct{}{})
 		defer func() {
-			s.task.CutConn()
-			s.task.Client.CutConn()
 			s.activeConnections.Delete(c)
 			if c != nil {
 				c.Close()
@@ -66,7 +64,9 @@ func (s *TunnelModeServer) Start() error {
 			c.Close()
 			return
 		}
+		defer s.task.Client.CutConn()
 		s.task.AddConn()
+		defer s.task.CutConn()
 
 		logs.Trace("new tcp connection,local port %d,client %d,remote address %v", s.task.Port, s.task.Client.Id, c.RemoteAddr())
 
