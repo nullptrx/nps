@@ -63,6 +63,7 @@ nps update && nps restart
 
 ### 2.2 NPC
 ```bash
+# Install
 wget -qO- https://fastly.jsdelivr.net/gh/djylb/nps@master/install.sh | sudo sh -s npc
 /usr/bin/npc install -server=xxx:123,yyy:456 -vkey=xxx,yyy -type=tls -log=off
 npc start|stop|restart|uninstall
