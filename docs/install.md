@@ -42,7 +42,7 @@ docker run -d --restart=always --name npc --net=host ghcr.io/djylb/npc -server=x
 
 ## 2. 脚本安装
 
-此方式不支持 Windows 安装
+> 此方式不支持 **Windows** 安装。
 
 ### 2.1 NPS
 ```bash
@@ -126,8 +126,6 @@ NPS 提供官方二进制安装包，适用于 **Windows、Linux、macOS、FreeB
 .\npc-update.exe update
 .\npc.exe start
 ```
-
-> **Windows 7 旧版** 不支持命令更新，如需升级请手动替换文件。
 
 ---
 
