@@ -76,7 +76,8 @@ docker run -d --restart=always --name npc --net=host duan2001/npc -server=xxx:12
 #### Linux
 ```bash
 # Install (default configuration path: /etc/nps/; binary file path: /usr/bin/)
-./nps install
+wget -qO- https://raw.githubusercontent.com/djylb/nps/refs/heads/master/install.sh | sudo sh -s nps
+nps install
 nps start|stop|restart|uninstall
 
 # Update
@@ -103,7 +104,7 @@ nps update && nps restart
 
 #### Linux
 ```bash
-./npc install
+wget -qO- https://raw.githubusercontent.com/djylb/nps/refs/heads/master/install.sh | sudo sh -s npc
 /usr/bin/npc install -server=xxx:123,yyy:456 -vkey=xxx,yyy -type=tls -log=off
 npc start|stop|restart|uninstall
 

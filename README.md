@@ -78,7 +78,8 @@ docker run -d --restart=always --name npc --net=host duan2001/npc -server=xxx:12
 #### Linux
 ```bash
 # 安装（默认配置路径：/etc/nps/；二进制文件路径：/usr/bin/）
-./nps install
+wget -qO- https://fastly.jsdelivr.net/gh/djylb/nps@master/install.sh | sudo sh -s nps
+nps install
 nps start|stop|restart|uninstall
 
 # 更新
@@ -105,7 +106,7 @@ nps update && nps restart
 
 #### Linux
 ```bash
-./npc install
+wget -qO- https://fastly.jsdelivr.net/gh/djylb/nps@master/install.sh | sudo sh -s npc
 /usr/bin/npc install -server=xxx:123,yyy:456 -vkey=xxx,yyy -type=tls -log=off
 npc start|stop|restart|uninstall
 
