@@ -59,8 +59,6 @@ nps start
 nps update && nps restart
 ```
 
----
-
 ### 2.2 NPC
 ```bash
 # Install
