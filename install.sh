@@ -33,22 +33,22 @@ cleanup() {
 }
 trap cleanup EXIT
 
-MODE="${1:-all}"
-VERSION="${2:-${NPS_VERSION:-}}"
+INSTALL_MODE="${1:-${NPS_INSTALL_MODE:-all}}"
+INSTALL_VERSION="${2:-${NPS_INSTALL_VERSION:-latest}}"
 
 # Validate mode
-case "$MODE" in
+case "$INSTALL_MODE" in
   npc|nps|all) ;;
   *)
-    echo "Error: unsupported mode: $MODE" >&2
+    echo "Error: unsupported mode: $INSTALL_MODE" >&2
     exit 1
     ;;
 esac
 
-echo "Mode: $MODE"
+echo "Mode: $INSTALL_MODE"
 
 # Fetch latest version if unspecified
-if [ -z "$VERSION" ]; then
+if [ "$INSTALL_VERSION" = "latest" ]; then
   echo "Get latest version..."
   API_URL="https://api.github.com/repos/djylb/nps/releases/latest"
   if command -v curl >/dev/null 2>&1; then
@@ -57,16 +57,16 @@ if [ -z "$VERSION" ]; then
     RAW_JSON=$(wget -qO- "$API_URL")
   fi
 
-  VERSION=$(printf '%s' "$RAW_JSON" \
+  INSTALL_VERSION=$(printf '%s' "$RAW_JSON" \
     | grep -m1 '"tag_name"' \
     | sed 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/')
 
-  if [ -z "$VERSION" ]; then
+  if [ -z "$INSTALL_VERSION" ]; then
     echo "Error: failed to detect version" >&2
     exit 1
   fi
 fi
-echo "Version: $VERSION"
+echo "Version: $INSTALL_VERSION"
 
 # Determine OS
 OS="$(uname -s)"
@@ -119,9 +119,9 @@ download() {
   NAME=$1
   FILE="${OS}_${ARCH}_${NAME}.tar.gz"
   URLS="
-    https://github.com/djylb/nps/releases/download/${VERSION}/${FILE}
-    https://cdn.jsdelivr.net/gh/djylb/nps-mirror@${VERSION}/${FILE}
-    https://fastly.jsdelivr.net/gh/djylb/nps-mirror@${VERSION}/${FILE}
+    https://github.com/djylb/nps/releases/download/${INSTALL_VERSION}/${FILE}
+    https://cdn.jsdelivr.net/gh/djylb/nps-mirror@${INSTALL_VERSION}/${FILE}
+    https://fastly.jsdelivr.net/gh/djylb/nps-mirror@${INSTALL_VERSION}/${FILE}
   "
 
   TMPD=$(mktemp -d 2>/dev/null || mktemp -d -t nps-install.XXXXXX)
@@ -205,7 +205,7 @@ install_nps() {
 }
 
 # Run installation per mode
-case "$MODE" in
+case "$INSTALL_MODE" in
   npc) install_npc ;;
   nps) install_nps ;;
   all) install_npc; install_nps ;;
