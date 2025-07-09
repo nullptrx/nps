@@ -44,19 +44,6 @@ docker run -d --restart=always --name npc --net=host ghcr.io/djylb/npc -server=x
 
 > 此方式不支持 **Windows** 安装。
 
-脚本支持以下用法：
-
-- 不传参数：默认安装 nps + npc 最新版本，二进制安装在系统路径（`/usr/bin` 或 `/usr/local/bin`），配置文件在 `/etc/nps`。
-- 可通过参数指定：
-  - **模式**：`nps` | `npc` | `all`（默认 all）
-  - **版本**：例如 `v0.29.0`，默认 `latest`
-  - **路径**：如果指定路径，则压缩包会直接解压到该目录，而不会安装到系统路径。
-
-- 环境变量支持：
-  - `NPS_INSTALL_MODE`：同第一个参数
-  - `NPS_INSTALL_VERSION`：同第二个参数
-  - `NPS_INSTALL_DIR`：同第三个参数
-
 ### 2.1 NPS
 ```bash
 # Install (default configuration path: /etc/nps/; binary file path: /usr/bin/)
@@ -78,6 +65,22 @@ npc start|stop|restart|uninstall
 # Update
 npc update && npc restart
 ```
+
+### 2.3 脚本说明
+
+* 不传任何参数时，脚本默认安装最新版本的 `nps` 和 `npc`，二进制文件会安装到系统路径（`/usr/bin` 或 `/usr/local/bin`），配置文件位于 `/etc/nps`。
+
+* 脚本支持通过参数指定：
+
+  * **模式**：`nps` | `npc` | `all`（默认 `all`）
+  * **版本**：例如 `v0.29.0`，默认 `latest`
+  * **安装目录**：指定路径时，压缩包将直接解压到该目录，而不会安装到系统路径。
+
+* 同样支持以下环境变量：
+
+  * `NPS_INSTALL_MODE`：等同于第一个参数
+  * `NPS_INSTALL_VERSION`：等同于第二个参数
+  * `NPS_INSTALL_DIR`：等同于第三个参数
 
 ---
 
