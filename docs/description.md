@@ -6,7 +6,7 @@
 
 客户端如果需要连接旧版服务端需要在启动时添加`-proto_version=0`参数
 
-## 获取用户真实ip
+## 获取用户真实IP
 
 如需使用需要在`nps.conf`中设置`http_add_origin_header=true`
 
@@ -16,11 +16,11 @@
 
 ## 热更新支持
 
-对于绝大多数配置，在web管理中的修改将实时使用，无需重启客户端或者服务端
+对于绝大多数配置，在Web管理中的修改将实时使用，无需重启客户端或者服务端
 
 ## 客户端地址显示
 
-在web管理中将显示客户端的连接地址
+在Web管理中将显示客户端的连接地址
 
 ## 流量统计
 
@@ -40,6 +40,16 @@
 `tcp_max_syn_backlog` `somaxconn`
 酌情调整参数，增强网络性能
 
-## web管理保护
+QUIC在使用时可能会缓冲区警告，具体参考 [Wiki](https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes)
 
-当一个ip连续登陆失败次数超过10次，将在一分钟内禁止该ip再次尝试。
+可使用下面命令配置增大缓冲区来缓解
+
+```bash
+echo -e "\nnet.core.rmem_max = 7500000\nnet.core.wmem_max = 7500000" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+```
+
+## Web管理保护
+
+当一个ip连续登陆失败次数超过10次，将在一分钟内禁止该ip再次尝试。此外还支持TOTP、图形验证码和PoW保护。
+
