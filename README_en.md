@@ -81,15 +81,11 @@ nps install
 nps start|stop|restart|uninstall
 
 # Update
-nps stop
-nps-update update
-nps start
-# Fast Update
 nps update && nps restart
 ```
 
 #### Windows
-> Windows 7 users should use the version ending with old: [64](https://github.com/djylb/nps/releases/latest/download/windows_amd64_server_old.tar.gz) / [32](https://github.com/djylb/nps/releases/latest/download/windows_386_server_old.tar.gz) (manual updates required)
+> Windows 7 users should use the version ending with old: [64](https://github.com/djylb/nps/releases/latest/download/windows_amd64_server_old.tar.gz) / [32](https://github.com/djylb/nps/releases/latest/download/windows_386_server_old.tar.gz)
 ```powershell
 .\nps.exe install
 .\nps.exe start|stop|restart|uninstall
@@ -109,15 +105,11 @@ wget -qO- https://raw.githubusercontent.com/djylb/nps/refs/heads/master/install.
 npc start|stop|restart|uninstall
 
 # Update
-npc stop
-/usr/bin/npc-update update
-npc start
-# Fast Update
 npc update && npc restart
 ```
 
 #### Windows
-> Windows 7 users should use the version ending with old: [64](https://github.com/djylb/nps/releases/latest/download/windows_amd64_client_old.tar.gz) / [32](https://github.com/djylb/nps/releases/latest/download/windows_386_client_old.tar.gz) (manual updates required)
+> Windows 7 users should use the version ending with old: [64](https://github.com/djylb/nps/releases/latest/download/windows_amd64_client_old.tar.gz) / [32](https://github.com/djylb/nps/releases/latest/download/windows_386_client_old.tar.gz)
 ```powershell
 .\npc.exe install -server="xxx:123,yyy:456" -vkey="xxx,yyy" -type="tls,tcp" -log="off"
 .\npc.exe start|stop|restart|uninstall

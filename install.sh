@@ -35,6 +35,7 @@ trap cleanup EXIT
 
 INSTALL_MODE="${1:-${NPS_INSTALL_MODE:-all}}"
 INSTALL_VERSION="${2:-${NPS_INSTALL_VERSION:-latest}}"
+INSTALL_DIR="${3:-${NPS_INSTALL_DIR:-}}"
 
 # Validate mode
 case "$INSTALL_MODE" in
@@ -124,9 +125,14 @@ download() {
     https://fastly.jsdelivr.net/gh/djylb/nps-mirror@${INSTALL_VERSION}/${FILE}
   "
 
-  TMPD=$(mktemp -d 2>/dev/null || mktemp -d -t nps-install.XXXXXX)
-  TMP_DIRS="$TMP_DIRS $TMPD"
-  cd "$TMPD"
+  if [ -n "$INSTALL_DIR" ]; then
+    mkdir -p "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
+  else
+    TMPD=$(mktemp -d 2>/dev/null || mktemp -d -t nps-install.XXXXXX)
+    TMP_DIRS="$TMP_DIRS $TMPD"
+    cd "$TMPD"
+  fi
 
   success=0
   for u in $URLS; do
@@ -147,13 +153,24 @@ download() {
   fi
 
   tar xf "$FILE"
-  printf '%s\n' "$TMPD"
+
+  if [ -n "$INSTALL_DIR" ]; then
+    printf '%s\n' "$INSTALL_DIR"
+  else
+    printf '%s\n' "$TMPD"
+  fi
 }
 
 # Install NPC (client)
 install_npc() {
   SRC=$(download client)
   echo "Install npc..."
+
+  if [ -n "$INSTALL_DIR" ]; then
+    echo "npc installed in $INSTALL_DIR"
+    return
+  fi
+
   if [ -x "$SRC/npc" ]; then
     if cp -f "$SRC/npc" /usr/bin/npc 2>/dev/null; then
       chmod 755 /usr/bin/npc
@@ -182,6 +199,12 @@ install_npc() {
 install_nps() {
   SRC=$(download server)
   echo "Install nps..."
+
+  if [ -n "$INSTALL_DIR" ]; then
+    echo "nps installed in $INSTALL_DIR"
+    return
+  fi
+
   if [ -x "$SRC/nps" ]; then
     if cp -f "$SRC/nps" /usr/bin/nps 2>/dev/null; then
       chmod 755 /usr/bin/nps

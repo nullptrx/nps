@@ -83,15 +83,11 @@ nps install
 nps start|stop|restart|uninstall
 
 # 更新
-nps stop
-nps-update update
-nps start
-# 快速更新
 nps update && nps restart
 ```
 
 #### Windows
-> Windows 7 用户请使用 old 结尾版本 [64](https://github.com/djylb/nps/releases/latest/download/windows_amd64_server_old.tar.gz) / [32](https://github.com/djylb/nps/releases/latest/download/windows_386_server_old.tar.gz) （需要手动更新）
+> Windows 7 用户请使用 old 结尾版本 [64](https://github.com/djylb/nps/releases/latest/download/windows_amd64_server_old.tar.gz) / [32](https://github.com/djylb/nps/releases/latest/download/windows_386_server_old.tar.gz)
 ```powershell
 .\nps.exe install
 .\nps.exe start|stop|restart|uninstall
@@ -111,15 +107,11 @@ wget -qO- https://fastly.jsdelivr.net/gh/djylb/nps@master/install.sh | sudo sh -
 npc start|stop|restart|uninstall
 
 # 更新
-npc stop
-/usr/bin/npc-update update
-npc start
-# 快速更新
 npc update && npc restart
 ```
 
 #### Windows
-> Windows 7 用户请使用 old 结尾版本 [64](https://github.com/djylb/nps/releases/latest/download/windows_amd64_client_old.tar.gz) / [32](https://github.com/djylb/nps/releases/latest/download/windows_386_client_old.tar.gz) （需要手动更新）
+> Windows 7 用户请使用 old 结尾版本 [64](https://github.com/djylb/nps/releases/latest/download/windows_amd64_client_old.tar.gz) / [32](https://github.com/djylb/nps/releases/latest/download/windows_386_client_old.tar.gz)
 ```powershell
 .\npc.exe install -server="xxx:123,yyy:456" -vkey="xxx,yyy" -type="tls,tcp" -log="off"
 .\npc.exe start|stop|restart|uninstall

@@ -44,6 +44,19 @@ docker run -d --restart=always --name npc --net=host ghcr.io/djylb/npc -server=x
 
 > 此方式不支持 **Windows** 安装。
 
+脚本支持以下用法：
+
+- 不传参数：默认安装 nps + npc 最新版本，二进制安装在系统路径（`/usr/bin` 或 `/usr/local/bin`），配置文件在 `/etc/nps`。
+- 可通过参数指定：
+  - **模式**：`nps` | `npc` | `all`（默认 all）
+  - **版本**：例如 `v0.29.0`，默认 `latest`
+  - **路径**：如果指定路径，则压缩包会直接解压到该目录，而不会安装到系统路径。
+
+- 环境变量支持：
+  - `NPS_INSTALL_MODE`：同第一个参数
+  - `NPS_INSTALL_VERSION`：同第二个参数
+  - `NPS_INSTALL_DIR`：同第三个参数
+
 ### 2.1 NPS
 ```bash
 # Install (default configuration path: /etc/nps/; binary file path: /usr/bin/)
@@ -52,10 +65,6 @@ nps install
 nps start|stop|restart|uninstall
 
 # Update
-nps stop
-nps-update update
-nps start
-# Fast Update
 nps update && nps restart
 ```
 
@@ -67,10 +76,6 @@ wget -qO- https://fastly.jsdelivr.net/gh/djylb/nps@master/install.sh | sudo sh -
 npc start|stop|restart|uninstall
 
 # Update
-npc stop
-/usr/bin/npc-update update
-npc start
-# Fast Update
 npc update && npc restart
 ```
 
@@ -157,10 +162,6 @@ nps start|stop|restart|uninstall
 ./nps install -conf_path="/app/nps"
 
 # 更新
-nps stop
-nps-update update
-nps start
-# 快速更新
 nps update && nps restart
 
 # NPC 客户端
@@ -169,10 +170,6 @@ nps update && nps restart
 npc start|stop|restart|uninstall
 
 # 更新
-npc stop
-/usr/bin/npc-update update
-npc start
-# 快速更新
 npc update && npc restart
 ```
 
@@ -195,10 +192,6 @@ nps start|stop|restart|uninstall
 ./nps install -conf_path="/app/nps"
 
 # 更新
-nps stop
-nps-update update
-nps start
-# 快速更新
 nps update && nps restart
 
 # NPC 客户端
@@ -207,10 +200,6 @@ nps update && nps restart
 npc start|stop|restart|uninstall
 
 # 更新
-npc stop
-/usr/bin/npc-update update
-npc start
-# 快速更新
 npc update && npc restart
 ```
 
