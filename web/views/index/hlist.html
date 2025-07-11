@@ -82,21 +82,24 @@
                 + '<b langtag="word-proxyprotocoltitle"></b>: <span langtag="word-proxyprotocolv' + row.Target.ProxyProtocol + '"></span>&emsp;'
                 + '<b langtag="word-httpsjustproxytitle"></b>: <span onclick="submitform(\'turn\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'https_just_proxy\'})" langtag="word-' + row.HttpsJustProxy + '"></span>&emsp;'
                 + '<b langtag="word-targettype"></b>: <span onclick="submitform(\'turn\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'target_is_https\'})" langtag="word-ishttps' + row.TargetIsHttps + '"></span>&emsp;<br/><br>'
-            if (row.CertFile || row.KeyFile) {
-                tmp += '<b langtag="word-basicusername"></b>: ' + row.Client.Cnf.U + '&emsp;'
-                + '<b langtag="word-basicpassword"></b>: ' + row.Client.Cnf.P + '&emsp;<br/><br>'
+            if (row.Client.Cnf.U || row.Client.Cnf.P) {
+                tmp += '<b langtag="word-basicusername"></b>: <span onclick="oCopy(this)">' + row.Client.Cnf.U + '</span>&emsp;'
+                + '<b langtag="word-basicpassword"></b>: <span onclick="oCopy(this)">' + row.Client.Cnf.P + '</span>&emsp;<br/><br>'
             }
             if (row.UserAuth && row.UserAuth.Content) {
                 tmp += '<b langtag="word-auth"></b>: ' + (row.UserAuth && row.UserAuth.Content ? row.UserAuth.Content : '') + '&emsp;<br/><br>'
             }
             if (row.HostChange) {
-                tmp += '<b langtag="word-requesthost"></b>: ' + row.HostChange + '&emsp;<br/><br>'
+                tmp += '<b langtag="word-requesthost"></b>: <span onclick="oCopy(this)">' + row.HostChange + '</span>&emsp;<br/><br>'
             }
             if (row.HeaderChange) {
                 tmp += '<b langtag="word-requestheader"></b>: ' + row.HeaderChange + '&emsp;<br/><br>'
             }
             if (row.RespHeaderChange) {
                 tmp += '<b langtag="word-responseheader"></b>: ' + row.RespHeaderChange + '&emsp;<br/><br>'
+            }
+            if (row.RedirectURL) {
+                tmp += '<b langtag="word-redirecturl"></b>: <span onclick="oCopy(this)">' + row.RedirectURL + '</span>&emsp;<br/><br>'
             }
             tmp += '<b langtag="word-autossl"></b>: <span onclick="submitform(\'turn\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'auto_ssl\'})" langtag="word-' + row.AutoSSL + '"></span>&emsp;'
             if (row.Scheme != "http" && row.HttpsJustProxy == false && row.AutoSSL == false && (row.CertFile || row.KeyFile)) {

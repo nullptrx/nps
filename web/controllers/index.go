@@ -458,6 +458,7 @@ func (s *IndexController) AddHost() {
 			Remark:           s.getEscapeString("remark"),
 			Location:         s.getEscapeString("location"),
 			PathRewrite:      s.getEscapeString("path_rewrite"),
+			RedirectURL:      s.getEscapeString("redirect_url"),
 			Flow: &file.Flow{
 				FlowLimit: int64(s.GetIntNoErr("flow_limit")),
 				TimeLimit: common.GetTimeNoErrByStr(s.getEscapeString("time_limit")),
@@ -535,6 +536,7 @@ func (s *IndexController) EditHost() {
 			h.Remark = s.getEscapeString("remark")
 			h.Location = s.getEscapeString("location")
 			h.PathRewrite = s.getEscapeString("path_rewrite")
+			h.RedirectURL = s.getEscapeString("redirect_url")
 			h.Scheme = s.getEscapeString("scheme")
 			h.HttpsJustProxy = s.GetBoolNoErr("https_just_proxy")
 			h.AutoSSL = s.GetBoolNoErr("auto_ssl")

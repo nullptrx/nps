@@ -594,6 +594,10 @@
 		<zh-CN>请求域名信息修改</zh-CN>
 		<en-US>Host Modify</en-US>
 	</lang>
+	<lang id="word-redirecturl">
+		<zh-CN>重定向地址</zh-CN>
+		<en-US>Redirect URL</en-US>
+	</lang>
 	<lang id="word-runstatus">
 		<zh-CN>运行状态</zh-CN>
 		<en-US>Run Status</en-US>
@@ -996,6 +1000,10 @@
 	<lang id="info-urlrewrite">
 		<zh-CN>路径重写（留空关闭）</zh-CN>
 		<en-US>Path rewrite prefix (leave blank to disable)</en-US>
+	</lang>
+	<lang id="info-redirecturl">
+		<zh-CN>307 临时重定向（留空关闭）</zh-CN>
+		<en-US>307 Temporary Redirect (leave blank to disable)</en-US>
 	</lang>
 	<lang id="word-blackiplist">
 		<zh-CN>IP黑名单（防暴力破解）</zh-CN>

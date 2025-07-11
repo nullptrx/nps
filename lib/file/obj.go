@@ -233,6 +233,7 @@ type Host struct {
 	PathRewrite      string //url rewrite
 	Remark           string //remark
 	Scheme           string //http https all
+	RedirectURL      string // 307
 	HttpsJustProxy   bool
 	AutoSSL          bool
 	CertType         string

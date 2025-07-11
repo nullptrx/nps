@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	"net/http"
@@ -220,14 +221,6 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Path Rewrite
-	if host.PathRewrite != "" && strings.HasPrefix(r.URL.Path, host.Location) {
-		if !host.CompatMode {
-			r.Header.Set("X-Original-Path", r.URL.Path)
-		}
-		r.URL.Path = host.PathRewrite + r.URL.Path[len(host.Location):]
-	}
-
 	// HTTP-Only
 	isHttpOnlyRequest := (s.httpOnlyPass != "" && r.Header.Get("X-NPS-Http-Only") == s.httpOnlyPass)
 	if isHttpOnlyRequest {
@@ -242,6 +235,14 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Redirect(w, r, "https://"+redirectHost+r.RequestURI, http.StatusMovedPermanently)
 		return
+	}
+
+	// Path Rewrite
+	if host.PathRewrite != "" && strings.HasPrefix(r.URL.Path, host.Location) {
+		if !host.CompatMode {
+			r.Header.Set("X-Original-Path", r.URL.Path)
+		}
+		r.URL.Path = host.PathRewrite + r.URL.Path[len(host.Location):]
 	}
 
 	// Check flow and conn
@@ -262,6 +263,12 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "401 Unauthorized", http.StatusUnauthorized)
 			return
 		}
+	}
+
+	// 307 Temporary Redirect
+	if host.RedirectURL != "" {
+		http.Redirect(w, r, html.UnescapeString(host.RedirectURL), http.StatusTemporaryRedirect)
+		return
 	}
 
 	logs.Debug("%s request, method %s, host %s, url %s, remote address %s", r.URL.Scheme, r.Method, r.Host, r.URL.Path, r.RemoteAddr)

@@ -137,6 +137,12 @@
                             <input class="form-control" langtag="info-urlrewrite" name="path_rewrite" placeholder="" type="text" value="{{.h.PathRewrite}}">
                         </div>
                     </div>
+                    <div class="form-group">
+                        <label class="control-label font-bold" langtag="word-redirecturl"></label>
+                        <div class="col-sm-12">
+                            <input class="form-control" langtag="info-redirecturl" name="redirect_url" placeholder="" type="text" value="{{.h.RedirectURL}}">
+                        </div>
+                    </div>
                     {{if eq true .allow_local_proxy}}
                     <div class="form-group" id="local_proxy">
                         <label class="control-label font-bold" langtag="word-proxytolocal"></label>
@@ -213,7 +219,7 @@
 
 <script>
     $(function () {
-        ["header", "resp_header"].forEach(function(name){
+        ["header", "resp_header", "redirect_url"].forEach(function(name){
             var el = document.getElementsByName(name)[0];
             if (el) {
                 var div = document.createElement("div");
