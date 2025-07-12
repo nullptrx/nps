@@ -223,24 +223,41 @@ function submitform(action, url, postdata) {
 }
 
 function changeunit(limit) {
-    var size = "";
-    if (limit < 0.1 * 1024) {
-        size = limit.toFixed(2) + "B";
-    } else if (limit < 0.1 * 1024 * 1024) {
-        size = (limit / 1024).toFixed(2) + "KB";
-    } else if (limit < 0.1 * 1024 * 1024 * 1024) {
-        size = (limit / (1024 * 1024)).toFixed(2) + "MB";
+    const sign = limit < 0 ? "-" : "";
+    const abs = Math.abs(limit);
+    let size = "";
+    if (abs < 0.1 * 1024) {
+        size = abs.toFixed(2) + "B";
+    } else if (abs < 0.1 * 1024 * 1024) {
+        size = (abs / 1024).toFixed(2) + "KB";
+    } else if (abs < 0.1 * 1024 * 1024 * 1024) {
+        size = (abs / (1024 * 1024)).toFixed(2) + "MB";
+    } else if (abs < 0.1 * 1024 * 1024 * 1024 * 1024) {
+        size = (abs / (1024 * 1024 * 1024)).toFixed(2) + "GB";
     } else {
-        size = (limit / (1024 * 1024 * 1024)).toFixed(2) + "GB";
+        size = (abs / (1024 * 1024 * 1024 * 1024)).toFixed(2) + "TB";
     }
 
-    var sizeStr = size + "";
-    var index = sizeStr.indexOf(".");
-    var dou = sizeStr.substr(index + 1, 2);
-    if (dou == "00") {
-        return sizeStr.substring(0, index) + sizeStr.substr(index + 3, 2);
+    const idx = size.indexOf(".");
+    const dec = size.substr(idx + 1, 2);
+    if (dec === "00") {
+        size = size.substring(0, idx) + size.substr(idx + 3);
     }
-    return size;
+    return sign + size;
+}
+
+function getRemainingTime(str){
+  if(str==='0001-01-01T00:00:00Z') return {totalMs:Infinity,days:Infinity,hours:Infinity,minutes:Infinity,seconds:Infinity,formatted:'∞'};
+  const exp = new Date(str), diff = exp - Date.now();
+  if(diff <= 0) return {totalMs:0,days:0,hours:0,minutes:0,seconds:0,formatted:'0'};
+  const s       = Math.floor(diff/1e3),
+        days    = Math.floor(s/86400),
+        hours   = Math.floor((s%86400)/3600),
+        minutes = Math.floor((s%3600)/60),
+        seconds = s%60,
+        parts   = [days?days+'d':null,hours?hours+'h':null,minutes?minutes+'m':null,seconds+'s'].filter(Boolean),
+        formatted = parts.slice(0,2).join(' ');
+  return {totalMs:diff,days,hours,minutes,seconds,formatted};
 }
 
 function oCopy(obj){

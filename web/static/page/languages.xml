@@ -336,6 +336,14 @@
 		<zh-CN>否</zh-CN>
 		<en-US>False</en-US>
 	</lang>
+	<lang id="word-flowremain">
+		<zh-CN>剩余流量</zh-CN>
+		<en-US>Remaining Flow</en-US>
+	</lang>
+	<lang id="word-timeremain">
+		<zh-CN>剩余时间</zh-CN>
+		<en-US>Remaining Time</en-US>
+	</lang>
 	<lang id="word-flowlimit">
 		<zh-CN>流量限制</zh-CN>
 		<en-US>Flow Limit</en-US>

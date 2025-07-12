@@ -365,23 +365,48 @@ func GetTunnel(start, length int, typeVal string, clientId int, search string, s
 				return list[i].Flow.InletFlow+list[i].Flow.ExportFlow > list[j].Flow.InletFlow+list[j].Flow.ExportFlow
 			})
 		}
+	} else if sortField == "FlowRemain" {
+		asc := order == "asc"
+		const mb = int64(1024 * 1024)
+		rem := func(f *file.Flow) int64 {
+			if f.FlowLimit == 0 {
+				if asc {
+					return math.MaxInt64
+				}
+				return math.MinInt64
+			}
+			return f.FlowLimit*mb - (f.InletFlow + f.ExportFlow)
+		}
+		sort.SliceStable(list, func(i, j int) bool {
+			ri, rj := rem(list[i].Flow), rem(list[j].Flow)
+			if asc {
+				return ri < rj
+			}
+			return ri > rj
+		})
+	} else if sortField == "Flow.FlowLimit" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool {
+				vi, vj := list[i].Flow.FlowLimit, list[j].Flow.FlowLimit
+				return (vi != 0 && vj == 0) || (vi != 0 && vj != 0 && vi < vj)
+			})
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit > list[j].Flow.FlowLimit })
+		}
+	} else if sortField == "Flow.TimeLimit" || sortField == "TimeRemain" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool {
+				ti, tj := list[i].Flow.TimeLimit, list[j].Flow.TimeLimit
+				return (!ti.IsZero() && tj.IsZero()) || (!ti.IsZero() && !tj.IsZero() && ti.Before(tj))
+			})
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.After(list[j].Flow.TimeLimit) })
+		}
 	} else if sortField == "Status" {
 		if order == "asc" {
 			sort.SliceStable(all_list, func(i, j int) bool { return all_list[i].Status && !all_list[j].Status })
 		} else {
 			sort.SliceStable(all_list, func(i, j int) bool { return !all_list[i].Status && all_list[j].Status })
-		}
-	} else if sortField == "Flow.FlowLimit" {
-		if order == "asc" {
-			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit < list[j].Flow.FlowLimit })
-		} else {
-			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit > list[j].Flow.FlowLimit })
-		}
-	} else if sortField == "Flow.TimeLimit" {
-		if order == "asc" {
-			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.Before(list[j].Flow.TimeLimit) })
-		} else {
-			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.After(list[j].Flow.TimeLimit) })
 		}
 	} else if sortField == "RunStatus" {
 		if order == "asc" {
@@ -564,15 +589,40 @@ func GetHostList(start, length, clientId int, search, sortField, order string) (
 				return list[i].Flow.InletFlow+list[i].Flow.ExportFlow > list[j].Flow.InletFlow+list[j].Flow.ExportFlow
 			})
 		}
+	} else if sortField == "FlowRemain" {
+		asc := order == "asc"
+		const mb = int64(1024 * 1024)
+		rem := func(f *file.Flow) int64 {
+			if f.FlowLimit == 0 {
+				if asc {
+					return math.MaxInt64
+				}
+				return math.MinInt64
+			}
+			return f.FlowLimit*mb - (f.InletFlow + f.ExportFlow)
+		}
+		sort.SliceStable(list, func(i, j int) bool {
+			ri, rj := rem(list[i].Flow), rem(list[j].Flow)
+			if asc {
+				return ri < rj
+			}
+			return ri > rj
+		})
 	} else if sortField == "Flow.FlowLimit" {
 		if order == "asc" {
-			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit < list[j].Flow.FlowLimit })
+			sort.SliceStable(list, func(i, j int) bool {
+				vi, vj := list[i].Flow.FlowLimit, list[j].Flow.FlowLimit
+				return (vi != 0 && vj == 0) || (vi != 0 && vj != 0 && vi < vj)
+			})
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit > list[j].Flow.FlowLimit })
 		}
-	} else if sortField == "Flow.TimeLimit" {
+	} else if sortField == "Flow.TimeLimit" || sortField == "TimeRemain" {
 		if order == "asc" {
-			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.Before(list[j].Flow.TimeLimit) })
+			sort.SliceStable(list, func(i, j int) bool {
+				ti, tj := list[i].Flow.TimeLimit, list[j].Flow.TimeLimit
+				return (!ti.IsZero() && tj.IsZero()) || (!ti.IsZero() && !tj.IsZero() && ti.Before(tj))
+			})
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.After(list[j].Flow.TimeLimit) })
 		}
@@ -636,6 +686,25 @@ func GetClientList(start, length int, search, sortField, order string, clientId 
 				return list[i].Flow.InletFlow+list[i].Flow.ExportFlow > list[j].Flow.InletFlow+list[j].Flow.ExportFlow
 			})
 		}
+	} else if sortField == "FlowRemain" {
+		asc := order == "asc"
+		const mb = int64(1024 * 1024)
+		rem := func(f *file.Flow) int64 {
+			if f.FlowLimit == 0 {
+				if asc {
+					return math.MaxInt64
+				}
+				return math.MinInt64
+			}
+			return f.FlowLimit*mb - (f.InletFlow + f.ExportFlow)
+		}
+		sort.SliceStable(list, func(i, j int) bool {
+			ri, rj := rem(list[i].Flow), rem(list[j].Flow)
+			if asc {
+				return ri < rj
+			}
+			return ri > rj
+		})
 	} else if sortField == "NowConn" {
 		if order == "asc" {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].NowConn < list[j].NowConn })
@@ -662,13 +731,19 @@ func GetClientList(start, length int, search, sortField, order string, clientId 
 		}
 	} else if sortField == "Flow.FlowLimit" {
 		if order == "asc" {
-			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit < list[j].Flow.FlowLimit })
+			sort.SliceStable(list, func(i, j int) bool {
+				vi, vj := list[i].Flow.FlowLimit, list[j].Flow.FlowLimit
+				return (vi != 0 && vj == 0) || (vi != 0 && vj != 0 && vi < vj)
+			})
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit > list[j].Flow.FlowLimit })
 		}
-	} else if sortField == "Flow.TimeLimit" {
+	} else if sortField == "Flow.TimeLimit" || sortField == "TimeRemain" {
 		if order == "asc" {
-			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.Before(list[j].Flow.TimeLimit) })
+			sort.SliceStable(list, func(i, j int) bool {
+				ti, tj := list[i].Flow.TimeLimit, list[j].Flow.TimeLimit
+				return (!ti.IsZero() && tj.IsZero()) || (!ti.IsZero() && !tj.IsZero() && ti.Before(tj))
+			})
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.After(list[j].Flow.TimeLimit) })
 		}
