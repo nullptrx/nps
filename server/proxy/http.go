@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"html"
 	"io"
 	"net"
 	"net/http"
@@ -267,7 +266,8 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	// 307 Temporary Redirect
 	if host.RedirectURL != "" {
-		http.Redirect(w, r, html.UnescapeString(host.RedirectURL), http.StatusTemporaryRedirect)
+		redirectURL := common.ChangeRedirectURL(r, host.RedirectURL)
+		http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 		return
 	}
 

@@ -321,6 +321,28 @@
                 }
             },
             {
+                field: 'Flow.FlowLimit', //域值
+                title: '<span langtag="word-flowlimit"></span>', //内容
+                align: 'center',
+                halign: 'center',
+                visible: false, //false表示不显示
+                sortable: true, //启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'flow_limit\'})">' + value + 'MB</span>'
+                }
+            },
+            {
+                field: 'Flow.TimeLimit', //域值
+                title: '<span langtag="word-timelimit"></span>', //内容
+                align: 'center',
+                halign: 'center',
+                visible: false, //false表示不显示
+                sortable: true, //启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="submitform(\'clear\', \'{{.web_base_url}}/index/clearhost\', {\'id\':' + row.Id + ', \'mode\': \'time_limit\'})">' + value + '</span>'
+                }
+            },
+            {
                 field: 'NowConn', //域值
                 title: '<span langtag="word-nowconn"></span>', //内容
                 align: 'center',

@@ -371,6 +371,18 @@ func GetTunnel(start, length int, typeVal string, clientId int, search string, s
 		} else {
 			sort.SliceStable(all_list, func(i, j int) bool { return !all_list[i].Status && all_list[j].Status })
 		}
+	} else if sortField == "Flow.FlowLimit" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit < list[j].Flow.FlowLimit })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit > list[j].Flow.FlowLimit })
+		}
+	} else if sortField == "Flow.TimeLimit" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.Before(list[j].Flow.TimeLimit) })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.After(list[j].Flow.TimeLimit) })
+		}
 	} else if sortField == "RunStatus" {
 		if order == "asc" {
 			sort.SliceStable(all_list, func(i, j int) bool { return all_list[i].RunStatus && !all_list[j].RunStatus })
@@ -552,6 +564,18 @@ func GetHostList(start, length, clientId int, search, sortField, order string) (
 				return list[i].Flow.InletFlow+list[i].Flow.ExportFlow > list[j].Flow.InletFlow+list[j].Flow.ExportFlow
 			})
 		}
+	} else if sortField == "Flow.FlowLimit" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit < list[j].Flow.FlowLimit })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit > list[j].Flow.FlowLimit })
+		}
+	} else if sortField == "Flow.TimeLimit" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.Before(list[j].Flow.TimeLimit) })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.After(list[j].Flow.TimeLimit) })
+		}
 	} else if sortField == "IsClose" {
 		if order == "asc" {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].IsClose && !list[j].IsClose })
@@ -635,6 +659,18 @@ func GetClientList(start, length int, search, sortField, order string, clientId 
 			sort.SliceStable(list, func(i, j int) bool { return list[i].Rate.NowRate < list[j].Rate.NowRate })
 		} else {
 			sort.SliceStable(list, func(i, j int) bool { return list[i].Rate.NowRate > list[j].Rate.NowRate })
+		}
+	} else if sortField == "Flow.FlowLimit" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit < list[j].Flow.FlowLimit })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.FlowLimit > list[j].Flow.FlowLimit })
+		}
+	} else if sortField == "Flow.TimeLimit" {
+		if order == "asc" {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.Before(list[j].Flow.TimeLimit) })
+		} else {
+			sort.SliceStable(list, func(i, j int) bool { return list[i].Flow.TimeLimit.After(list[j].Flow.TimeLimit) })
 		}
 	} else if sortField == "Status" {
 		if order == "asc" {

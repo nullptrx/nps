@@ -560,6 +560,70 @@ func ChangeResponseHeader(resp *http.Response, header string) {
 	}
 }
 
+// Change redirect URL
+func ChangeRedirectURL(r *http.Request, url string) string {
+	val := strings.TrimSpace(url)
+	val = html.UnescapeString(val)
+
+	if !strings.Contains(val, "${") {
+		return val
+	}
+
+	// 设置 Host 头部信息
+	scheme := "http"
+	ssl := "off"
+	serverPort := beego.AppConfig.DefaultString("http_proxy_port", "80")
+	if r.TLS != nil {
+		scheme = "https"
+		ssl = "on"
+		serverPort = beego.AppConfig.DefaultString("https_proxy_port", "443")
+	}
+
+	// Host 不带端口
+	origHost := r.Host
+	hostOnly := RemovePortFromHost(origHost)
+
+	// 获取请求的客户端 IP Port
+	remoteAddr := r.RemoteAddr
+	clientIP := GetIpByAddr(remoteAddr)
+	clientPort := GetPortStrByAddr(remoteAddr)
+
+	// 获取 X-Forwarded-For 头部的先前值
+	proxyAddXFF := clientIP
+	if prior, ok := r.Header["X-Forwarded-For"]; ok {
+		proxyAddXFF = strings.Join(prior, ", ") + ", " + clientIP
+	}
+
+	rep := strings.NewReplacer(
+		// 协议/SSL
+		"${scheme}", scheme,
+		"${ssl}", ssl,
+		"${forwarded_ssl}", ssl,
+
+		// 主机
+		"${host}", hostOnly,
+		"${http_host}", origHost,
+
+		// 客户端
+		"${remote_addr}", remoteAddr,
+		"${remote_ip}", clientIP,
+		"${remote_port}", clientPort,
+		"${proxy_add_x_forwarded_for}", proxyAddXFF,
+
+		// URL 相关
+		"${request_uri}", r.RequestURI, // 包括 ?args
+		"${uri}", r.URL.Path, // 不含 args
+		"${args}", r.URL.RawQuery, // 不含 “?”
+		"${query_string}", r.URL.RawQuery, // 同 $args
+		"${scheme_host}", scheme+"://"+origHost, // 组合变量
+
+		// 端口
+		"${server_port}", serverPort,
+	)
+
+	return rep.Replace(val)
+}
+
 // Read file content by file path
 func ReadAllFromFile(filePath string) ([]byte, error) {
 	f, err := os.Open(filePath)
