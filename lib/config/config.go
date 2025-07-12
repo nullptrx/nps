@@ -167,7 +167,7 @@ func dealHost(s string) *file.Host {
 	h := &file.Host{}
 	h.Target = new(file.Target)
 	h.Scheme = "all"
-	var headerChange string
+	var headerChange, respHeaderChange string
 	for _, v := range splitStr(s) {
 		item := strings.Split(v, "=")
 		if len(item) == 0 {
@@ -186,6 +186,8 @@ func dealHost(s string) *file.Host {
 			h.Scheme = item[1]
 		case "location":
 			h.Location = item[1]
+		case "path_rewrite":
+			h.PathRewrite = item[1]
 		case "cert_file":
 			h.CertFile, _ = common.GetCertContent(item[1], "CERTIFICATE")
 		case "key_file":
@@ -200,6 +202,8 @@ func dealHost(s string) *file.Host {
 			h.AutoCORS = common.GetBoolByStr(item[1])
 		case "compat_mode":
 			h.CompatMode = common.GetBoolByStr(item[1])
+		case "redirect_url":
+			h.RedirectURL = item[1]
 		case "target_is_https":
 			h.TargetIsHttps = common.GetBoolByStr(item[1])
 		case "multi_account":
@@ -217,10 +221,14 @@ func dealHost(s string) *file.Host {
 				}
 			}
 		default:
-			if strings.Contains(item[0], "header") {
+			if strings.Contains(item[0], "header_") {
 				headerChange += strings.Replace(item[0], "header_", "", -1) + ":" + item[1] + "\n"
 			}
+			if strings.Contains(item[0], "response_") {
+				respHeaderChange += strings.Replace(item[0], "response_", "", -1) + ":" + item[1] + "\n"
+			}
 			h.HeaderChange = headerChange
+			h.RespHeaderChange = respHeaderChange
 		}
 	}
 	return h
