@@ -51,6 +51,33 @@ Http Basic Auth 来保护，访问时需要输入正确的用户名和密码。
 
 **使用方法：在Web管理中设置**
 
+## 自定义重定向地址
+
+支持对请求进行307重定向。
+
+使用示例：
+```
+https://xxx.com${request_uri}
+```
+
+| 占位符                            | 含义                                     |
+|--------------------------------|----------------------------------------|
+| `${scheme}`                    | 请求协议，`http` 或 `https`                  |
+| `${ssl}`                       | TLS 状态，`on`（HTTPS）或 `off`（HTTP）        |
+| `${forwarded_ssl}`             | 同 `${ssl}`                             |
+| `${host}`                      | 不带端口的主机名（等同 Nginx 的 `$host`）           |
+| `${http_host}`                 | 原始 `Host:` 头值（等同 Nginx 的 `$http_host`） |
+| `${server_port}`               | 服务监听端口号（等同 Nginx 的 `$server_port`）     |
+| `${remote_addr}`               | 客户端真实地址（含端口）                           |
+| `${remote_ip}`                 | 客户端真实 IP （IPv6不含方括号）                   |
+| `${remote_port}`               | 客户端源端口                                 |
+| `${proxy_add_x_forwarded_for}` | 完整的 `X-Forwarded-For` 链（追加了当前客户端 IP）   |
+| `${request_uri}`               | 完整请求路径及查询字符串（含 `?` 及后续部分）              |
+| `${uri}`                       | 请求路径，不含查询字符串                           |
+| `${args}`                      | 查询字符串，不含前导 `?`                         |
+| `${query_string}`              | 同 `${args}`                            |
+| `${scheme_host}`               | 协议 + 主机（含非标端口），如 `https://example.com` |
+
 ## 自定义请求 Header
 
 支持对请求Header进行新增或者修改，以配合服务的需要。
