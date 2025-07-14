@@ -62,7 +62,7 @@
                     </div>
                 </div>
                 {{end}}
-                <button class="btn btn-primary block full-width m-b" langtag="word-login" onclick="if (this.form.reportValidity()) login()" type="submit"></button>
+                <button id="loginBtn" class="btn btn-primary block full-width m-b" langtag="word-login" onclick="if (this.form.reportValidity()) login()" type="submit"></button>
                 {{if eq true .register_allow}}
                 <p class="text-muted text-center">
                     <small langtag="info-noaccount"></small>
@@ -85,10 +85,13 @@
             version      : "{{.version}}",
             publicKey    : `{{.public_key}}`,
             loginNonce   : "{{.login_nonce}}",
+            loginDelay   : {{.login_delay}},
             totpLen      : {{.totp_len}},
             powBits      : {{.pow_bits}},
-            powEnable    : {{if .pow_enable}}true{{else}}false{{end}}
+            powEnable    : {{if .pow_enable}}true{{else}}false{{end}},
+            lastAttempt  : Date.now()
         };
+        const loginBtn = document.getElementById('loginBtn');
         const rsaEncryptor = new JSEncrypt();
         rsaEncryptor.setPublicKey(window.nps.publicKey);
         function encryptWithRSA(plain) {
@@ -141,6 +144,7 @@
             }
         }
         async function login() {
+            loginBtn.disabled = true;
             showMsg(langreply('Processing'), 'loading', 60000);
             await new Promise(requestAnimationFrame);
             await new Promise(resolve => setTimeout(resolve, 600));
@@ -163,6 +167,12 @@
                     return false;
                 }
             }
+            const now = Date.now();
+            const wait = window.nps.loginDelay - (now - window.nps.lastAttempt);
+            if (wait > 0) {
+              await new Promise(r => setTimeout(r, wait));
+            }
+            window.nps.lastAttempt = Date.now();
             $.ajax({
                 type: "POST",
                 url : window.nps.web_base_url + "/login/verify",
@@ -181,6 +191,7 @@
                         $('input[name="captcha"]').val('');
                         {{end}}
                         showMsg(langreply(res.msg), 'error', 3000, function() {
+                            loginBtn.disabled = false;
                             if (res.nonce) {
                                 window.nps.loginNonce = res.nonce;
                             }
@@ -194,6 +205,10 @@
                             }
                         });
                     }
+                },
+                error: function (xhr, textStatus) {
+                    console.error("Login request failed:", textStatus);
+                    window.location.reload();
                 }
             });
             return false;

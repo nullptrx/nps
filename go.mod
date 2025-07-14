@@ -36,7 +36,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
 	github.com/klauspost/reedsolomon v1.12.4 // indirect
 	github.com/libdns/libdns v1.1.0 // indirect

@@ -65,6 +65,7 @@ func (self *LoginController) Index() {
 	self.Data["totp_len"] = crypt.TotpLen
 	self.Data["pow_enable"] = forcePow
 	self.Data["public_key"], _ = crypt.GetPublicKeyPEM()
+	self.Data["login_delay"] = BanTime * 1000
 	self.Data["web_base_url"] = webBaseUrl
 	self.Data["head_custom_code"] = template.HTML(beego.AppConfig.String("head_custom_code"))
 	self.Data["version"] = server.GetVersion()
@@ -187,7 +188,7 @@ func (self *LoginController) doLogin(username, password, totp string, explicit b
 		}
 	}
 
-	if IsLoginBan(ip, IpBanTime) {
+	if explicit && IsLoginBan(ip, IpBanTime) {
 		return false
 	}
 

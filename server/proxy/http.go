@@ -50,6 +50,7 @@ type HttpServer struct {
 	http3PortStr    string
 	magic           *certmagic.Config
 	acme            *certmagic.ACMEIssuer
+	errorAlways     bool
 }
 
 func NewHttp(bridge NetBridge, task *file.Tunnel, httpPort, httpsPort, http3Port int, httpOnlyPass string, addOrigin bool, httpProxyCache *index.AnyIntIndex) *HttpServer {
@@ -79,6 +80,7 @@ func (s *HttpServer) Start() error {
 	if err != nil {
 		s.errorContent = []byte("nps 404")
 	}
+	s.errorAlways = beego.AppConfig.DefaultBool("error_always", false)
 
 	certmagic.Default.Logger = logs.ZapLogger
 	certmagic.DefaultACME.Agreed = true
@@ -191,14 +193,18 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	host, err := file.GetDb().GetInfoByHost(r.Host, r)
 	if err != nil || host.IsClose {
 		//http.Error(w, "404 Host not found", http.StatusNotFound)
-		//w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		//w.WriteHeader(http.StatusNotFound)
-		//w.Write(s.errorContent)
-		logs.Debug("Host not found: %s %s %s", r.URL.Scheme, r.Host, r.RequestURI)
-		if hj, ok := w.(http.Hijacker); ok {
-			c, _, _ := hj.Hijack()
-			c.Close()
+		if s.errorAlways {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Connection", "close")
+			w.WriteHeader(http.StatusNotFound)
+			w.Write(s.errorContent)
+		} else {
+			if hj, ok := w.(http.Hijacker); ok {
+				c, _, _ := hj.Hijack()
+				c.Close()
+			}
 		}
+		logs.Debug("Host not found: %s %s %s", r.URL.Scheme, r.Host, r.RequestURI)
 		return
 	}
 
