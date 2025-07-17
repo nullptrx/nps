@@ -12,9 +12,9 @@ type basePackager struct {
 	buf []byte
 	// buf contain the mux protocol struct binary data, we copy data to buf firstly.
 	// replace binary.Read/Write method, it may use reflect shows slowly.
-	// also reduce conn.Read/Write calls which use syscall.
-	// due to our test, conn.Write method reduce by two-thirds CPU times,
-	// conn.Write method has 20% reduction of the CPU times,
+	// also reduce Conn.Read/Write calls which use syscall.
+	// due to our test, Conn.Write method reduce by two-thirds CPU times,
+	// Conn.Write method has 20% reduction of the CPU times,
 	// totally provides more than twice of the CPU performance improvement.
 	length  uint16
 	content []byte

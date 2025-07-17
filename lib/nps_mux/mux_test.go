@@ -407,7 +407,7 @@ func TestNewMux(t *testing.T) {
 			}
 			//c2.(*net.TCPConn).SetReadBuffer(0)
 			//c2.(*net.TCPConn).SetReadBuffer(0)
-			go func(c2 net.Conn, c *conn) {
+			go func(c2 net.Conn, c *Conn) {
 				go func() {
 					buf := make([]byte, 32<<10)
 					_, err = io.CopyBuffer(c2, c, buf)
@@ -424,7 +424,7 @@ func TestNewMux(t *testing.T) {
 				//}
 				_ = c2.Close()
 				_ = c.Close()
-			}(c2, c.(*conn))
+			}(c2, c.(*Conn))
 		}
 	}()
 
@@ -450,7 +450,7 @@ func TestNewMux(t *testing.T) {
 				continue
 			}
 			//logs.Warn("nps New conn success ", tmpCpnn.connId)
-			go func(tmpCpnn *conn, conns net.Conn) {
+			go func(tmpCpnn *Conn, conns net.Conn) {
 				go func() {
 					buf := make([]byte, 32<<10)
 					_, _ = io.CopyBuffer(tmpCpnn, conns, buf)

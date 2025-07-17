@@ -1,9 +1,11 @@
 package nps_mux
 
 import (
+	"encoding/binary"
 	"errors"
 	"io"
 	"math"
+	"math/rand"
 	"net"
 	"os"
 	"sync"
@@ -29,17 +31,23 @@ const (
 	// we use 128M, reduce memory usage
 )
 
+var (
+	PingInterval = 5 * time.Second
+	PingJitter   = 2 * time.Second
+	PingMaxPad   = 16
+)
+
 type Mux struct {
 	latency uint64 // we store latency in bits, but it's float64
 	net.Listener
 	conn               net.Conn
-	connMap            *connMap
-	newConnCh          chan *conn
+	connMap            *ConnMap
+	newConnCh          chan *Conn
 	id                 int32
 	closeChan          chan struct{}
 	IsClose            bool
 	counter            *latencyCounter
-	bw                 *bandwidth
+	bw                 *Bandwidth
 	pingCh             chan []byte
 	pingCheckTime      uint32 // we check the ping per 5s
 	pingCheckThreshold uint32
@@ -71,7 +79,7 @@ func NewMux(c net.Conn, connType string, pingCheckThreshold int) *Mux {
 		connMap:            NewConnMap(),
 		id:                 0,
 		closeChan:          make(chan struct{}, 1),
-		newConnCh:          make(chan *conn),
+		newConnCh:          make(chan *Conn),
 		bw:                 NewBandwidth(fd),
 		IsClose:            false,
 		connType:           connType,
@@ -89,7 +97,7 @@ func NewMux(c net.Conn, connType string, pingCheckThreshold int) *Mux {
 	return m
 }
 
-func (s *Mux) NewConn() (*conn, error) {
+func (s *Mux) NewConn() (*Conn, error) {
 	if s.IsClose {
 		return nil, errors.New("the mux has closed")
 	}
@@ -171,54 +179,56 @@ func (s *Mux) writeSession() {
 
 func (s *Mux) ping() {
 	go func() {
-		now, _ := time.Now().UTC().MarshalText()
-		s.sendInfo(muxPingFlag, muxPing, now)
-		// send the ping flag and Get the latency first
-		ticker := time.NewTicker(time.Second * 5)
-		defer ticker.Stop()
+		rand.Seed(time.Now().UnixNano())
+		buf := make([]byte, 8+PingMaxPad)
 		for {
 			if s.IsClose {
-				break
-			}
-			select {
-			case <-ticker.C:
+				return
 			}
 			if atomic.LoadUint32(&s.pingCheckTime) > s.pingCheckThreshold {
-				logs.Println("mux: ping time out, check-time", s.pingCheckTime, "threshold", s.pingCheckThreshold)
+				logs.Println("mux: ping timeout, check-time", s.pingCheckTime, "threshold", s.pingCheckThreshold)
 				_ = s.Close()
 				// more than limit times not receive the ping return package,
 				// mux conn is damaged, maybe a packet drop, close it
-				break
+				return
 			}
-			now, _ = time.Now().UTC().MarshalText()
-			s.sendInfo(muxPingFlag, muxPing, now)
+
+			binary.BigEndian.PutUint64(buf[:8], uint64(time.Now().UnixNano()))
+			pad := rand.Intn(PingMaxPad)
+			payload := buf[:8+pad]
+
+			s.sendInfo(muxPingFlag, muxPing, payload)
 			atomic.AddUint32(&s.pingCheckTime, 1)
+
+			delta := time.Duration(rand.Int63n(int64(PingJitter))) - PingJitter/2
+			time.Sleep(PingInterval + delta)
 		}
-		return
 	}()
 
 	go func() {
-		var now time.Time
-		var data []byte
 		for {
 			if s.IsClose {
-				break
-			}
-			select {
-			case data = <-s.pingCh:
-				atomic.StoreUint32(&s.pingCheckTime, 0)
-			case <-s.closeChan:
 				return
 			}
-			_ = now.UnmarshalText(data)
-			latency := time.Now().UTC().Sub(now).Seconds()
-			if latency > 0 {
-				atomic.StoreUint64(&s.latency, math.Float64bits(s.counter.Latency(latency)))
-				// convert float64 to bits, store it atomic
-				//logs.Println("ping", math.Float64frombits(atomic.LoadUint64(&s.latency)))
-			}
-			if cap(data) > 0 && !s.IsClose {
-				windowBuff.Put(data)
+			select {
+			case data := <-s.pingCh:
+				atomic.StoreUint32(&s.pingCheckTime, 0)
+				if len(data) >= 8 {
+					sent := int64(binary.BigEndian.Uint64(data[:8]))
+					rtt := time.Now().UnixNano() - sent
+					if rtt > 0 {
+						sec := float64(rtt) / 1e9
+						atomic.StoreUint64(&s.latency, math.Float64bits(s.counter.Latency(sec)))
+						// convert float64 to bits, store it atomic
+						//logs.Println("ping", math.Float64frombits(atomic.LoadUint64(&s.latency)))
+					}
+				}
+				if cap(data) > 0 {
+					windowBuff.Put(data)
+				}
+
+			case <-s.closeChan:
+				return
 			}
 		}
 	}()
@@ -226,7 +236,7 @@ func (s *Mux) ping() {
 
 func (s *Mux) readSession() {
 	go func() {
-		var connection *conn
+		var connection *Conn
 		for {
 			if s.IsClose {
 				return
@@ -325,7 +335,7 @@ func (s *Mux) readSession() {
 	}()
 }
 
-func (s *Mux) newMsg(connection *conn, pack *muxPackager) (err error) {
+func (s *Mux) newMsg(connection *Conn, pack *muxPackager) (err error) {
 	if connection.isClose {
 		err = io.ErrClosedPipe
 		return
@@ -361,8 +371,8 @@ func (s *Mux) Close() (err error) {
 		// and tcp status change to CLOSE WAIT or TIME WAIT, so we close it in other goroutine
 		_ = s.conn.SetDeadline(time.Now().Add(time.Second * 5))
 		go func() {
-			s.conn.Close()
-			s.bw.Close()
+			_ = s.conn.Close()
+			_ = s.bw.Close()
 		}()
 		s.release()
 	})
@@ -404,7 +414,7 @@ func (s *Mux) getId() (id int32) {
 	return
 }
 
-type bandwidth struct {
+type Bandwidth struct {
 	readBandwidth uint64 // store in bits, but it's float64
 	readStart     time.Time
 	lastReadStart time.Time
@@ -413,11 +423,11 @@ type bandwidth struct {
 	calcThreshold uint32
 }
 
-func NewBandwidth(fd *os.File) *bandwidth {
-	return &bandwidth{fd: fd}
+func NewBandwidth(fd *os.File) *Bandwidth {
+	return &Bandwidth{fd: fd}
 }
 
-func (Self *bandwidth) StartRead() {
+func (Self *Bandwidth) StartRead() {
 	if Self.readStart.IsZero() {
 		Self.readStart = time.Now()
 	}
@@ -427,11 +437,11 @@ func (Self *bandwidth) StartRead() {
 	}
 }
 
-func (Self *bandwidth) SetCopySize(n uint16) {
+func (Self *Bandwidth) SetCopySize(n uint16) {
 	Self.bufLength += uint32(n)
 }
 
-func (Self *bandwidth) calcBandWidth() {
+func (Self *Bandwidth) calcBandWidth() {
 	t := Self.readStart.Sub(Self.lastReadStart)
 	bufferSize, err := sysGetSock(Self.fd)
 	if err != nil {
@@ -449,7 +459,7 @@ func (Self *bandwidth) calcBandWidth() {
 	Self.bufLength = 0
 }
 
-func (Self *bandwidth) Get() (bw float64) {
+func (Self *Bandwidth) Get() (bw float64) {
 	// The zero value, 0 for numeric types
 	bw = math.Float64frombits(atomic.LoadUint64(&Self.readBandwidth))
 	if bw <= 0 {
@@ -458,7 +468,7 @@ func (Self *bandwidth) Get() (bw float64) {
 	return
 }
 
-func (Self *bandwidth) Close() error {
+func (Self *Bandwidth) Close() error {
 	return Self.fd.Close()
 }
 
@@ -496,19 +506,19 @@ func (Self *latencyCounter) pack(head, min uint8) uint8 {
 }
 
 func (Self *latencyCounter) add(value float64) {
-	head, min := Self.unpack(Self.headMin)
+	head, minIndex := Self.unpack(Self.headMin)
 	Self.buf[head] = value
-	if head == min {
-		min = Self.minimal()
-		//if head equals min, means the min slot already be replaced,
+	if head == minIndex {
+		minIndex = Self.minimal()
+		//if head equals minIndex, means the minIndex slot already be replaced,
 		// so we need to find another minimal value in the list,
-		// and change the min indicator
+		// and change the minIndex indicator
 	}
-	if Self.buf[min] > value {
-		min = head
+	if Self.buf[minIndex] > value {
+		minIndex = head
 	}
 	head++
-	Self.headMin = Self.pack(head, min)
+	Self.headMin = Self.pack(head, minIndex)
 }
 
 func (Self *latencyCounter) minimal() (min uint8) {
@@ -535,9 +545,9 @@ const lossRatio = 3
 
 func (Self *latencyCounter) countSuccess() (successRate float64) {
 	var i, success uint8
-	_, min := Self.unpack(Self.headMin)
+	_, minIndex := Self.unpack(Self.headMin)
 	for i = 0; i < counterMask; i++ {
-		if Self.buf[i] <= lossRatio*Self.buf[min] && Self.buf[i] > 0 {
+		if Self.buf[i] <= lossRatio*Self.buf[minIndex] && Self.buf[i] > 0 {
 			success++
 			successRate += Self.buf[i]
 		}

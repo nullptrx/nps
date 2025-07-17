@@ -212,7 +212,7 @@ func (s *TRPClient) handleChan(src net.Conn) {
 	}
 	//host for target processing
 	lk.Host = common.FormatAddress(lk.Host)
-	//if Conn type is http, read the request and log
+	//if RateConn type is http, read the request and log
 	if lk.ConnType == "http" {
 		if targetConn, err := net.DialTimeout(common.CONN_TCP, lk.Host, lk.Option.Timeout); err != nil {
 			logs.Warn("connect to %s error %v", lk.Host, err)

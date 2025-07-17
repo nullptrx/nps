@@ -136,13 +136,13 @@ func (Self *connQueue) New() {
 	Self.cond = sync.NewCond(locker)
 }
 
-func (Self *connQueue) Push(connection *conn) {
+func (Self *connQueue) Push(connection *Conn) {
 	Self.chain.pushHead(unsafe.Pointer(connection))
 	Self.cond.Broadcast()
 	return
 }
 
-func (Self *connQueue) Pop() (connection *conn) {
+func (Self *connQueue) Pop() (connection *Conn) {
 	var iter bool
 	for {
 		connection = Self.TryPop()
@@ -172,10 +172,10 @@ func (Self *connQueue) Pop() (connection *conn) {
 	return
 }
 
-func (Self *connQueue) TryPop() (connection *conn) {
+func (Self *connQueue) TryPop() (connection *Conn) {
 	ptr, ok := Self.chain.popTail()
 	if ok {
-		connection = (*conn)(ptr)
+		connection = (*Conn)(ptr)
 		return
 	}
 	return

@@ -120,7 +120,7 @@ func (s *Bridge) StartTunnel() error {
 	go s.ping()
 	//if s.tunnelType == "kcp" {
 	//	logs.Info("server start, the bridge type is %s, the bridge port is %d", s.tunnelType, s.TunnelPort)
-	//	return conn.NewKcpListenerAndProcess(common.BuildAddress(beego.AppConfig.String("bridge_ip"), beego.AppConfig.String("bridge_port")), func(c net.Conn) {
+	//	return conn.NewKcpListenerAndProcess(common.BuildAddress(beego.AppConfig.String("bridge_ip"), beego.AppConfig.String("bridge_port")), func(c net.RateConn) {
 	//		s.cliProcess(conn.NewConn(c), "kcp")
 	//	})
 	//}
@@ -411,7 +411,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			return
 		}
 		//verify
-		//id, err := file.GetDb().GetIdByVerifyKey(string(keyBuf), c.Conn.RemoteAddr().String(), "", crypt.Blake2b)
+		//id, err := file.GetDb().GetIdByVerifyKey(string(keyBuf), c.RateConn.RemoteAddr().String(), "", crypt.Blake2b)
 		id, err := file.GetDb().GetClientIdByBlake2bVkey(string(keyBuf))
 		if err != nil {
 			logs.Error("Validation error for client %v (proto-ver %d, vKey %x): %v", c.Conn.RemoteAddr(), ver, keyBuf, err)

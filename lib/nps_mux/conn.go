@@ -13,20 +13,20 @@ import (
 	"github.com/djylb/nps/lib/logs"
 )
 
-type conn struct {
+type Conn struct {
 	net.Conn
 	connStatusOkCh   chan struct{}
 	connStatusFailCh chan struct{}
 	connId           int32
 	isClose          bool
-	closingFlag      bool // closing conn flag
+	closingFlag      bool // closing Conn flag
 	receiveWindow    *receiveWindow
 	sendWindow       *sendWindow
 	once             sync.Once
 }
 
-func NewConn(connId int32, mux *Mux) *conn {
-	c := &conn{
+func NewConn(connId int32, mux *Mux) *Conn {
+	c := &Conn{
 		connStatusOkCh:   make(chan struct{}),
 		connStatusFailCh: make(chan struct{}),
 		connId:           connId,
@@ -39,7 +39,7 @@ func NewConn(connId int32, mux *Mux) *conn {
 	return c
 }
 
-func (s *conn) Read(buf []byte) (n int, err error) {
+func (s *Conn) Read(buf []byte) (n int, err error) {
 	if s.isClose || buf == nil {
 		return 0, errors.New("the conn has closed")
 	}
@@ -51,7 +51,7 @@ func (s *conn) Read(buf []byte) (n int, err error) {
 	return
 }
 
-func (s *conn) Write(buf []byte) (n int, err error) {
+func (s *Conn) Write(buf []byte) (n int, err error) {
 	if s.isClose {
 		return 0, errors.New("the conn has closed")
 	}
@@ -65,12 +65,12 @@ func (s *conn) Write(buf []byte) (n int, err error) {
 	return
 }
 
-func (s *conn) Close() (err error) {
+func (s *Conn) Close() (err error) {
 	s.once.Do(s.closeProcess)
 	return
 }
 
-func (s *conn) closeProcess() {
+func (s *Conn) closeProcess() {
 	s.isClose = true
 	s.receiveWindow.mux.connMap.Delete(s.connId)
 	if !s.receiveWindow.mux.IsClose {
@@ -83,26 +83,26 @@ func (s *conn) closeProcess() {
 	return
 }
 
-func (s *conn) LocalAddr() net.Addr {
+func (s *Conn) LocalAddr() net.Addr {
 	return s.receiveWindow.mux.conn.LocalAddr()
 }
 
-func (s *conn) RemoteAddr() net.Addr {
+func (s *Conn) RemoteAddr() net.Addr {
 	return s.receiveWindow.mux.conn.RemoteAddr()
 }
 
-func (s *conn) SetDeadline(t time.Time) error {
+func (s *Conn) SetDeadline(t time.Time) error {
 	_ = s.SetReadDeadline(t)
 	_ = s.SetWriteDeadline(t)
 	return nil
 }
 
-func (s *conn) SetReadDeadline(t time.Time) error {
+func (s *Conn) SetReadDeadline(t time.Time) error {
 	s.receiveWindow.SetTimeOut(t)
 	return nil
 }
 
-func (s *conn) SetWriteDeadline(t time.Time) error {
+func (s *Conn) SetWriteDeadline(t time.Time) error {
 	s.sendWindow.SetTimeOut(t)
 	return nil
 }
