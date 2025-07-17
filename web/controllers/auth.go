@@ -44,7 +44,7 @@ func (s *AuthController) GetTime() {
 func (s *AuthController) GetCert() {
 	m := make(map[string]interface{})
 	var err error
-	m["cert"], err = crypt.GetPublicKeyPEM()
+	m["cert"], err = crypt.GetRSAPublicKeyPEM()
 	if err != nil {
 		m["status"] = 0
 	} else {

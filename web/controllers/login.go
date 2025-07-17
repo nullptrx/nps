@@ -64,7 +64,7 @@ func (self *LoginController) Index() {
 	self.Data["pow_bits"] = powBits
 	self.Data["totp_len"] = crypt.TotpLen
 	self.Data["pow_enable"] = forcePow
-	self.Data["public_key"], _ = crypt.GetPublicKeyPEM()
+	self.Data["public_key"], _ = crypt.GetRSAPublicKeyPEM()
 	self.Data["login_delay"] = BanTime * 1000
 	self.Data["web_base_url"] = webBaseUrl
 	self.Data["head_custom_code"] = template.HTML(beego.AppConfig.String("head_custom_code"))
@@ -138,7 +138,7 @@ func (self *LoginController) Verify() {
 		if !cptVerify {
 			IfLoginFail(username, true)
 		}
-		cert, _ := crypt.GetPublicKeyPEM()
+		cert, _ := crypt.GetRSAPublicKeyPEM()
 		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error", "nonce": nonce, "cert": cert}
 		self.ServeJSON()
 		return
@@ -287,7 +287,7 @@ func (self *LoginController) Register() {
 		nonce := crypt.GetRandomString(16)
 		self.SetSession("login_nonce", nonce)
 		self.Data["login_nonce"] = nonce
-		self.Data["public_key"], _ = crypt.GetPublicKeyPEM()
+		self.Data["public_key"], _ = crypt.GetRSAPublicKeyPEM()
 		self.Data["web_base_url"] = beego.AppConfig.String("web_base_url")
 		self.Data["head_custom_code"] = template.HTML(beego.AppConfig.String("head_custom_code"))
 		self.Data["version"] = server.GetVersion()
@@ -319,7 +319,7 @@ func (self *LoginController) Register() {
 		}
 		pl, err := crypt.ParseLoginPayload(self.GetString("password"))
 		if err != nil {
-			cert, _ := crypt.GetPublicKeyPEM()
+			cert, _ := crypt.GetRSAPublicKeyPEM()
 			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "decrypt error", "nonce": nonce, "cert": cert}
 			self.ServeJSON()
 			return
