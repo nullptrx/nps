@@ -199,7 +199,7 @@ func (Self *listElement) Reset() {
 }
 
 func newListElement(buf []byte, l uint16, part bool) (element *listElement, err error) {
-	if uint16(len(buf)) != l {
+	if uint16(len(buf)) < l {
 		err = errors.New("listElement: buf length not match")
 		return
 	}

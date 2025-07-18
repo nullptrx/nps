@@ -32,15 +32,24 @@ var LocalTCPAddr = &net.TCPAddr{IP: net.ParseIP("127.0.0.1")}
 type Conn struct {
 	Conn net.Conn
 	Rb   []byte
+	wBuf *bytes.Buffer
+	mu   sync.Mutex
 }
 
 // new conn
 func NewConn(conn net.Conn) *Conn {
-	return &Conn{Conn: conn}
+	return &Conn{
+		Conn: conn,
+		wBuf: new(bytes.Buffer),
+	}
 }
 
 func NewConnWithRb(conn net.Conn, rb []byte) *Conn {
-	return &Conn{Conn: conn, Rb: rb}
+	return &Conn{
+		Conn: conn,
+		Rb:   rb,
+		wBuf: new(bytes.Buffer),
+	}
 }
 
 func (s *Conn) readRequest(buf []byte) (n int, err error) {
@@ -116,13 +125,13 @@ func (s *Conn) GetShortContent(l int) (b []byte, err error) {
 	return buf, binary.Read(s, binary.LittleEndian, &buf)
 }
 
-// 读取指定长度内容
 func (s *Conn) ReadLen(cLen int, buf []byte) (int, error) {
 	if cLen > len(buf) || cLen <= 0 {
-		return 0, errors.New("长度错误" + strconv.Itoa(cLen))
+		return 0, errors.New("invalid length: " + strconv.Itoa(cLen))
 	}
-	if n, err := io.ReadFull(s, buf[:cLen]); err != nil || n != cLen {
-		return n, errors.New("Error reading specified length " + err.Error())
+	n, err := io.ReadFull(s, buf[:cLen])
+	if err != nil || n != cLen {
+		return n, fmt.Errorf("error reading %d bytes: %w", cLen, err)
 	}
 	return cLen, nil
 }
@@ -138,7 +147,9 @@ func (s *Conn) WriteLenContent(buf []byte) (err error) {
 	if b, err = GetLenBytes(buf); err != nil {
 		return
 	}
-	return binary.Write(s.Conn, binary.LittleEndian, b)
+	//return binary.Write(s.Conn, binary.LittleEndian, b)
+	_, err = s.BufferWrite(b)
+	return
 }
 
 // read flag
@@ -295,15 +306,51 @@ func (s *Conn) Close() error {
 }
 
 // write
-func (s *Conn) Write(b []byte) (int, error) {
+func (s *Conn) Write(b []byte) (n int, err error) {
 	if s == nil {
 		return -1, errors.New("connection error")
 	}
-	return s.Conn.Write(b)
+
+	s.mu.Lock()
+	if s.wBuf.Len() == 0 {
+		s.mu.Unlock()
+		return s.Conn.Write(b)
+	}
+	n, err = s.wBuf.Write(b)
+	toSend := s.wBuf.Bytes()
+	s.wBuf.Reset()
+	defer s.mu.Unlock()
+
+	if _, err := s.Conn.Write(toSend); err != nil {
+		return 0, err
+	}
+
+	return
+}
+
+func (s *Conn) BufferWrite(b []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.wBuf.Write(b)
+}
+
+func (s *Conn) FlushBuf() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.wBuf.Len() == 0 {
+		return nil
+	}
+	_, err := s.Conn.Write(s.wBuf.Bytes())
+	s.wBuf.Reset()
+	return err
 }
 
 // read
 func (s *Conn) Read(b []byte) (n int, err error) {
+	if err = s.FlushBuf(); err != nil {
+		return 0, err
+	}
+
 	if s.Rb != nil {
 		//if the rb is not nil ,read rb first
 		if len(s.Rb) > 0 {
@@ -338,17 +385,17 @@ func (s *Conn) WriteChan() (int, error) {
 
 // get task or host result of add
 func (s *Conn) GetAddStatus() (b bool) {
-	binary.Read(s.Conn, binary.LittleEndian, &b)
+	binary.Read(s, binary.LittleEndian, &b)
 	return
 }
 
 func (s *Conn) WriteAddOk() error {
-	return binary.Write(s.Conn, binary.LittleEndian, true)
+	return binary.Write(s, binary.LittleEndian, true)
 }
 
 func (s *Conn) WriteAddFail() error {
 	defer s.Close()
-	return binary.Write(s.Conn, binary.LittleEndian, false)
+	return binary.Write(s, binary.LittleEndian, false)
 }
 
 func (s *Conn) LocalAddr() net.Addr {

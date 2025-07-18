@@ -139,6 +139,10 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.29.38 (2025-07-18)**
+  - 添加缓存避免多次写入
+  - 优化网络包传输
+
 - **v0.29.37 (2025-07-17)**
   - 修复非RSA证书导致解密错误 [#109](https://github.com/djylb/nps/issues/109)
   - 调整延迟检查逻辑

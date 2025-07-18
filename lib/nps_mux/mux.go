@@ -48,7 +48,7 @@ type Mux struct {
 	IsClose            bool
 	counter            *latencyCounter
 	bw                 *Bandwidth
-	pingCh             chan []byte
+	pingCh             chan *muxPackager
 	pingCheckTime      uint32 // we check the ping per 5s
 	pingCheckThreshold uint32
 	connType           string
@@ -83,7 +83,7 @@ func NewMux(c net.Conn, connType string, pingCheckThreshold int) *Mux {
 		bw:                 NewBandwidth(fd),
 		IsClose:            false,
 		connType:           connType,
-		pingCh:             make(chan []byte),
+		pingCh:             make(chan *muxPackager),
 		pingCheckThreshold: checkThreshold,
 		counter:            newLatencyCounter(),
 	}
@@ -211,7 +211,9 @@ func (s *Mux) ping() {
 				return
 			}
 			select {
-			case data := <-s.pingCh:
+			case pack := <-s.pingCh:
+				data, _ := pack.GetContent()
+				//logs.Println("mux: Ping Pack err", data, pack.length, pack.content)
 				atomic.StoreUint32(&s.pingCheckTime, 0)
 				if len(data) >= 8 {
 					sent := int64(binary.BigEndian.Uint64(data[:8]))
@@ -223,10 +225,10 @@ func (s *Mux) ping() {
 						//logs.Println("ping", math.Float64frombits(atomic.LoadUint64(&s.latency)))
 					}
 				}
-				if cap(data) > 0 {
-					windowBuff.Put(data)
+				if cap(pack.content) > 0 {
+					windowBuff.Put(pack.content)
 				}
-
+				muxPack.Put(pack)
 			case <-s.closeChan:
 				return
 			}
@@ -285,13 +287,18 @@ func (s *Mux) readSession() {
 				muxPack.Put(pack)
 				continue
 			case muxPingFlag: //ping
-				s.sendInfo(muxPingReturn, muxPing, pack.content)
+				buf := pack.content[:pack.length]
+				if pack.length == 8 || (pack.length > 8 && isZero(buf[8:])) {
+					pad := rand.Intn(PingMaxPad)
+					buf = pack.content[:8+pad]
+				}
+				s.sendInfo(muxPingReturn, muxPing, buf)
 				windowBuff.Put(pack.content)
 				muxPack.Put(pack)
 				continue
 			case muxPingReturn:
-				s.pingCh <- pack.content
-				muxPack.Put(pack)
+				s.pingCh <- pack
+				//muxPack.Put(pack)
 				continue
 			}
 			if connection, ok := s.connMap.Get(pack.id); ok && !connection.isClose {
@@ -333,6 +340,15 @@ func (s *Mux) readSession() {
 			muxPack.Put(pack)
 		}
 	}()
+}
+
+func isZero(buf []byte) bool {
+	for _, b := range buf {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Mux) newMsg(connection *Conn, pack *muxPackager) (err error) {
@@ -384,6 +400,9 @@ func (s *Mux) release() {
 		pack := s.writeQueue.TryPop()
 		if pack == nil {
 			break
+		}
+		if pack.basePackager.buf != nil {
+			windowBuff.Put(pack.basePackager.buf)
 		}
 		if pack.basePackager.content != nil {
 			windowBuff.Put(pack.basePackager.content)

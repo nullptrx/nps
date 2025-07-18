@@ -7,7 +7,8 @@ import (
 const (
 	poolSizeBuffer = 4096
 	//poolSizeBuffer = 4096 * 10                           // a mux packager total length
-	poolSizeWindow = poolSizeBuffer - 2 - 4 - 4 - 1 // content length
+	poolSizeWindow       = poolSizeBuffer - 2 - 4 - 4 - 1 // content length
+	poolSizeWindowBuffer = poolSizeBuffer
 )
 
 type windowBufferPool struct {
@@ -18,7 +19,7 @@ func newWindowBufferPool() *windowBufferPool {
 	return &windowBufferPool{
 		pool: sync.Pool{
 			New: func() interface{} {
-				return make([]byte, poolSizeWindow, poolSizeWindow)
+				return make([]byte, poolSizeWindowBuffer, poolSizeWindowBuffer)
 			},
 		},
 	}
@@ -37,12 +38,12 @@ func newWindowBufferPool() *windowBufferPool {
 func (Self *windowBufferPool) Get() (buf []byte) {
 	buf = Self.pool.Get().([]byte)
 	//trace(buf, "get")
-	return buf[:poolSizeWindow]
+	return buf[:poolSizeWindowBuffer]
 }
 
 func (Self *windowBufferPool) Put(x []byte) {
 	//trace(x, "put")
-	Self.pool.Put(x[:poolSizeWindow]) // make buf to full
+	Self.pool.Put(x[:poolSizeWindowBuffer]) // make buf to full
 }
 
 type muxPackagerPool struct {

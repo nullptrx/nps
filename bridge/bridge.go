@@ -355,7 +355,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		c.Close()
 		return
 	}
-	clientVer := string(vs)
+	clientVer := string(bytes.TrimRight(vs, "\x00"))
 
 	if ver == 0 {
 		// --- protocol 0.26.0 path ---
@@ -493,7 +493,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			c.Close()
 			return
 		}
-		if _, err := c.Write(crypt.ComputeHMAC(client.VerifyKey, ts, hmacBuf, []byte(version.GetVersion(ver)))); err != nil {
+		if _, err := c.BufferWrite(crypt.ComputeHMAC(client.VerifyKey, ts, hmacBuf, []byte(version.GetVersion(ver)))); err != nil {
 			logs.Error("Failed to write HMAC response to %v: %v", c.Conn.RemoteAddr(), err)
 			c.Close()
 			return
@@ -507,6 +507,24 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 				return
 			}
 			c.WriteLenContent(fpBuf)
+			if ver > 3 {
+				randByte, err := common.RandomBytes(1000)
+				if err != nil {
+					logs.Error("Failed to generate rand byte for %v: %v", c.Conn.RemoteAddr(), err)
+					c.Close()
+					return
+				}
+				if err := c.WriteLenContent(randByte); err != nil {
+					logs.Error("Failed to write rand byte for %v: %v", c.Conn.RemoteAddr(), err)
+					c.Close()
+					return
+				}
+			}
+		}
+		if err := c.FlushBuf(); err != nil {
+			logs.Error("Failed to write to %v: %v", c.Conn.RemoteAddr(), err)
+			c.Close()
+			return
 		}
 		c.SetReadDeadlineBySecond(5)
 
@@ -515,6 +533,14 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			logs.Warn("Failed to read operation flag from %v: %v", c.Conn.RemoteAddr(), err)
 			c.Close()
 			return
+		}
+		if ver > 3 {
+			_, err := c.GetShortLenContent()
+			if err != nil {
+				logs.Error("Failed to read random buffer from %v: %v", c.Conn.RemoteAddr(), err)
+				c.Close()
+				return
+			}
 		}
 		s.typeDeal(flag, c, id, clientVer)
 	}

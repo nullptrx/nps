@@ -35,8 +35,14 @@ import (
 	"golang.org/x/net/proxy"
 )
 
+const MaxPad = 64
+
 var Ver = version.GetLatestIndex()
 var SkipTLSVerify = false
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func GetTaskStatus(path string) {
 	cnf, err := config.NewConfig(path)
@@ -393,7 +399,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 	defer connection.SetDeadline(time.Time{})
 
 	c := conn.NewConn(connection)
-	if _, err := c.Write([]byte(common.CONN_TEST)); err != nil {
+	if _, err := c.BufferWrite([]byte(common.CONN_TEST)); err != nil {
 		return nil, err
 	}
 	minVerBytes := []byte(version.GetVersion(Ver))
@@ -401,6 +407,10 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		return nil, err
 	}
 	vs := []byte(version.VERSION)
+	padLen := rand.Intn(MaxPad)
+	if padLen > 0 {
+		vs = append(vs, make([]byte, padLen)...)
+	}
 	if err := c.WriteLenContent(vs); err != nil {
 		return nil, err
 	}
@@ -416,7 +426,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			logs.Warn("The client does not match the server version. The current core version of the client is %s", version.GetVersion(Ver))
 			//return nil, err
 		}
-		if _, err := c.Write([]byte(crypt.Md5(vkey))); err != nil {
+		if _, err := c.BufferWrite([]byte(crypt.Md5(vkey))); err != nil {
 			return nil, err
 		}
 		if s, err := c.ReadFlag(); err != nil {
@@ -430,10 +440,10 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 	} else {
 		// 0.27.0
 		ts := time.Now().Unix() - int64(rand.Intn(6))
-		if _, err := c.Write(common.TimestampToBytes(ts)); err != nil {
+		if _, err := c.BufferWrite(common.TimestampToBytes(ts)); err != nil {
 			return nil, err
 		}
-		if _, err := c.Write([]byte(crypt.Blake2b(vkey))); err != nil {
+		if _, err := c.BufferWrite([]byte(crypt.Blake2b(vkey))); err != nil {
 			return nil, err
 		}
 		var infoBuf []byte
@@ -475,7 +485,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			return nil, err
 		}
 		hmacBuf := crypt.ComputeHMAC(vkey, ts, minVerBytes, vs, infoBuf, randBuf)
-		if _, err := c.Write(hmacBuf); err != nil {
+		if _, err := c.BufferWrite(hmacBuf); err != nil {
 			return nil, err
 		}
 		b, err := c.GetShortContent(32)
@@ -501,8 +511,27 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 				return nil, errors.New("Validation cert incorrect")
 			}
 			crypt.AddTrustedCert(vkey, fpDec)
+			if Ver > 3 {
+				_, err := c.GetShortLenContent()
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
-		if _, err := c.Write([]byte(connType)); err != nil {
+		if _, err := c.BufferWrite([]byte(connType)); err != nil {
+			return nil, err
+		}
+		if Ver > 3 {
+			// v0.30.0
+			randByte, err := common.RandomBytes(1000)
+			if err != nil {
+				return nil, err
+			}
+			if err := c.WriteLenContent(randByte); err != nil {
+				return nil, err
+			}
+		}
+		if err := c.FlushBuf(); err != nil {
 			return nil, err
 		}
 	}

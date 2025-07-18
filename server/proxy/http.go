@@ -533,7 +533,7 @@ func (s *HttpServer) DialContext(ctx context.Context, network, addr string) (net
 	link := conn.NewLink("tcp", targetAddr, h.Client.Cnf.Crypt, h.Client.Cnf.Compress, remote, s.allowLocalProxy && h.Target.LocalProxy)
 	target, err := s.bridge.SendLinkInfo(h.Client.Id, link, nil)
 	if err != nil {
-		logs.Info("DialContext: connection to h %s (target %s) failed: %v", h.Id, targetAddr, err)
+		logs.Info("DialContext: connection to host %d (target %s) failed: %v", h.Id, targetAddr, err)
 		return nil, err
 	}
 	rawConn := conn.GetConn(target, link.Crypt, link.Compress, h.Client.Rate, true)
