@@ -1,12 +1,13 @@
 package version
 
-const VERSION = "0.29.38"
+const VERSION = "0.30.0"
 
 var MinVersions = []string{
 	"0.26.0", // 0
 	"0.27.0", // 1
 	"0.28.0", // 2
 	"0.29.0", // 3
+	"0.30.0", // 4
 }
 
 func GetVersion(index int) string {
