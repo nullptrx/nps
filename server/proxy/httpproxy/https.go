@@ -1,4 +1,4 @@
-package http
+package httpproxy
 
 import (
 	"bufio"
@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"errors"
-	"github.com/djylb/nps/server/proxy"
 	"io"
 	"net"
 	"net/http"
@@ -21,6 +20,7 @@ import (
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/logs"
+	"github.com/djylb/nps/server/proxy"
 )
 
 type HttpsServer struct {

@@ -1,4 +1,4 @@
-package http
+package httpproxy
 
 import (
 	"bufio"
@@ -261,7 +261,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	host.AddConn()
 	defer host.CutConn()
 
-	// HTTP SocksAuth
+	// HTTP Auth
 	if r.Header.Get("Upgrade") == "" {
 		if err := s.Auth(r, nil, host.Client.Cnf.U, host.Client.Cnf.P, host.MultiAccount, host.UserAuth); err != nil {
 			logs.Warn("Unauthorized request from %s", r.RemoteAddr)

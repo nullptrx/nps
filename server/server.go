@@ -18,7 +18,7 @@ import (
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/version"
 	"github.com/djylb/nps/server/proxy"
-	"github.com/djylb/nps/server/proxy/http"
+	"github.com/djylb/nps/server/proxy/httpproxy"
 	"github.com/djylb/nps/server/tool"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/load"
@@ -169,7 +169,7 @@ func NewMode(Bridge *bridge.Bridge, c *file.Tunnel) proxy.Service {
 		//cacheLen, _ := beego.AppConfig.Int("http_cache_length")
 		addOrigin, _ := beego.AppConfig.Bool("http_add_origin_header")
 		httpOnlyPass := beego.AppConfig.String("x_nps_http_only")
-		service = http.NewHttp(Bridge, c, httpPort, httpsPort, http3Port, httpOnlyPass, addOrigin, HttpProxyCache)
+		service = httpproxy.NewHttp(Bridge, c, httpPort, httpsPort, http3Port, httpOnlyPass, addOrigin, HttpProxyCache)
 	}
 	return service
 }
