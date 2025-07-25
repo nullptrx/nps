@@ -143,9 +143,9 @@ func (s *TunnelModeServer) doConnect(c net.Conn, command uint8) {
 	} else {
 		ltype = common.CONN_TCP
 	}
-	s.DealClient(conn.NewConn(c), s.task.Client, addr, nil, ltype, func() {
+	s.DealClient(conn.NewConn(c), s.Task.Client, addr, nil, ltype, func() {
 		s.sendReply(c, succeeded)
-	}, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
+	}, []*file.Flow{s.Task.Flow, s.Task.Client.Flow}, s.Task.Target.ProxyProtocol, s.Task.Target.LocalProxy, s.Task)
 	return
 }
 
@@ -204,7 +204,7 @@ func (s *TunnelModeServer) handleUDP(c net.Conn) {
 	var port uint16
 	binary.Read(c, binary.BigEndian, &port)
 	logs.Trace("%s %d", host, port)
-	replyAddr, err := net.ResolveUDPAddr("udp", s.task.ServerIp+":0")
+	replyAddr, err := net.ResolveUDPAddr("udp", s.Task.ServerIp+":0")
 	if err != nil {
 		logs.Error("build local reply addr error %v", err)
 		return
@@ -219,14 +219,14 @@ func (s *TunnelModeServer) handleUDP(c net.Conn) {
 	s.sendUdpReply(c, reply, succeeded, common.GetServerIpByClientIp(c.RemoteAddr().(*net.TCPAddr).IP))
 	defer reply.Close()
 	// new a tunnel to client
-	link := conn.NewLink("udp5", "", s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, c.RemoteAddr().String(), s.allowLocalProxy && s.task.Target.LocalProxy)
-	target, err := s.bridge.SendLinkInfo(s.task.Client.Id, link, s.task)
+	link := conn.NewLink("udp5", "", s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, c.RemoteAddr().String(), s.AllowLocalProxy && s.Task.Target.LocalProxy)
+	target, err := s.Bridge.SendLinkInfo(s.Task.Client.Id, link, s.Task)
 	if err != nil {
-		logs.Warn("get connection from client id %d  error %v", s.task.Client.Id, err)
+		logs.Warn("get connection from client Id %d  error %v", s.Task.Client.Id, err)
 		return
 	}
 
-	flowConn := conn.NewFlowConn(target, s.task.Flow, s.task.Client.Flow)
+	flowConn := conn.NewFlowConn(target, s.Task.Flow, s.Task.Client.Flow)
 
 	var clientAddr net.Addr
 	// copy buffer
@@ -286,7 +286,7 @@ func (s *TunnelModeServer) handleUDP(c net.Conn) {
 }
 
 // socks5 auth
-func (s *TunnelModeServer) Auth(c net.Conn) error {
+func (s *TunnelModeServer) SocksAuth(c net.Conn) error {
 	header := []byte{0, 0}
 	if _, err := io.ReadAtLeast(c, header, 2); err != nil {
 		return err
@@ -308,7 +308,7 @@ func (s *TunnelModeServer) Auth(c net.Conn) error {
 		return err
 	}
 
-	if common.CheckAuthWithAccountMap(string(user), string(pass), s.task.Client.Cnf.U, s.task.Client.Cnf.P, file.GetAccountMap(s.task.MultiAccount), file.GetAccountMap(s.task.UserAuth)) {
+	if common.CheckAuthWithAccountMap(string(user), string(pass), s.Task.Client.Cnf.U, s.Task.Client.Cnf.P, file.GetAccountMap(s.Task.MultiAccount), file.GetAccountMap(s.Task.UserAuth)) {
 		if _, err := c.Write([]byte{userAuthVersion, authSuccess}); err != nil {
 			return err
 		}
@@ -322,15 +322,15 @@ func (s *TunnelModeServer) Auth(c net.Conn) error {
 }
 
 func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
-	switch s.task.Mode {
+	switch s.Task.Mode {
 	case "socks5":
-		s.task.Mode = "mixProxy"
-		s.task.HttpProxy = false
-		s.task.Socks5Proxy = true
+		s.Task.Mode = "mixProxy"
+		s.Task.HttpProxy = false
+		s.Task.Socks5Proxy = true
 	case "httpProxy":
-		s.task.Mode = "mixProxy"
-		s.task.HttpProxy = true
-		s.task.Socks5Proxy = false
+		s.Task.Mode = "mixProxy"
+		s.Task.HttpProxy = true
+		s.Task.Socks5Proxy = false
 	}
 
 	buf := make([]byte, 2)
@@ -344,13 +344,13 @@ func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
 		method := string(buf)
 		switch method {
 		case "GE", "PO", "HE", "PU ", "DE", "OP", "CO", "TR", "PA", "PR", "MK", "MO", "LO", "UN", "RE", "AC", "SE", "LI":
-			if !s.task.HttpProxy {
-				logs.Warn("http proxy is disable, client %d request from: %v", s.task.Client.Id, c.RemoteAddr())
+			if !s.Task.HttpProxy {
+				logs.Warn("http proxy is disable, client %d request from: %v", s.Task.Client.Id, c.RemoteAddr())
 				c.Close()
 				return errors.New("http proxy is disabled")
 			}
 			nConn := conn.NewConnWithRb(c, buf)
-			ss := NewTunnelModeServer(ProcessHttp, s.bridge, s.task)
+			ss := NewTunnelModeServer(ProcessHttp, s.Bridge, s.Task)
 			if err := ProcessHttp(nConn, ss); err != nil {
 				logs.Warn("http proxy error: %v", err)
 				return err
@@ -364,8 +364,8 @@ func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
 		return errors.New("unknown protocol")
 	}
 
-	if !s.task.Socks5Proxy {
-		logs.Warn("socks5 proxy is disable, client %d request from: %v", s.task.Client.Id, c.RemoteAddr())
+	if !s.Task.Socks5Proxy {
+		logs.Warn("socks5 proxy is disable, client %d request from: %v", s.Task.Client.Id, c.RemoteAddr())
 		c.Close()
 		return errors.New("socks5 proxy is disabled")
 	}
@@ -377,10 +377,10 @@ func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
 		c.Close()
 		return errors.New("wrong method")
 	}
-	if (s.task.Client.Cnf.U != "" && s.task.Client.Cnf.P != "") || (s.task.MultiAccount != nil && len(s.task.MultiAccount.AccountMap) > 0) || (s.task.UserAuth != nil && len(s.task.UserAuth.AccountMap) > 0) {
+	if (s.Task.Client.Cnf.U != "" && s.Task.Client.Cnf.P != "") || (s.Task.MultiAccount != nil && len(s.Task.MultiAccount.AccountMap) > 0) || (s.Task.UserAuth != nil && len(s.Task.UserAuth.AccountMap) > 0) {
 		buf[1] = UserPassAuth
 		c.Write(buf)
-		if err := s.Auth(c); err != nil {
+		if err := s.SocksAuth(c); err != nil {
 			c.Close()
 			logs.Warn("Validation failed: %v", err)
 			return err
@@ -398,7 +398,7 @@ func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
 func (s *TunnelModeServer) Start() error {
 	return conn.NewTcpListenerAndProcess(common.BuildAddress(s.task.ServerIp, strconv.Itoa(s.task.Port)), func(c net.Conn) {
 		if err := s.CheckFlowAndConnNum(s.task.Client); err != nil {
-			logs.Warn("client id %d, task id %d, error %v, when socks5 connection", s.task.Client.Id, s.task.Id, err)
+			logs.Warn("client Id %d, task Id %d, error %v, when socks5 connection", s.task.Client.Id, s.task.Id, err)
 			c.Close()
 			return
 		}

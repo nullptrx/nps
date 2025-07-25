@@ -1,10 +1,12 @@
-package proxy
+package http
 
 import (
 	"bufio"
 	"bytes"
 	"crypto/rand"
 	"crypto/tls"
+	"errors"
+	"github.com/djylb/nps/server/proxy"
 	"io"
 	"net"
 	"net/http"
@@ -19,7 +21,6 @@ import (
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/logs"
-	"github.com/pkg/errors"
 )
 
 type HttpsServer struct {
@@ -38,15 +39,15 @@ type HttpsServer struct {
 	tlsNextProtos   []string
 }
 
-func NewHttpsServer(l net.Listener, bridge NetBridge, task *file.Tunnel, srv *http.Server, magic *certmagic.Config) *HttpsServer {
+func NewHttpsServer(l net.Listener, bridge proxy.NetBridge, task *file.Tunnel, srv *http.Server, magic *certmagic.Config) *HttpsServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
 	https := &HttpsServer{
 		listener: l,
 		HttpServer: HttpServer{
-			BaseServer: BaseServer{
-				task:            task,
-				bridge:          bridge,
-				allowLocalProxy: allowLocalProxy,
+			BaseServer: proxy.BaseServer{
+				Task:            task,
+				Bridge:          bridge,
+				AllowLocalProxy: allowLocalProxy,
 				Mutex:           sync.Mutex{},
 			},
 			httpPort:  beego.AppConfig.DefaultInt("http_proxy_port", 0),

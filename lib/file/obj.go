@@ -1,6 +1,7 @@
 package file
 
 import (
+	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -9,7 +10,6 @@ import (
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/rate"
-	"github.com/pkg/errors"
 )
 
 type Flow struct {

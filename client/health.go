@@ -14,7 +14,6 @@ import (
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/sheap"
-	"github.com/pkg/errors"
 )
 
 const minDelay = 10 * time.Millisecond
@@ -180,11 +179,11 @@ func (hc *HealthChecker) doCheck(h *file.Health) {
 			} else {
 				defer resp.Body.Close()
 				if resp.StatusCode != http.StatusOK {
-					err = errors.Errorf("unexpected status %d", resp.StatusCode)
+					err = fmt.Errorf("unexpected status %d", resp.StatusCode)
 				}
 			}
 		default:
-			err = errors.Errorf("unsupported health check type: %s", h.HealthCheckType)
+			err = fmt.Errorf("unsupported health check type: %s", h.HealthCheckType)
 		}
 		h.Lock()
 		if err != nil {

@@ -5,6 +5,7 @@ package pmux
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"net"
 	"os"
@@ -15,7 +16,6 @@ import (
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/logs"
-	"github.com/pkg/errors"
 )
 
 const (

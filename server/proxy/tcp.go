@@ -41,16 +41,16 @@ type TunnelModeServer struct {
 func NewTunnelModeServer(process process, bridge NetBridge, task *file.Tunnel) *TunnelModeServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
 	s := new(TunnelModeServer)
-	s.bridge = bridge
+	s.Bridge = bridge
 	s.process = process
-	s.task = task
-	s.allowLocalProxy = allowLocalProxy
+	s.Task = task
+	s.AllowLocalProxy = allowLocalProxy
 	s.activeConnections = sync.Map{} // 初始化连接池
 	return s
 }
 
 func (s *TunnelModeServer) Start() error {
-	return conn.NewTcpListenerAndProcess(common.BuildAddress(s.task.ServerIp, strconv.Itoa(s.task.Port)), func(c net.Conn) {
+	return conn.NewTcpListenerAndProcess(common.BuildAddress(s.Task.ServerIp, strconv.Itoa(s.Task.Port)), func(c net.Conn) {
 		s.activeConnections.Store(c, struct{}{})
 		defer func() {
 			s.activeConnections.Delete(c)
@@ -59,16 +59,16 @@ func (s *TunnelModeServer) Start() error {
 			}
 		}()
 
-		if err := s.CheckFlowAndConnNum(s.task.Client); err != nil {
-			logs.Warn("client id %d, task id %d, error %v, when tcp connection", s.task.Client.Id, s.task.Id, err)
+		if err := s.CheckFlowAndConnNum(s.Task.Client); err != nil {
+			logs.Warn("client Id %d, task Id %d, error %v, when tcp connection", s.Task.Client.Id, s.Task.Id, err)
 			c.Close()
 			return
 		}
-		defer s.task.Client.CutConn()
-		s.task.AddConn()
-		defer s.task.CutConn()
+		defer s.Task.Client.CutConn()
+		s.Task.AddConn()
+		defer s.Task.CutConn()
 
-		logs.Trace("new tcp connection,local port %d,client %d,remote address %v", s.task.Port, s.task.Client.Id, c.RemoteAddr())
+		logs.Trace("new tcp connection,local port %d,client %d,remote address %v", s.Task.Port, s.Task.Client.Id, c.RemoteAddr())
 
 		s.process(conn.NewConn(c), s)
 	}, &s.listener)
@@ -123,7 +123,7 @@ func (s *WebServer) Close() error {
 // new
 func NewWebServer(bridge *bridge.Bridge) *WebServer {
 	s := new(WebServer)
-	s.bridge = bridge
+	s.Bridge = bridge
 	return s
 }
 
@@ -131,17 +131,17 @@ type process func(c *conn.Conn, s *TunnelModeServer) error
 
 // tcp proxy
 func ProcessTunnel(c *conn.Conn, s *TunnelModeServer) error {
-	targetAddr, err := s.task.Target.GetRandomTarget()
+	targetAddr, err := s.Task.Target.GetRandomTarget()
 	if err != nil {
-		if s.task.Mode != "file" {
+		if s.Task.Mode != "file" {
 			c.Close()
-			logs.Warn("tcp port %d, client id %d, task id %d connect error %v", s.task.Port, s.task.Client.Id, s.task.Id, err)
+			logs.Warn("tcp port %d, client Id %d, task Id %d connect error %v", s.Task.Port, s.Task.Client.Id, s.Task.Id, err)
 			return err
 		}
 		targetAddr = ""
 	}
 
-	return s.DealClient(c, s.task.Client, targetAddr, nil, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
+	return s.DealClient(c, s.Task.Client, targetAddr, nil, common.CONN_TCP, nil, []*file.Flow{s.Task.Flow, s.Task.Client.Flow}, s.Task.Target.ProxyProtocol, s.Task.Target.LocalProxy, s.Task)
 }
 
 // http proxy
@@ -152,16 +152,16 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 		logs.Info("%v", err)
 		return err
 	}
-	if err := s.auth(r, nil, s.task.Client.Cnf.U, s.task.Client.Cnf.P, s.task.MultiAccount, s.task.UserAuth); err != nil {
+	if err := s.Auth(r, nil, s.Task.Client.Cnf.U, s.Task.Client.Cnf.P, s.Task.MultiAccount, s.Task.UserAuth); err != nil {
 		c.Write([]byte(common.ProxyAuthRequiredBytes))
 		c.Close()
 		return err
 	}
 	remoteAddr := c.Conn.RemoteAddr().String()
-	logs.Debug("http proxy request, client=%d method=%s, host=%s, url=%s, remote address=%s, target=%s", s.task.Client.Id, r.Method, r.Host, r.URL.RequestURI(), remoteAddr, addr)
+	logs.Debug("http proxy request, client=%d method=%s, host=%s, url=%s, remote address=%s, target=%s", s.Task.Client.Id, r.Method, r.Host, r.URL.RequestURI(), remoteAddr, addr)
 	if r.Method == http.MethodConnect {
 		c.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
-		return s.DealClient(c, s.task.Client, addr, nil, common.CONN_TCP, nil, []*file.Flow{s.task.Flow, s.task.Client.Flow}, s.task.Target.ProxyProtocol, s.task.Target.LocalProxy, s.task)
+		return s.DealClient(c, s.Task.Client, addr, nil, common.CONN_TCP, nil, []*file.Flow{s.Task.Flow, s.Task.Client.Flow}, s.Task.Target.ProxyProtocol, s.Task.Target.LocalProxy, s.Task)
 	}
 	var server *http.Server
 
@@ -188,14 +188,14 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 			ResponseHeaderTimeout: 60 * time.Second,
 			//DisableKeepAlives:     true,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				link := conn.NewLink("tcp", addr, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, remoteAddr, s.task.Target.LocalProxy)
-				target, err := s.bridge.SendLinkInfo(s.task.Client.Id, link, nil)
+				link := conn.NewLink("tcp", addr, s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, remoteAddr, s.Task.Target.LocalProxy)
+				target, err := s.Bridge.SendLinkInfo(s.Task.Client.Id, link, nil)
 				if err != nil {
 					logs.Trace("DialContext: connection to host %s (target %s) failed: %v", r.Host, addr, err)
 					return nil, err
 				}
-				rawConn := conn.GetConn(target, link.Crypt, link.Compress, s.task.Client.Rate, true)
-				return conn.NewFlowConn(rawConn, s.task.Flow, s.task.Client.Flow), nil
+				rawConn := conn.GetConn(target, link.Crypt, link.Compress, s.Task.Client.Rate, true)
+				return conn.NewFlowConn(rawConn, s.Task.Flow, s.Task.Client.Flow), nil
 			},
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {

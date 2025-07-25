@@ -26,21 +26,21 @@ type NetBridge interface {
 
 // BaseServer struct
 type BaseServer struct {
-	id              int
-	bridge          NetBridge
-	task            *file.Tunnel
-	errorContent    []byte
-	allowLocalProxy bool
+	Id              int
+	Bridge          NetBridge
+	Task            *file.Tunnel
+	ErrorContent    []byte
+	AllowLocalProxy bool
 	sync.Mutex
 }
 
 func NewBaseServer(bridge NetBridge, task *file.Tunnel) *BaseServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
 	return &BaseServer{
-		bridge:          bridge,
-		task:            task,
-		errorContent:    nil,
-		allowLocalProxy: allowLocalProxy,
+		Bridge:          bridge,
+		Task:            task,
+		ErrorContent:    nil,
+		AllowLocalProxy: allowLocalProxy,
 		Mutex:           sync.Mutex{},
 	}
 }
@@ -49,8 +49,8 @@ func NewBaseServer(bridge NetBridge, task *file.Tunnel) *BaseServer {
 func (s *BaseServer) FlowAdd(in, out int64) {
 	s.Lock()
 	defer s.Unlock()
-	s.task.Flow.ExportFlow += out
-	s.task.Flow.InletFlow += in
+	s.Task.Flow.ExportFlow += out
+	s.Task.Flow.InletFlow += in
 }
 
 // change the flow
@@ -64,11 +64,11 @@ func (s *BaseServer) FlowAddHost(host *file.Host, in, out int64) {
 // write fail bytes to the connection
 func (s *BaseServer) writeConnFail(c net.Conn) {
 	c.Write([]byte(common.ConnectionFailBytes))
-	c.Write(s.errorContent)
+	c.Write(s.ErrorContent)
 }
 
-// auth check
-func (s *BaseServer) auth(r *http.Request, c *conn.Conn, u, p string, multiAccount, userAuth *file.MultiAccount) error {
+// Auth check
+func (s *BaseServer) Auth(r *http.Request, c *conn.Conn, u, p string, multiAccount, userAuth *file.MultiAccount) error {
 	if !common.CheckAuth(r, u, p, file.GetAccountMap(multiAccount), file.GetAccountMap(userAuth)) {
 		if c != nil {
 			c.Write([]byte(common.UnauthorizedBytes))
@@ -110,10 +110,10 @@ func (s *BaseServer) DealClient(c *conn.Conn, client *file.Client, addr string,
 		return nil
 	}
 
-	link := conn.NewLink(tp, addr, client.Cnf.Crypt, client.Cnf.Compress, c.Conn.RemoteAddr().String(), s.allowLocalProxy && localProxy)
-	target, err := s.bridge.SendLinkInfo(client.Id, link, s.task)
+	link := conn.NewLink(tp, addr, client.Cnf.Crypt, client.Cnf.Compress, c.Conn.RemoteAddr().String(), s.AllowLocalProxy && localProxy)
+	target, err := s.Bridge.SendLinkInfo(client.Id, link, s.Task)
 	if err != nil {
-		logs.Warn("get connection from client id %d  error %v", client.Id, err)
+		logs.Warn("get connection from client Id %d  error %v", client.Id, err)
 		c.Close()
 		return err
 	}

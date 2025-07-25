@@ -1,4 +1,4 @@
-package proxy
+package http
 
 import (
 	"bufio"
@@ -23,6 +23,7 @@ import (
 	"github.com/djylb/nps/lib/index"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/server/connection"
+	"github.com/djylb/nps/server/proxy"
 )
 
 type ctxKey string
@@ -34,7 +35,7 @@ const (
 )
 
 type HttpServer struct {
-	BaseServer
+	proxy.BaseServer
 	httpPort        int
 	httpsPort       int
 	http3Port       int
@@ -53,13 +54,13 @@ type HttpServer struct {
 	errorAlways     bool
 }
 
-func NewHttp(bridge NetBridge, task *file.Tunnel, httpPort, httpsPort, http3Port int, httpOnlyPass string, addOrigin bool, httpProxyCache *index.AnyIntIndex) *HttpServer {
+func NewHttp(bridge proxy.NetBridge, task *file.Tunnel, httpPort, httpsPort, http3Port int, httpOnlyPass string, addOrigin bool, httpProxyCache *index.AnyIntIndex) *HttpServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
 	return &HttpServer{
-		BaseServer: BaseServer{
-			task:            task,
-			bridge:          bridge,
-			allowLocalProxy: allowLocalProxy,
+		BaseServer: proxy.BaseServer{
+			Task:            task,
+			Bridge:          bridge,
+			AllowLocalProxy: allowLocalProxy,
 			Mutex:           sync.Mutex{},
 		},
 		httpPort:       httpPort,
@@ -76,9 +77,9 @@ func NewHttp(bridge NetBridge, task *file.Tunnel, httpPort, httpsPort, http3Port
 
 func (s *HttpServer) Start() error {
 	var err error
-	s.errorContent, err = common.ReadAllFromFile(common.ResolvePath(beego.AppConfig.DefaultString("error_page", "web/static/page/error.html")))
+	s.ErrorContent, err = common.ReadAllFromFile(common.ResolvePath(beego.AppConfig.DefaultString("error_page", "web/static/page/error.html")))
 	if err != nil {
-		s.errorContent = []byte("nps 404")
+		s.ErrorContent = []byte("nps 404")
 	}
 	s.errorAlways = beego.AppConfig.DefaultBool("error_always", false)
 
@@ -144,7 +145,7 @@ func (s *HttpServer) Start() error {
 			os.Exit(0)
 		}
 		logs.Info("HTTPS server listening on port %d", s.httpsPort)
-		httpsServer := NewHttpsServer(s.httpsListener, s.bridge, s.task, s.httpsServer, s.magic)
+		httpsServer := NewHttpsServer(s.httpsListener, s.Bridge, s.Task, s.httpsServer, s.magic)
 		go func() {
 			if err := httpsServer.Start(); err != nil {
 				logs.Error("HTTPS server stopped: %v", err)
@@ -197,7 +198,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Header().Set("Connection", "close")
 			w.WriteHeader(http.StatusNotFound)
-			w.Write(s.errorContent)
+			w.Write(s.ErrorContent)
 		} else {
 			if hj, ok := w.(http.Hijacker); ok {
 				c, _, _ := hj.Hijack()
@@ -210,7 +211,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	// IP Black List
 	clientIP := common.GetIpByAddr(r.RemoteAddr)
-	if IsGlobalBlackIp(clientIP) || common.IsBlackIp(clientIP, host.Client.VerifyKey, host.Client.BlackIpList) {
+	if proxy.IsGlobalBlackIp(clientIP) || common.IsBlackIp(clientIP, host.Client.VerifyKey, host.Client.BlackIpList) {
 		//http.Error(w, "403 Forbidden", http.StatusForbidden)
 		logs.Warn("Blocked IP: %s", clientIP)
 		if hj, ok := w.(http.Hijacker); ok {
@@ -260,9 +261,9 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	host.AddConn()
 	defer host.CutConn()
 
-	// HTTP Auth
+	// HTTP SocksAuth
 	if r.Header.Get("Upgrade") == "" {
-		if err := s.auth(r, nil, host.Client.Cnf.U, host.Client.Cnf.P, host.MultiAccount, host.UserAuth); err != nil {
+		if err := s.Auth(r, nil, host.Client.Cnf.U, host.Client.Cnf.P, host.MultiAccount, host.UserAuth); err != nil {
 			logs.Warn("Unauthorized request from %s", r.RemoteAddr)
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			http.Error(w, "401 Unauthorized", http.StatusUnauthorized)
@@ -365,7 +366,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 				//http.Error(rw, "502 Bad Gateway", http.StatusBadGateway)
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.WriteHeader(http.StatusBadGateway)
-				w.Write(s.errorContent)
+				w.Write(s.ErrorContent)
 			}
 		},
 	}
@@ -380,20 +381,20 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		//http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusBadGateway)
-		w.Write(s.errorContent)
+		w.Write(s.ErrorContent)
 		return
 	}
 
 	logs.Info("%s websocket request, method %s, host %s, url %s, remote address %s, target %s", r.URL.Scheme, r.Method, r.Host, r.URL.Path, r.RemoteAddr, targetAddr)
 
 	link := conn.NewLink("tcp", targetAddr, host.Client.Cnf.Crypt, host.Client.Cnf.Compress, r.RemoteAddr, host.Target.LocalProxy)
-	targetConn, err := s.bridge.SendLinkInfo(host.Client.Id, link, nil)
+	targetConn, err := s.Bridge.SendLinkInfo(host.Client.Id, link, nil)
 	if err != nil {
 		logs.Info("handleWebsocket: connection to target %s failed: %v", link.Host, err)
 		//http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusBadGateway)
-		w.Write(s.errorContent)
+		w.Write(s.ErrorContent)
 		return
 	}
 	rawConn := conn.GetConn(targetConn, link.Crypt, link.Compress, host.Client.Rate, true)
@@ -423,7 +424,7 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		if err != nil {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusBadGateway)
-			w.Write(s.errorContent)
+			w.Write(s.ErrorContent)
 			return
 		}
 	}
@@ -506,7 +507,7 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		clientConn = conn.NewConnWithRb(clientConn, pending)
 	}
 
-	goroutine.Join(clientConn, netConn, []*file.Flow{host.Flow, host.Client.Flow}, s.task, r.RemoteAddr)
+	goroutine.Join(clientConn, netConn, []*file.Flow{host.Flow, host.Client.Flow}, s.Task, r.RemoteAddr)
 }
 
 func (s *HttpServer) NewServer(port int, scheme string) *http.Server {
@@ -530,8 +531,8 @@ func (s *HttpServer) DialContext(ctx context.Context, network, addr string) (net
 		logs.Warn("No backend found for h: %s Err: %v", h.Id, err)
 		return nil, err
 	}
-	link := conn.NewLink("tcp", targetAddr, h.Client.Cnf.Crypt, h.Client.Cnf.Compress, remote, s.allowLocalProxy && h.Target.LocalProxy)
-	target, err := s.bridge.SendLinkInfo(h.Client.Id, link, nil)
+	link := conn.NewLink("tcp", targetAddr, h.Client.Cnf.Crypt, h.Client.Cnf.Compress, remote, s.AllowLocalProxy && h.Target.LocalProxy)
+	target, err := s.Bridge.SendLinkInfo(h.Client.Id, link, nil)
 	if err != nil {
 		logs.Info("DialContext: connection to host %d (target %s) failed: %v", h.Id, targetAddr, err)
 		return nil, err

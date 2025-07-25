@@ -508,6 +508,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			}
 			c.WriteLenContent(fpBuf)
 			if ver > 3 {
+				// --- protocol 0.30.0+ path ---
 				randByte, err := common.RandomBytes(1000)
 				if err != nil {
 					logs.Error("Failed to generate rand byte for %v: %v", c.Conn.RemoteAddr(), err)
@@ -535,6 +536,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			return
 		}
 		if ver > 3 {
+			// --- protocol 0.30.0+ path ---
 			_, err := c.GetShortLenContent()
 			if err != nil {
 				logs.Error("Failed to read random buffer from %v: %v", c.Conn.RemoteAddr(), err)

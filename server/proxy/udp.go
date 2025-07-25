@@ -38,21 +38,21 @@ func NewUdpModeServer(bridge NetBridge, task *file.Tunnel) *UdpModeServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
 	return &UdpModeServer{
 		BaseServer: BaseServer{
-			bridge:          bridge,
-			task:            task,
-			allowLocalProxy: allowLocalProxy,
+			Bridge:          bridge,
+			Task:            task,
+			AllowLocalProxy: allowLocalProxy,
 		},
 		readTimeout: 60 * time.Second,
 	}
 }
 
 func (s *UdpModeServer) Start() error {
-	if s.task.ServerIp == "" {
-		s.task.ServerIp = "0.0.0.0"
+	if s.Task.ServerIp == "" {
+		s.Task.ServerIp = "0.0.0.0"
 	}
 
 	var err error
-	s.listener, err = net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(s.task.ServerIp), Port: s.task.Port})
+	s.listener, err = net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(s.Task.ServerIp), Port: s.Task.Port})
 	if err != nil {
 		return err
 	}
@@ -69,12 +69,12 @@ func (s *UdpModeServer) Start() error {
 		}
 
 		// IP blacklist check
-		if IsGlobalBlackIp(addr.String()) || common.IsBlackIp(addr.String(), s.task.Client.VerifyKey, s.task.Client.BlackIpList) {
+		if IsGlobalBlackIp(addr.String()) || common.IsBlackIp(addr.String(), s.Task.Client.VerifyKey, s.Task.Client.BlackIpList) {
 			common.PutBufPoolUdp(buf)
 			continue
 		}
 
-		logs.Trace("New udp packet from client %d: %v", s.task.Client.Id, addr)
+		logs.Trace("New udp packet from client %d: %v", s.Task.Client.Id, addr)
 		key := addr.String()
 		v, loaded := s.entries.Load(key)
 		if !loaded {
@@ -120,26 +120,26 @@ func (s *UdpModeServer) clientWorker(addr *net.UDPAddr, ent *entry) {
 		}
 	}()
 
-	if err := s.CheckFlowAndConnNum(s.task.Client); err != nil {
-		logs.Warn("client id %d, task id %d flow/conn limit: %v", s.task.Client.Id, s.task.Id, err)
+	if err := s.CheckFlowAndConnNum(s.Task.Client); err != nil {
+		logs.Warn("client Id %d, task Id %d flow/conn limit: %v", s.Task.Client.Id, s.Task.Id, err)
 		return
 	}
-	if err := conn.CheckFlowLimits(s.task.Flow, "Task", time.Now()); err != nil {
-		logs.Warn("client id %d, task id %d flow/conn limit: %v", s.task.Client.Id, s.task.Id, err)
+	if err := conn.CheckFlowLimits(s.Task.Flow, "Task", time.Now()); err != nil {
+		logs.Warn("client Id %d, task Id %d flow/conn limit: %v", s.Task.Client.Id, s.Task.Id, err)
 		return
 	}
-	defer s.task.Client.CutConn()
-	s.task.AddConn()
-	defer s.task.CutConn()
+	defer s.Task.Client.CutConn()
+	s.Task.AddConn()
+	defer s.Task.CutConn()
 
-	link := conn.NewLink(common.CONN_UDP, s.task.Target.TargetStr, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, key, s.allowLocalProxy && s.task.Target.LocalProxy)
-	clientConn, err := s.bridge.SendLinkInfo(s.task.Client.Id, link, s.task)
+	link := conn.NewLink(common.CONN_UDP, s.Task.Target.TargetStr, s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, key, s.AllowLocalProxy && s.Task.Target.LocalProxy)
+	clientConn, err := s.Bridge.SendLinkInfo(s.Task.Client.Id, link, s.Task)
 	if err != nil {
 		logs.Trace("SendLinkInfo error: %v", err)
 		return
 	}
-	target := conn.GetConn(clientConn, s.task.Client.Cnf.Crypt, s.task.Client.Cnf.Compress, nil, true)
-	ent.flowConn = conn.NewFlowConn(target, s.task.Flow, s.task.Client.Flow)
+	target := conn.GetConn(clientConn, s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, nil, true)
+	ent.flowConn = conn.NewFlowConn(target, s.Task.Flow, s.Task.Client.Flow)
 
 	go func() {
 		buf := common.BufPoolUdp.Get().([]byte)
@@ -177,8 +177,8 @@ func (s *UdpModeServer) clientWorker(addr *net.UDPAddr, ent *entry) {
 			}
 			data := pkt.buf[:pkt.n]
 			ent.once.Do(func() {
-				if s.task.Target.ProxyProtocol != 0 {
-					hdr := conn.BuildProxyProtocolHeaderByAddr(addr, &net.UDPAddr{Port: s.task.Port}, s.task.Target.ProxyProtocol)
+				if s.Task.Target.ProxyProtocol != 0 {
+					hdr := conn.BuildProxyProtocolHeaderByAddr(addr, &net.UDPAddr{Port: s.Task.Port}, s.Task.Target.ProxyProtocol)
 					hdrLen := len(hdr)
 					if hdrLen > 0 {
 						mergeBuf := make([]byte, hdrLen+len(data))
