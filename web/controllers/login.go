@@ -27,6 +27,7 @@ const IpBanTime int64 = 180
 const UserBanTime int64 = 3600
 const MaxFailTimes int = 10
 const MaxLoginBody = 1024
+const MaxSkew int64 = 5 * 60 * 1000
 
 var loginRecord sync.Map
 var cpt *captcha.Captcha
@@ -153,16 +154,18 @@ func (self *LoginController) Verify() {
 		self.ServeJSON()
 		return
 	}
-	now := time.Now().UnixMilli()
-	if pl.Timestamp < now-5*60*1000 || pl.Timestamp > now+60*1000 {
-		logs.Warn("Timestamp expired for user %s from %s", username, ip)
-		IfLoginFail(ip, true)
-		if !cptVerify {
-			IfLoginFail(username, true)
+	if secureMode {
+		now := time.Now().UnixMilli()
+		if pl.Timestamp < now-MaxSkew || pl.Timestamp > now+MaxSkew {
+			logs.Warn("Timestamp expired for user %s from %s", username, ip)
+			IfLoginFail(ip, true)
+			if !cptVerify {
+				IfLoginFail(username, true)
+			}
+			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired", "nonce": nonce}
+			self.ServeJSON()
+			return
 		}
-		self.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired", "nonce": nonce}
-		self.ServeJSON()
-		return
 	}
 	time.Sleep(time.Millisecond * time.Duration(rand.Intn(20)))
 	if self.doLogin(username, pl.Password, totpCode, true) {
@@ -330,7 +333,7 @@ func (self *LoginController) Register() {
 			return
 		}
 		now := time.Now().UnixMilli()
-		if pl.Timestamp < now-5*60*1000 || pl.Timestamp > now+60*1000 {
+		if pl.Timestamp < now-MaxSkew || pl.Timestamp > now+MaxSkew {
 			self.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired", "nonce": nonce}
 			self.ServeJSON()
 			return
