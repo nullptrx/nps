@@ -1,6 +1,12 @@
 package controllers
 
 import (
+	"html"
+	"html/template"
+	"math"
+	"strconv"
+	"strings"
+
 	"github.com/beego/beego"
 	"github.com/djylb/nps/bridge"
 	"github.com/djylb/nps/lib/common"
@@ -8,11 +14,6 @@ import (
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/server"
 	"github.com/djylb/nps/server/connection"
-	"html"
-	"html/template"
-	"math"
-	"strconv"
-	"strings"
 )
 
 type BaseController struct {
