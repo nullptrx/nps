@@ -339,7 +339,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		return
 	}
 	ver := version.GetIndex(string(minVerBytes))
-	if ver == -1 || (ServerSecureMode && ver < version.MinVer) {
+	if (ServerSecureMode && ver < version.MinVer) || ver == -1 {
 		logs.Warn("Client %v basic version mismatch: expected %s, got %s", c.Conn.RemoteAddr(), version.GetLatest(), string(minVerBytes))
 		c.Close()
 		return

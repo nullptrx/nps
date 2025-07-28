@@ -18,6 +18,13 @@ func GetVersion(index int) string {
 	return MinVersions[index]
 }
 
+func GetMinVersion(SecureMode bool) string {
+	if SecureMode {
+		return GetVersion(MinVer)
+	}
+	return GetVersion(0)
+}
+
 func GetCount() int {
 	return len(MinVersions)
 }

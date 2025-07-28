@@ -245,9 +245,11 @@ func run() {
 	//	logs.Error("Getting bridge port error")
 	//	os.Exit(0)
 	//}
-
+	if beego.AppConfig.DefaultBool("secure_mode", false) {
+		bridge.ServerSecureMode = true
+	}
 	logs.Info("the config path is:" + common.GetRunPath())
-	logs.Info("the version of server is %s ,allow client core version to be %s", version.VERSION, version.GetLatest())
+	logs.Info("the version of server is %s ,allow client core version to be %s", version.VERSION, version.GetMinVersion(bridge.ServerSecureMode))
 	connection.InitConnectionService()
 	//crypt.InitTls(filepath.Join(common.GetRunPath(), "conf", "server.pem"), filepath.Join(common.GetRunPath(), "conf", "server.key"))
 	cert, ok := common.LoadCert(beego.AppConfig.String("bridge_cert_file"), beego.AppConfig.String("bridge_key_file"))
@@ -278,8 +280,5 @@ func run() {
 	bridge.ServerTlsEnable = beego.AppConfig.DefaultBool("tls_enable", true) && bridgeTlsPort != 0 && bridgeType == "tcp"
 	bridge.ServerWsEnable = beego.AppConfig.DefaultBool("ws_enable", true) && bridgeWsPort != 0 && bridgePath != "" && bridgeType == "tcp"
 	bridge.ServerWssEnable = beego.AppConfig.DefaultBool("wss_enable", true) && bridgeWssPort != 0 && bridgePath != "" && bridgeType == "tcp"
-	if beego.AppConfig.DefaultBool("secure_mode", false) {
-		bridge.ServerSecureMode = true
-	}
 	go server.StartNewServer(bridgePort, task, bridgeType, timeout)
 }

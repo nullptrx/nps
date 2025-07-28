@@ -1083,10 +1083,7 @@ func GetVersion() string {
 }
 
 func GetMinVersion() string {
-	if bridge.ServerSecureMode {
-		return version.GetLatest()
-	}
-	return version.GetVersion(0)
+	return version.GetMinVersion(bridge.ServerSecureMode)
 }
 
 func GetCurrentYear() int {
