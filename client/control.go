@@ -114,12 +114,8 @@ func StartFromFile(path string) {
 
 	logs.Info("the version of client is %s, the core version of client is %s", version.VERSION, version.GetLatest())
 
-	if err := common.CalibrateTimeOffset(cnf.CommonConfig.NtpServer); err != nil {
-		logs.Error("ntp[%s] sync failed: %v", cnf.CommonConfig.NtpServer, err)
-	}
-	if common.TimeOffset() != 0 {
-		logs.Info("ntp[%s] offset=%v", cnf.CommonConfig.NtpServer, common.TimeOffset())
-	}
+	common.SetNtpServer(cnf.CommonConfig.NtpServer)
+	common.SyncTime()
 
 	first := true
 	for {
@@ -131,6 +127,7 @@ func StartFromFile(path string) {
 			time.Sleep(time.Second * 5)
 		}
 		first = false
+
 		if cnf.CommonConfig.TlsEnable {
 			cnf.CommonConfig.Tp = "tls"
 		}

@@ -1217,27 +1217,85 @@ func RandomBytes(maxLen int) ([]byte, error) {
 	return buf, nil
 }
 
-var timeOffset time.Duration
+var (
+	timeOffset   time.Duration
+	ntpServer    string
+	syncInterval = 5 * time.Minute
+	lastSyncMono time.Time
+	timeMutex    sync.RWMutex
+	syncCh       = make(chan struct{}, 1)
+)
 
-func CalibrateTimeOffset(server string) error {
+func SetNtpServer(server string) {
+	timeMutex.Lock()
+	defer timeMutex.Unlock()
+	ntpServer = server
+}
+
+func SetSyncInterval(d time.Duration) {
+	timeMutex.Lock()
+	defer timeMutex.Unlock()
+	syncInterval = d
+}
+
+func CalibrateTimeOffset(server string) (time.Duration, error) {
 	if server == "" {
-		timeOffset = 0
-		return nil
+		return 0, nil
 	}
 	ntpTime, err := ntp.Time(server)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	timeOffset = ntpTime.Sub(time.Now())
-	return nil
+	return ntpTime.Sub(time.Now()), nil
 }
 
 func TimeOffset() time.Duration {
+	timeMutex.RLock()
+	defer timeMutex.RUnlock()
 	return timeOffset
 }
 
 func TimeNow() time.Time {
+	SyncTime()
+	timeMutex.RLock()
+	defer timeMutex.RUnlock()
 	return time.Now().Add(timeOffset)
+}
+
+func SyncTime() {
+	timeMutex.RLock()
+	srv, last := ntpServer, lastSyncMono
+	interval := syncInterval
+	timeMutex.RUnlock()
+
+	if srv == "" || (!last.IsZero() && time.Since(last) < interval) {
+		return
+	}
+
+	select {
+	case syncCh <- struct{}{}:
+		defer func() { <-syncCh }()
+	default:
+		return
+	}
+
+	now := time.Now()
+	timeMutex.Lock()
+	lastSyncMono = now
+	timeMutex.Unlock()
+
+	offset, err := CalibrateTimeOffset(srv)
+	if err != nil {
+		logs.Error("ntp[%s] sync failed: %v", srv, err)
+	}
+
+	timeMutex.Lock()
+	timeOffset = offset
+	timeMutex.Unlock()
+
+	if offset != 0 {
+		logs.Info("ntp[%s] offset=%v", srv, offset)
+	}
 }
 
 // TimestampToBytes 8bit

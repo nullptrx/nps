@@ -88,6 +88,9 @@ func main() {
 	// 配置DNS
 	common.SetCustomDNS(*dnsServer)
 
+	// 配置NTP
+	common.SetNtpServer(*ntpServer)
+
 	// 初始化服务
 	options := make(service.KeyValue)
 	svcConfig := &service.Config{
@@ -245,15 +248,6 @@ func configureLogging() {
 	logs.Init(*logType, *logLevel, *logPath, *logMaxSize, *logMaxFiles, *logMaxDays, *logCompress, *logColor)
 }
 
-func syncTime() {
-	if err := common.CalibrateTimeOffset(*ntpServer); err != nil {
-		logs.Error("ntp[%s] sync failed: %v", *ntpServer, err)
-	}
-	if common.TimeOffset() != 0 {
-		logs.Info("ntp[%s] offset=%v", *ntpServer, common.TimeOffset())
-	}
-}
-
 type Npc struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -309,7 +303,7 @@ func run(ctx context.Context) {
 	//p2p or secret command
 	if *password != "" {
 		logs.Info("the version of client is %s, the core version of client is %s", version.VERSION, version.GetVersion(*protoVer))
-		syncTime()
+		common.SyncTime()
 		commonConfig := new(config.CommonConfig)
 		commonConfig.Server = *serverAddr
 		commonConfig.VKey = *verifyKey
@@ -335,7 +329,7 @@ func run(ctx context.Context) {
 	}
 	if *verifyKey != "" && *serverAddr != "" && *configPath == "" {
 		logs.Info("the version of client is %s, the core version of client is %s", version.VERSION, version.GetVersion(*protoVer))
-		syncTime()
+		common.SyncTime()
 		*serverAddr = strings.ReplaceAll(*serverAddr, "，", ",")
 		*verifyKey = strings.ReplaceAll(*verifyKey, "，", ",")
 		*connType = strings.ReplaceAll(*connType, "，", ",")

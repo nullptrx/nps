@@ -250,12 +250,8 @@ func run() {
 	logs.Info("the config path is:" + common.GetRunPath())
 	logs.Info("the version of server is %s ,allow client core version to be %s", version.VERSION, version.GetMinVersion(bridge.ServerSecureMode))
 	ntpServer := beego.AppConfig.DefaultString("ntp_server", "pool.ntp.org")
-	if err := common.CalibrateTimeOffset(ntpServer); err != nil {
-		logs.Error("ntp[%s] sync failed: %v", ntpServer, err)
-	}
-	if common.TimeOffset() != 0 {
-		logs.Info("ntp[%s] offset=%v", ntpServer, common.TimeOffset())
-	}
+	common.SetNtpServer(ntpServer)
+	go common.SyncTime()
 	connection.InitConnectionService()
 	//crypt.InitTls(filepath.Join(common.GetRunPath(), "conf", "server.pem"), filepath.Join(common.GetRunPath(), "conf", "server.key"))
 	cert, ok := common.LoadCert(beego.AppConfig.String("bridge_cert_file"), beego.AppConfig.String("bridge_key_file"))
