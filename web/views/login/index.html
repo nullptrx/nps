@@ -89,7 +89,8 @@
             totpLen      : {{.totp_len}},
             powBits      : {{.pow_bits}},
             powEnable    : {{if .pow_enable}}true{{else}}false{{end}},
-            lastAttempt  : Date.now()
+            lastAttempt  : Date.now(),
+            timeOffset: 0
         };
         const loginBtn = document.getElementById('loginBtn');
         const rsaEncryptor = new JSEncrypt();
@@ -149,7 +150,7 @@
             await new Promise(requestAnimationFrame);
             await new Promise(resolve => setTimeout(resolve, 600));
             const data = Object.fromEntries(new FormData(document.querySelector('form')).entries());
-            const ts = Date.now();
+            const ts = Date.now() + window.nps.timeOffset;
             const payload = JSON.stringify({
                 n: window.nps.loginNonce,
                 t: ts,
@@ -198,6 +199,9 @@
                             if (res.cert) {
                                 window.nps.publicKey = res.cert;
                                 rsaEncryptor.setPublicKey(res.cert);
+                            }
+                            if (res.timestamp) {
+                                window.nps.timeOffset = res.timestamp - Date.now();
                             }
                             if (res.bits) {
                                 window.nps.powBits = res.bits;

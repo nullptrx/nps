@@ -81,7 +81,8 @@
             web_base_url: "{{.web_base_url}}",
             version: "{{.version}}",
             publicKey: `{{.public_key}}`,
-            loginNonce: "{{.login_nonce}}"
+            loginNonce: "{{.login_nonce}}",
+            timeOffset: 0
         };
         function encryptWithRSA(plain) {
             const crypt = new JSEncrypt();
@@ -93,7 +94,7 @@
             $("form").serializeArray().forEach(item => {
                 data[item.name] = item.value;
             });
-            const ts = Date.now();
+            const ts = Date.now() + window.nps.timeOffset;
             const payload = JSON.stringify({
                 n: window.nps.loginNonce,
                 t: ts,
@@ -110,6 +111,13 @@
                             window.location.href = window.nps.web_base_url + "/login/index";
                         });
                     } else {
+                        {{if eq true .captcha_open}}
+                        var $img = $('.captcha-img');
+                        if ($img.length) {
+                            $img.trigger('click');
+                        }
+                        $('input[name="captcha"]').val('');
+                        {{end}}
                         showMsg(langreply(res.msg), 'error', 5000, function() {
                             if (res.nonce) {
                                 window.nps.loginNonce = res.nonce;
@@ -117,13 +125,9 @@
                             if (res.cert) {
                                 window.nps.publicKey = res.cert;
                             }
-                            {{if eq true .captcha_open}}
-                            var $img = $('.captcha-img');
-                            if ($img.length) {
-                                $img.trigger('click');
+                            if (res.timestamp) {
+                                window.nps.timeOffset = res.timestamp - Date.now();
                             }
-                            $('input[name="captcha"]').val('');
-                            {{end}}
                         });
                     }
                 }
