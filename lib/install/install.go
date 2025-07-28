@@ -1,6 +1,8 @@
 package install
 
 import (
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/c4milo/unpackit"
 	"github.com/djylb/nps/lib/common"
+	"github.com/djylb/nps/lib/conn"
 )
 
 var BuildTarget string
@@ -158,12 +161,38 @@ type release struct {
 }
 
 func downloadLatest(bin string) string {
+	const timeout = 5 * time.Second
+	const idleTimeout = 10 * time.Second
+	const keepAliveTime = 30 * time.Second
 	transport := &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout:   5 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		TLSHandshakeTimeout: 5 * time.Second,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			d := &net.Dialer{
+				Timeout:   timeout,
+				KeepAlive: keepAliveTime,
+			}
+			raw, err := d.DialContext(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+			return conn.NewTimeoutConn(raw, idleTimeout), nil
+		},
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			d := &net.Dialer{
+				Timeout:   timeout,
+				KeepAlive: keepAliveTime,
+			}
+			raw, err := d.DialContext(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+			tc, err := conn.NewTimeoutTLSConn(raw, &tls.Config{InsecureSkipVerify: true}, idleTimeout, timeout)
+			if err != nil {
+				return nil, err
+			}
+			return tc, nil
+		},
+		TLSHandshakeTimeout:   timeout,
+		ResponseHeaderTimeout: timeout,
 	}
 	httpClient := &http.Client{
 		Transport: transport,
@@ -217,7 +246,7 @@ func downloadLatest(bin string) string {
 			break
 		}
 		if resp != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 	}
 	if downloadErr != nil {
@@ -282,24 +311,24 @@ ExecPath:
 	}
 
 	if !common.IsWindows() {
-		copyFile(filepath.Join(srcPath, bin), binPath)
+		_, _ = copyFile(filepath.Join(srcPath, bin), binPath)
 		chMod(binPath, 0755)
 		if _, err := copyFile(filepath.Join(srcPath, bin), "/usr/bin/"+bin); err != nil {
 			if _, err := copyFile(filepath.Join(srcPath, bin), "/usr/local/bin/"+bin); err != nil {
 				log.Fatalln(err)
 			} else {
-				copyFile(filepath.Join(srcPath, bin), "/usr/local/bin/"+bin+"-update")
+				_, _ = copyFile(filepath.Join(srcPath, bin), "/usr/local/bin/"+bin+"-update")
 				chMod("/usr/local/bin/"+bin+"-update", 0755)
 				binPath = "/usr/local/bin/" + bin
 			}
 		} else {
-			copyFile(filepath.Join(srcPath, bin), "/usr/bin/"+bin+"-update")
+			_, _ = copyFile(filepath.Join(srcPath, bin), "/usr/bin/"+bin+"-update")
 			chMod("/usr/bin/"+bin+"-update", 0755)
 			binPath = "/usr/bin/" + bin
 		}
 	} else {
-		copyFile(filepath.Join(srcPath, bin+".exe"), filepath.Join(common.GetAppPath(), bin+"-update.exe"))
-		copyFile(filepath.Join(srcPath, bin+".exe"), filepath.Join(common.GetAppPath(), bin+".exe"))
+		_, _ = copyFile(filepath.Join(srcPath, bin+".exe"), filepath.Join(common.GetAppPath(), bin+"-update.exe"))
+		_, _ = copyFile(filepath.Join(srcPath, bin+".exe"), filepath.Join(common.GetAppPath(), bin+".exe"))
 	}
 	chMod(binPath, 0755)
 	return binPath
@@ -385,7 +414,7 @@ func CopyDir(srcPath string, destPath string) error {
 		if !f.IsDir() {
 			destNewPath := strings.Replace(path, srcPath, destPath, -1)
 			log.Println("copy file: " + path + " -> " + destNewPath)
-			copyFile(path, destNewPath)
+			_, _ = copyFile(path, destNewPath)
 			if !common.IsWindows() {
 				chMod(destNewPath, 0766)
 			}
@@ -451,7 +480,7 @@ func copyFile(src, dest string) (w int64, err error) {
 		return n, err
 	}
 
-	tmpFile.Close()
+	_ = tmpFile.Close()
 	if renameErr := os.Rename(tmpPath, dest); renameErr != nil {
 		return n, renameErr
 	}
@@ -472,6 +501,6 @@ func pathExists(path string) (bool, error) {
 
 func chMod(name string, mode os.FileMode) {
 	if !common.IsWindows() {
-		os.Chmod(name, mode)
+		_ = os.Chmod(name, mode)
 	}
 }

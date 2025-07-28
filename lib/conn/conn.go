@@ -162,18 +162,18 @@ func (s *Conn) ReadFlag() (string, error) {
 func (s *Conn) SetAlive() {
 	switch s.Conn.(type) {
 	case *kcp.UDPSession:
-		s.Conn.(*kcp.UDPSession).SetReadDeadline(time.Time{})
+		_ = s.Conn.(*kcp.UDPSession).SetReadDeadline(time.Time{})
 	case *net.TCPConn:
-		s.Conn.(*net.TCPConn).SetReadDeadline(time.Time{})
+		_ = s.Conn.(*net.TCPConn).SetReadDeadline(time.Time{})
 	case *pmux.PortConn:
-		s.Conn.(*pmux.PortConn).SetReadDeadline(time.Time{})
+		_ = s.Conn.(*pmux.PortConn).SetReadDeadline(time.Time{})
 	case *tls.Conn:
-		s.Conn.(*tls.Conn).SetReadDeadline(time.Time{})
+		_ = s.Conn.(*tls.Conn).SetReadDeadline(time.Time{})
 	case *TlsConn:
-		s.Conn.(*TlsConn).SetReadDeadline(time.Time{})
+		_ = s.Conn.(*TlsConn).SetReadDeadline(time.Time{})
 	default:
 		if conn, ok := s.Conn.(interface{ SetReadDeadline(time.Time) error }); ok {
-			conn.SetReadDeadline(time.Time{})
+			_ = conn.SetReadDeadline(time.Time{})
 		}
 	}
 }
@@ -182,18 +182,18 @@ func (s *Conn) SetAlive() {
 func (s *Conn) SetReadDeadlineBySecond(t time.Duration) {
 	switch s.Conn.(type) {
 	case *kcp.UDPSession:
-		s.Conn.(*kcp.UDPSession).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
+		_ = s.Conn.(*kcp.UDPSession).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
 	case *net.TCPConn:
-		s.Conn.(*net.TCPConn).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
+		_ = s.Conn.(*net.TCPConn).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
 	case *pmux.PortConn:
-		s.Conn.(*pmux.PortConn).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
+		_ = s.Conn.(*pmux.PortConn).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
 	case *tls.Conn:
-		s.Conn.(*tls.Conn).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
+		_ = s.Conn.(*tls.Conn).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
 	case *TlsConn:
-		s.Conn.(*TlsConn).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
+		_ = s.Conn.(*TlsConn).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
 	default:
 		if conn, ok := s.Conn.(interface{ SetReadDeadline(time.Time) error }); ok {
-			conn.SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
+			_ = conn.SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
 		}
 	}
 }
@@ -271,7 +271,7 @@ func (s *Conn) SendInfo(t interface{}, flag string) (int, error) {
 	*/
 	raw := bytes.NewBuffer([]byte{})
 	if flag != "" {
-		binary.Write(raw, binary.LittleEndian, []byte(flag))
+		_ = binary.Write(raw, binary.LittleEndian, []byte(flag))
 	}
 	b, err := json.Marshal(t)
 	if err != nil {
@@ -281,7 +281,7 @@ func (s *Conn) SendInfo(t interface{}, flag string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	binary.Write(raw, binary.LittleEndian, lenBytes)
+	_ = binary.Write(raw, binary.LittleEndian, lenBytes)
 	return s.Write(raw.Bytes())
 }
 
@@ -295,7 +295,7 @@ func (s *Conn) getInfo(t interface{}) (err error) {
 	} else if _, err = s.ReadLen(l, buf); err != nil {
 		return
 	} else {
-		json.Unmarshal(buf[:l], &t)
+		_ = json.Unmarshal(buf[:l], &t)
 	}
 	return
 }
@@ -385,7 +385,7 @@ func (s *Conn) WriteChan() (int, error) {
 
 // get task or host result of add
 func (s *Conn) GetAddStatus() (b bool) {
-	binary.Read(s, binary.LittleEndian, &b)
+	_ = binary.Read(s, binary.LittleEndian, &b)
 	return
 }
 
@@ -435,8 +435,8 @@ func GetLenBytes(buf []byte) (b []byte, err error) {
 func SetUdpSession(sess *kcp.UDPSession) {
 	sess.SetStreamMode(true)
 	sess.SetWindowSize(1024, 1024)
-	sess.SetReadBuffer(64 * 1024)
-	sess.SetWriteBuffer(64 * 1024)
+	_ = sess.SetReadBuffer(64 * 1024)
+	_ = sess.SetWriteBuffer(64 * 1024)
 	sess.SetNoDelay(1, 10, 2, 1)
 	sess.SetMtu(1600)
 	sess.SetACKNoDelay(true)
@@ -450,10 +450,10 @@ func CopyWaitGroup(conn1, conn2 net.Conn, crypt bool, snappy bool, rate *rate.Ra
 	proxyHeader := BuildProxyProtocolHeader(conn2, proxyProtocol)
 	if proxyHeader != nil {
 		logs.Debug("Sending Proxy Protocol v%d header to backend: %v", proxyProtocol, proxyHeader)
-		connHandle.Write(proxyHeader)
+		_, _ = connHandle.Write(proxyHeader)
 	}
 	if rb != nil {
-		connHandle.Write(rb)
+		_, _ = connHandle.Write(rb)
 	}
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
@@ -743,6 +743,36 @@ func (c *FlowConn) Write(p []byte) (int, error) {
 		return n, err
 	}
 	return n, err
+}
+
+type TimeoutConn struct {
+	net.Conn
+	idleTimeout time.Duration
+}
+
+func NewTimeoutConn(c net.Conn, idle time.Duration) net.Conn {
+	return &TimeoutConn{Conn: c, idleTimeout: idle}
+}
+
+func (c *TimeoutConn) Read(b []byte) (int, error) {
+	_ = c.Conn.SetDeadline(time.Now().Add(c.idleTimeout))
+	return c.Conn.Read(b)
+}
+
+func (c *TimeoutConn) Write(b []byte) (int, error) {
+	_ = c.Conn.SetDeadline(time.Now().Add(c.idleTimeout))
+	return c.Conn.Write(b)
+}
+
+func NewTimeoutTLSConn(raw net.Conn, cfg *tls.Config, idle, handshakeTimeout time.Duration) (net.Conn, error) {
+	_ = raw.SetDeadline(time.Now().Add(handshakeTimeout))
+	tlsConn := tls.Client(raw, cfg)
+	if err := tlsConn.Handshake(); err != nil {
+		_ = raw.Close()
+		return nil, err
+	}
+	_ = tlsConn.SetDeadline(time.Time{})
+	return NewTimeoutConn(tlsConn, idle), nil
 }
 
 func GetTlsConn(c net.Conn, sni string) (net.Conn, error) {
