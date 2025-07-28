@@ -99,7 +99,7 @@ func (https *HttpsServer) Start() error {
 	conn.Accept(https.listener, func(c net.Conn) {
 		helloInfo, rb, err := crypt.ReadClientHello(c, nil)
 		if err != nil || helloInfo == nil {
-			logs.Warn("Failed to read clientHello from %v, err=%v", c.RemoteAddr(), err)
+			logs.Debug("Failed to read clientHello from %v, err=%v", c.RemoteAddr(), err)
 			// Check if the request is an HTTP request.
 			checkHTTPAndRedirect(c, rb)
 			return
@@ -171,7 +171,7 @@ func checkHTTPAndRedirect(c net.Conn, rb []byte) {
 	reader := bufio.NewReader(io.MultiReader(bytes.NewReader(rb), c))
 	req, err := http.ReadRequest(reader)
 	if err != nil {
-		logs.Warn("Failed to parse HTTP request from %v, err=%v", c.RemoteAddr(), err)
+		logs.Debug("Failed to parse HTTP request from %v, err=%v", c.RemoteAddr(), err)
 		return
 	}
 	logs.Debug("HTTP Request Sent to HTTPS Port")

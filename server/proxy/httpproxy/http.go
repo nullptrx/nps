@@ -353,7 +353,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 				rw.WriteHeader(521)
 				return
 			}
-			logs.Warn("ErrorHandler: proxy error: method=%s, URL=%s, error=%v", req.Method, req.URL.String(), err)
+			logs.Debug("ErrorHandler: proxy error: method=%s, URL=%s, error=%v", req.Method, req.URL.String(), err)
 
 			errMsg := err.Error()
 			idx := strings.Index(errMsg, "Task")

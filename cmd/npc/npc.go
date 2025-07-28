@@ -209,11 +209,6 @@ func main() {
 			return
 		}
 	}
-	if err := common.CalibrateTimeOffset(*ntpServer); err != nil {
-		logs.Error("ntp[%s] sync failed: %v", *ntpServer, err)
-	} else {
-		logs.Info("ntp[%s] offset=%v", *ntpServer, common.TimeOffset())
-	}
 	_ = s.Run()
 }
 
@@ -248,6 +243,15 @@ func configureLogging() {
 	}
 
 	logs.Init(*logType, *logLevel, *logPath, *logMaxSize, *logMaxFiles, *logMaxDays, *logCompress, *logColor)
+}
+
+func syncTime() {
+	if err := common.CalibrateTimeOffset(*ntpServer); err != nil {
+		logs.Error("ntp[%s] sync failed: %v", *ntpServer, err)
+	}
+	if common.TimeOffset() != 0 {
+		logs.Info("ntp[%s] offset=%v", *ntpServer, common.TimeOffset())
+	}
 }
 
 type Npc struct {
@@ -305,6 +309,7 @@ func run(ctx context.Context) {
 	//p2p or secret command
 	if *password != "" {
 		logs.Info("the version of client is %s, the core version of client is %s", version.VERSION, version.GetVersion(*protoVer))
+		syncTime()
 		commonConfig := new(config.CommonConfig)
 		commonConfig.Server = *serverAddr
 		commonConfig.VKey = *verifyKey
@@ -330,6 +335,7 @@ func run(ctx context.Context) {
 	}
 	if *verifyKey != "" && *serverAddr != "" && *configPath == "" {
 		logs.Info("the version of client is %s, the core version of client is %s", version.VERSION, version.GetVersion(*protoVer))
+		syncTime()
 		*serverAddr = strings.ReplaceAll(*serverAddr, "，", ",")
 		*verifyKey = strings.ReplaceAll(*verifyKey, "，", ",")
 		*connType = strings.ReplaceAll(*connType, "，", ",")

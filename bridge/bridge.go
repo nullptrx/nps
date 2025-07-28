@@ -334,7 +334,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 	//version check
 	minVerBytes, err := c.GetShortLenContent()
 	if err != nil {
-		logs.Error("Failed to read version length from client %v: %v", c.Conn.RemoteAddr(), err)
+		logs.Trace("Failed to read version length from client %v: %v", c.Conn.RemoteAddr(), err)
 		c.Close()
 		return
 	}
@@ -366,7 +366,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		//get vKey from client
 		keyBuf, err := c.GetShortContent(32)
 		if err != nil {
-			logs.Error("Failed to read vKey from client %v: %v", c.Conn.RemoteAddr(), err)
+			logs.Trace("Failed to read vKey from client %v: %v", c.Conn.RemoteAddr(), err)
 			c.Close()
 			return
 		}
