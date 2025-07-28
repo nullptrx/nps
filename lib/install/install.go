@@ -2,10 +2,13 @@ package install
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/ioutil"
 	"log"
@@ -158,12 +161,18 @@ func UpdateNpc() {
 
 type release struct {
 	TagName string `json:"tag_name"`
+	Assets  []struct {
+		Name               string `json:"name"`
+		BrowserDownloadURL string `json:"browser_download_url"`
+		Digest             string `json:"digest"`
+	} `json:"assets"`
 }
 
 func downloadLatest(bin string) string {
 	const timeout = 5 * time.Second
 	const idleTimeout = 10 * time.Second
 	const keepAliveTime = 30 * time.Second
+
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			d := &net.Dialer{
@@ -185,11 +194,7 @@ func downloadLatest(bin string) string {
 			if err != nil {
 				return nil, err
 			}
-			tc, err := conn.NewTimeoutTLSConn(raw, &tls.Config{InsecureSkipVerify: true}, idleTimeout, timeout)
-			if err != nil {
-				return nil, err
-			}
-			return tc, nil
+			return conn.NewTimeoutTLSConn(raw, &tls.Config{InsecureSkipVerify: true}, idleTimeout, timeout)
 		},
 		TLSHandshakeTimeout:   timeout,
 		ResponseHeaderTimeout: timeout,
@@ -201,7 +206,7 @@ func downloadLatest(bin string) string {
 	// get version
 	data, err := httpClient.Get("https://api.github.com/repos/djylb/nps/releases/latest")
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal(err)
 	}
 	defer data.Body.Close()
 
@@ -220,12 +225,29 @@ func downloadLatest(bin string) string {
 	archName := runtime.GOARCH
 
 	var filename string
-	if BuildTarget == "win7" {
+	switch {
+	case BuildTarget == "win7":
 		filename = fmt.Sprintf("%s_%s_%s_old.tar.gz", osName, archName, bin)
-	} else if BuildTarget != "" {
+	case BuildTarget != "":
 		filename = fmt.Sprintf("%s_%s_%s_%s.tar.gz", osName, archName, BuildTarget, bin)
-	} else {
+	default:
 		filename = fmt.Sprintf("%s_%s_%s.tar.gz", osName, archName, bin)
+	}
+
+	var expectedHash string
+	for _, a := range rl.Assets {
+		if a.Name != filename {
+			continue
+		}
+		//fmt.Println("Expected Hash:", a.Digest)
+		if strings.HasPrefix(a.Digest, "sha256:") {
+			expectedHash = strings.TrimPrefix(a.Digest, "sha256:")
+		}
+		break
+	}
+	//fmt.Println("Expected SHA256:", expectedHash)
+	if expectedHash == "" {
+		fmt.Println("No SHA256 digest found for", filename, "; skipping hash check")
 	}
 
 	// download latest package
@@ -257,14 +279,31 @@ func downloadLatest(bin string) string {
 	}
 	defer resp.Body.Close()
 
+	var reader io.Reader = resp.Body
+	var hasher hash.Hash
+	if expectedHash != "" {
+		hasher = sha256.New()
+		reader = io.TeeReader(resp.Body, hasher)
+	}
+
 	destPath, err := ioutil.TempDir(os.TempDir(), "nps-")
 	if err != nil {
 		log.Fatal("Failed to create temp directory:", err)
 	}
 
-	if err := unpackit.Unpack(resp.Body, destPath); err != nil {
+	if err := unpackit.Unpack(reader, destPath); err != nil {
 		log.Fatal(err)
 		return ""
+	}
+
+	if expectedHash != "" {
+		sum := hex.EncodeToString(hasher.Sum(nil))
+		if sum != expectedHash {
+			fmt.Printf("  → checksum mismatch: got %s vs %s\n", sum, expectedHash)
+			_ = os.RemoveAll(destPath)
+			return ""
+		}
+		//fmt.Printf("  → checksum verified: %s\n", sum)
 	}
 
 	if bin == "server" {
