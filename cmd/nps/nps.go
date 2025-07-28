@@ -158,8 +158,8 @@ func main() {
 			if service.Platform() == "unix-systemv" {
 				logs.Info("unix-systemv service")
 				confPath := "/etc/init.d/" + svcConfig.Name
-				os.Symlink(confPath, "/etc/rc.d/S90"+svcConfig.Name)
-				os.Symlink(confPath, "/etc/rc.d/K02"+svcConfig.Name)
+				_ = os.Symlink(confPath, "/etc/rc.d/S90"+svcConfig.Name)
+				_ = os.Symlink(confPath, "/etc/rc.d/K02"+svcConfig.Name)
 			}
 			return
 		case "start", "restart", "stop":
@@ -184,8 +184,8 @@ func main() {
 			}
 			if service.Platform() == "unix-systemv" {
 				logs.Info("unix-systemv service")
-				os.Remove("/etc/rc.d/S90" + svcConfig.Name)
-				os.Remove("/etc/rc.d/K02" + svcConfig.Name)
+				_ = os.Remove("/etc/rc.d/S90" + svcConfig.Name)
+				_ = os.Remove("/etc/rc.d/K02" + svcConfig.Name)
 			}
 			return
 		case "update":
@@ -196,7 +196,12 @@ func main() {
 			//	return
 		}
 	}
-
+	ntpServer := beego.AppConfig.DefaultString("ntp_server", "pool.ntp.org")
+	if err := common.CalibrateTimeOffset(ntpServer); err != nil {
+		logs.Error("ntp[%s] sync failed: %v", ntpServer, err)
+	} else {
+		logs.Info("ntp[%s] offset=%v", ntpServer, common.TimeOffset())
+	}
 	_ = s.Run()
 }
 

@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"encoding/hex"
-	"time"
 
 	"github.com/beego/beego"
+	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/crypt"
 )
 
@@ -36,7 +36,7 @@ func (s *AuthController) GetAuthKey() {
 
 func (s *AuthController) GetTime() {
 	m := make(map[string]interface{})
-	m["time"] = time.Now().Unix()
+	m["time"] = common.TimeNow().Unix()
 	s.Data["json"] = m
 	s.ServeJSON()
 }

@@ -28,6 +28,7 @@ import (
 
 	"github.com/araddon/dateparse"
 	"github.com/beego/beego"
+	"github.com/beevik/ntp"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/version"
 )
@@ -1214,6 +1215,29 @@ func RandomBytes(maxLen int) ([]byte, error) {
 		return nil, err
 	}
 	return buf, nil
+}
+
+var timeOffset time.Duration
+
+func CalibrateTimeOffset(server string) error {
+	if server == "" {
+		timeOffset = 0
+		return nil
+	}
+	ntpTime, err := ntp.Time(server)
+	if err != nil {
+		return err
+	}
+	timeOffset = ntpTime.Sub(time.Now())
+	return nil
+}
+
+func TimeOffset() time.Duration {
+	return timeOffset
+}
+
+func TimeNow() time.Time {
+	return time.Now().Add(timeOffset)
 }
 
 // TimestampToBytes 8bit

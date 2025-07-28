@@ -155,7 +155,7 @@ func (s *LoginController) Verify() {
 		return
 	}
 	if secureMode {
-		now := time.Now().UnixMilli()
+		now := common.TimeNow().UnixMilli()
 		if pl.Timestamp < now-MaxSkew || pl.Timestamp > now+MaxSkew {
 			logs.Warn("Timestamp expired for user %s from %s", username, ip)
 			IfLoginFail(ip, true)
@@ -333,7 +333,7 @@ func (s *LoginController) Register() {
 			return
 		}
 		if secureMode {
-			now := time.Now().UnixMilli()
+			now := common.TimeNow().UnixMilli()
 			if pl.Timestamp < now-MaxSkew || pl.Timestamp > now+MaxSkew {
 				s.Data["json"] = map[string]interface{}{"status": 0, "msg": "timestamp expired", "nonce": nonce, "timestamp": now}
 				s.ServeJSON()

@@ -395,7 +395,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			return
 		}
 		ts := common.BytesToTimestamp(tsBuf)
-		now := time.Now().Unix()
+		now := common.TimeNow().Unix()
 		if ServerSecureMode && (ts > now+rep.ttl || ts < now-rep.ttl) {
 			logs.Error("Timestamp validation failed for %v: ts=%d, now=%d", c.Conn.RemoteAddr(), ts, now)
 			c.Close()

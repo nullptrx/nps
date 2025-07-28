@@ -439,7 +439,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		}
 	} else {
 		// 0.27.0
-		ts := time.Now().Unix() - int64(rand.Intn(6))
+		ts := common.TimeNow().Unix() - int64(rand.Intn(6))
 		if _, err := c.BufferWrite(common.TimestampToBytes(ts)); err != nil {
 			return nil, err
 		}

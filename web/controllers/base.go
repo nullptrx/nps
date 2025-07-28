@@ -1,13 +1,6 @@
 package controllers
 
 import (
-	"html"
-	"html/template"
-	"math"
-	"strconv"
-	"strings"
-	"time"
-
 	"github.com/beego/beego"
 	"github.com/djylb/nps/bridge"
 	"github.com/djylb/nps/lib/common"
@@ -15,6 +8,11 @@ import (
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/server"
 	"github.com/djylb/nps/server/connection"
+	"html"
+	"html/template"
+	"math"
+	"strconv"
+	"strings"
 )
 
 type BaseController struct {
@@ -36,7 +34,7 @@ func (s *BaseController) Prepare() {
 	md5Key := s.getEscapeString("auth_key")
 	timestamp := s.GetIntNoErr("timestamp")
 	configKey := beego.AppConfig.String("auth_key")
-	timeNowUnix := time.Now().Unix()
+	timeNowUnix := common.TimeNow().Unix()
 	if configKey == "" {
 		configKey = crypt.GetRandomString(64)
 	}

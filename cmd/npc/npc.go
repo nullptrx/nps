@@ -53,6 +53,7 @@ var (
 	disconnectTime = flag.Int("disconnect_timeout", 60, "Disconnect timeout in seconds")
 	p2pTime        = flag.Int("p2p_timeout", 5, "P2P timeout in seconds")
 	dnsServer      = flag.String("dns_server", "8.8.8.8", "DNS server for domain lookup")
+	ntpServer      = flag.String("ntp_server", "pool.ntp.org", "NTP server for time synchronization")
 	tlsEnable      = flag.Bool("tls_enable", false, "Enable TLS (Deprecated)")
 	genTOTP        = flag.Bool("gen2fa", false, "Generate TOTP Secret")
 	getTOTP        = flag.String("get2fa", "", "Get TOTP Code")
@@ -141,14 +142,14 @@ func main() {
 				client.GetTaskStatus(path)
 			}
 		case "register":
-			flag.CommandLine.Parse(os.Args[2:])
+			_ = flag.CommandLine.Parse(os.Args[2:])
 			client.RegisterLocalIp(*serverAddr, *verifyKey, *connType, *proxyUrl, *registerTime)
 		case "update":
 			install.UpdateNpc()
 			return
 		case "nat":
 			c := stun.NewClient()
-			flag.CommandLine.Parse(os.Args[2:])
+			_ = flag.CommandLine.Parse(os.Args[2:])
 			c.SetServerAddr(*stunAddr)
 			//logs.Info(*stunAddr)
 			fmt.Println("STUN Server:", *stunAddr)
@@ -181,8 +182,8 @@ func main() {
 			}
 			return
 		case "install":
-			service.Control(s, "stop")
-			service.Control(s, "uninstall")
+			_ = service.Control(s, "stop")
+			_ = service.Control(s, "uninstall")
 			install.InstallNpc()
 			err := service.Control(s, os.Args[1])
 			if err != nil {
@@ -191,8 +192,8 @@ func main() {
 			if service.Platform() == "unix-systemv" {
 				logs.Info("unix-systemv service")
 				confPath := "/etc/init.d/" + svcConfig.Name
-				os.Symlink(confPath, "/etc/rc.d/S90"+svcConfig.Name)
-				os.Symlink(confPath, "/etc/rc.d/K02"+svcConfig.Name)
+				_ = os.Symlink(confPath, "/etc/rc.d/S90"+svcConfig.Name)
+				_ = os.Symlink(confPath, "/etc/rc.d/K02"+svcConfig.Name)
 			}
 			return
 		case "uninstall":
@@ -202,13 +203,18 @@ func main() {
 			}
 			if service.Platform() == "unix-systemv" {
 				logs.Info("unix-systemv service")
-				os.Remove("/etc/rc.d/S90" + svcConfig.Name)
-				os.Remove("/etc/rc.d/K02" + svcConfig.Name)
+				_ = os.Remove("/etc/rc.d/S90" + svcConfig.Name)
+				_ = os.Remove("/etc/rc.d/K02" + svcConfig.Name)
 			}
 			return
 		}
 	}
-	s.Run()
+	if err := common.CalibrateTimeOffset(*ntpServer); err != nil {
+		logs.Error("ntp[%s] sync failed: %v", *ntpServer, err)
+	} else {
+		logs.Info("ntp[%s] offset=%v", *ntpServer, common.TimeOffset())
+	}
+	_ = s.Run()
 }
 
 // 配置日志记录
