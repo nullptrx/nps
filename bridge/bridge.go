@@ -332,18 +332,15 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		return
 	}
 	//version check
-	ver := version.GetLatestIndex()
 	minVerBytes, err := c.GetShortLenContent()
 	if err != nil {
 		logs.Error("Failed to read version length from client %v: %v", c.Conn.RemoteAddr(), err)
 		c.Close()
 		return
 	}
-	if !ServerSecureMode {
-		ver = version.GetIndex(string(minVerBytes))
-	}
-	if string(minVerBytes) != version.GetVersion(ver) {
-		logs.Warn("Client %v basic version mismatch: expected %s, got %s", c.Conn.RemoteAddr(), version.GetVersion(ver), string(minVerBytes))
+	ver := version.GetIndex(string(minVerBytes))
+	if ver == -1 || (ServerSecureMode && ver < version.MinVer) {
+		logs.Warn("Client %v basic version mismatch: expected %s, got %s", c.Conn.RemoteAddr(), version.GetLatest(), string(minVerBytes))
 		c.Close()
 		return
 	}
