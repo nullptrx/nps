@@ -115,6 +115,9 @@ func StartFromFile(path string) {
 	logs.Info("the version of client is %s, the core version of client is %s", version.VERSION, version.GetLatest())
 
 	common.SetNtpServer(cnf.CommonConfig.NtpServer)
+	if cnf.CommonConfig.NtpInterval > 0 {
+		common.SetNtpInterval(time.Duration(cnf.CommonConfig.NtpInterval) * time.Minute)
+	}
 	common.SyncTime()
 
 	first := true

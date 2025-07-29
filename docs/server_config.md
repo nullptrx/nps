@@ -21,12 +21,13 @@ nps.exe -conf_path=D:\test\nps
 ---
 
 ## 1. 基础配置
-| 名称           | 说明            |
-|--------------|---------------|
-| `appname`    | 应用名称          |
-| `runmode`    | 运行模式（dev/pro） |
-| `dns_server` | DNS 服务器       |
-| `ntp_server` | NTP 服务器       |
+| 名称             | 说明             |
+|----------------|----------------|
+| `appname`      | 应用名称           |
+| `runmode`      | 运行模式（dev/pro）  |
+| `dns_server`   | DNS 服务器        |
+| `ntp_server`   | NTP 服务器        |
+| `ntp_interval` | NTP 最小查询间隔（分钟） |
 
 ---
 ## 2. Web 管理面板相关

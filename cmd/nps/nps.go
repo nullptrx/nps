@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/beego/beego"
 	"github.com/djylb/nps/bridge"
@@ -249,8 +250,10 @@ func run() {
 	}
 	logs.Info("the config path is:" + common.GetRunPath())
 	logs.Info("the version of server is %s ,allow client core version to be %s", version.VERSION, version.GetMinVersion(bridge.ServerSecureMode))
-	ntpServer := beego.AppConfig.DefaultString("ntp_server", "pool.ntp.org")
+	ntpServer := beego.AppConfig.DefaultString("ntp_server", "")
+	ntpInterval := beego.AppConfig.DefaultInt("ntp_interval", 5)
 	common.SetNtpServer(ntpServer)
+	common.SetNtpInterval(time.Duration(ntpInterval) * time.Minute)
 	go common.SyncTime()
 	connection.InitConnectionService()
 	//crypt.InitTls(filepath.Join(common.GetRunPath(), "conf", "server.pem"), filepath.Join(common.GetRunPath(), "conf", "server.key"))

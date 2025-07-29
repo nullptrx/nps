@@ -19,6 +19,7 @@ type CommonConfig struct {
 	ProxyUrl         string
 	DnsServer        string
 	NtpServer        string
+	NtpInterval      int
 	Client           *file.Client
 	DisconnectTime   int
 }
@@ -145,6 +146,8 @@ func dealCommon(s string) *CommonConfig {
 			c.DnsServer = item[1]
 		case "ntp_server":
 			c.NtpServer = item[1]
+		case "ntp_interval":
+			c.NtpInterval = common.GetIntNoErrByStr(item[1])
 		case "rate_limit":
 			c.Client.RateLimit = common.GetIntNoErrByStr(item[1])
 		case "flow_limit":

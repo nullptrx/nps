@@ -1232,7 +1232,7 @@ func SetNtpServer(server string) {
 	ntpServer = server
 }
 
-func SetSyncInterval(d time.Duration) {
+func SetNtpInterval(d time.Duration) {
 	timeMutex.Lock()
 	defer timeMutex.Unlock()
 	syncInterval = d

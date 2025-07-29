@@ -53,7 +53,8 @@ var (
 	disconnectTime = flag.Int("disconnect_timeout", 60, "Disconnect timeout in seconds")
 	p2pTime        = flag.Int("p2p_timeout", 5, "P2P timeout in seconds")
 	dnsServer      = flag.String("dns_server", "8.8.8.8", "DNS server for domain lookup")
-	ntpServer      = flag.String("ntp_server", "pool.ntp.org", "NTP server for time synchronization")
+	ntpServer      = flag.String("ntp_server", "", "NTP server for time synchronization")
+	ntpInterval    = flag.Int("ntp_interval", 5, "interval between NTP synchronizations (minutes)")
 	tlsEnable      = flag.Bool("tls_enable", false, "Enable TLS (Deprecated)")
 	genTOTP        = flag.Bool("gen2fa", false, "Generate TOTP Secret")
 	getTOTP        = flag.String("get2fa", "", "Get TOTP Code")
@@ -90,6 +91,7 @@ func main() {
 
 	// 配置NTP
 	common.SetNtpServer(*ntpServer)
+	common.SetNtpInterval(time.Duration(*ntpInterval) * time.Minute)
 
 	// 初始化服务
 	options := make(service.KeyValue)
