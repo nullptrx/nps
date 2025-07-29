@@ -1096,16 +1096,15 @@ func flowSession(m time.Duration) {
 	file.GetDb().JsonDb.StoreClientsToJsonFile()
 	file.GetDb().JsonDb.StoreGlobalToJsonFile()
 	once.Do(func() {
-		ticker := time.NewTicker(m)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
+		go func() {
+			ticker := time.NewTicker(m)
+			defer ticker.Stop()
+			for range ticker.C {
 				file.GetDb().JsonDb.StoreHostToJsonFile()
 				file.GetDb().JsonDb.StoreTasksToJsonFile()
 				file.GetDb().JsonDb.StoreClientsToJsonFile()
 				file.GetDb().JsonDb.StoreGlobalToJsonFile()
 			}
-		}
+		}()
 	})
 }

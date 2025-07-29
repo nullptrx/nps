@@ -458,10 +458,13 @@ func CopyWaitGroup(conn1, conn2 net.Conn, crypt bool, snappy bool, rate *rate.Ra
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	err := goroutine.CopyConnsPool.Invoke(goroutine.NewConns(connHandle, conn2, flows, wg, task))
-	wg.Wait()
 	if err != nil {
-		logs.Error("%v", err)
+		logs.Error("CopyConnsPool.Invoke failed: %v", err)
+		wg.Done()
+		connHandle.Close()
+		conn2.Close()
 	}
+	wg.Wait()
 }
 
 // 构造 Proxy-Protocol v1 头 (TCP / UDP)

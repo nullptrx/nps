@@ -84,7 +84,9 @@ func (s *JsonDb) LoadClientFromJsonFile() {
 			local.Addr = "127.0.0.1"
 			local.Cnf = new(Config)
 			local.Flow = new(Flow)
-			local.Rate = new(rate.Rate)
+			local.Rate = rate.NewRate(int64(2 << 23))
+			local.Rate.Start()
+			local.NowConn = 0
 			local.Status = true
 			local.ConfigConnAllow = true
 			local.Version = version.VERSION

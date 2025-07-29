@@ -642,13 +642,16 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 
 	case common.WORK_REGISTER:
 		go s.register(c)
+		return
 
 	case common.WORK_SECRET:
-		if b, err := c.GetShortContent(32); err == nil {
-			s.SecretChan <- conn.NewSecret(string(b), c)
-		} else {
+		b, err := c.GetShortContent(32)
+		if err != nil {
 			logs.Error("secret error, failed to match the key successfully")
+			c.Close()
+			return
 		}
+		s.SecretChan <- conn.NewSecret(string(b), c)
 
 	case common.WORK_FILE:
 		muxConn := nps_mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime)
@@ -700,6 +703,8 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 
 // register ip
 func (s *Bridge) register(c *conn.Conn) {
+	defer c.Close()
+	c.SetReadDeadline(time.Now().Add(5 * time.Second))
 	var hour int32
 	if err := binary.Read(c, binary.LittleEndian, &hour); err == nil {
 		ip := common.GetIpByAddr(c.Conn.RemoteAddr().String())

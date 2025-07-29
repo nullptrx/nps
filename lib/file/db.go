@@ -1,5 +1,6 @@
 package file
 
+import "C"
 import (
 	"errors"
 	"net/http"
@@ -346,6 +347,9 @@ func (s *DbUtils) DelClient(id int) error {
 	if v, ok := s.JsonDb.Clients.Load(id); ok {
 		c := v.(*Client)
 		Blake2bVkeyIndex.Remove(crypt.Blake2b(c.VerifyKey))
+		if c.Rate != nil {
+			c.Rate.Stop()
+		}
 	}
 	s.JsonDb.Clients.Delete(id)
 	s.JsonDb.StoreClientsToJsonFile()
@@ -363,18 +367,18 @@ reset:
 		isNotSet = true
 		c.VerifyKey = crypt.GetRandomString(16, c.Id)
 	}
+	if !s.VerifyVkey(c.VerifyKey, c.Id) {
+		if isNotSet {
+			goto reset
+		}
+		return errors.New("vkey duplicate, please reset")
+	}
 	if c.RateLimit == 0 {
 		c.Rate = rate.NewRate(int64(2 << 23))
 	} else if c.Rate == nil {
 		c.Rate = rate.NewRate(int64(c.RateLimit * 1024))
 	}
 	c.Rate.Start()
-	if !s.VerifyVkey(c.VerifyKey, c.Id) {
-		if isNotSet {
-			goto reset
-		}
-		return errors.New("Vkey duplicate, please reset")
-	}
 	if c.Id == 0 {
 		c.Id = int(s.JsonDb.GetClientId())
 	}
@@ -414,9 +418,20 @@ func (s *DbUtils) VerifyUserName(username string, id int) (res bool) {
 }
 
 func (s *DbUtils) UpdateClient(t *Client) error {
+	if v, ok := s.JsonDb.Clients.Load(t.Id); ok {
+		c := v.(*Client)
+		Blake2bVkeyIndex.Remove(crypt.Blake2b(c.VerifyKey))
+		if c.Rate != nil {
+			c.Rate.Stop()
+		}
+	}
+
 	s.JsonDb.Clients.Store(t.Id, t)
 	Blake2bVkeyIndex.Add(crypt.Blake2b(t.VerifyKey), t.Id)
-	if t.RateLimit == 0 {
+	if t.RateLimit > 0 {
+		t.Rate = rate.NewRate(int64(t.RateLimit * 1024))
+		t.Rate.Start()
+	} else {
 		t.Rate = rate.NewRate(int64(2 << 23))
 		t.Rate.Start()
 	}

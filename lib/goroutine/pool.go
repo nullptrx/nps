@@ -105,13 +105,14 @@ func copyConnGroup(group interface{}) {
 	if !ok {
 		return
 	}
-	var err error
-	*cg.n, err = CopyBuffer(cg.dst, cg.src, cg.flows, cg.task, cg.remote)
-	if err != nil {
+
+	defer cg.wg.Done()
+	defer func() {
 		cg.src.Close()
 		cg.dst.Close()
-	}
-	cg.wg.Done()
+	}()
+
+	*cg.n, _ = CopyBuffer(cg.dst, cg.src, cg.flows, cg.task, cg.remote)
 }
 
 type Conns struct {
@@ -153,21 +154,30 @@ var connCopyPool, _ = ants.NewPoolWithFunc(200000, copyConnGroup, ants.WithNonbl
 var CopyConnsPool, _ = ants.NewPoolWithFunc(100000, copyConns, ants.WithNonblocking(false))
 
 func Join(c1, c2 net.Conn, flows []*file.Flow, task *file.Tunnel, remote string) {
+	var once sync.Once
+	closeBoth := func() {
+		once.Do(func() {
+			c1.Close()
+			c2.Close()
+		})
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(2)
+
+	// c1 → c2
 	go func() {
-		if _, err := CopyBuffer(c1, c2, flows, task, remote); err != nil {
-			c1.Close()
-			c2.Close()
-		}
-		wg.Done()
+		defer wg.Done()
+		defer closeBoth()
+		CopyBuffer(c1, c2, flows, task, remote)
 	}()
+
+	// c2 → c1
 	go func() {
-		if _, err := CopyBuffer(c2, c1, flows, task, remote); err != nil {
-			c1.Close()
-			c2.Close()
-		}
-		wg.Done()
+		defer wg.Done()
+		defer closeBoth()
+		CopyBuffer(c2, c1, flows, task, remote)
 	}()
+
 	wg.Wait()
 }
