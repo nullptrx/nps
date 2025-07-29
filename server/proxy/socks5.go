@@ -351,6 +351,7 @@ func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
 			}
 			nConn := conn.NewConnWithRb(c, buf)
 			ss := NewTunnelModeServer(ProcessHttp, s.Bridge, s.Task)
+			defer ss.Close()
 			if err := ProcessHttp(nConn, ss); err != nil {
 				logs.Warn("http proxy error: %v", err)
 				return err
