@@ -1,6 +1,5 @@
 package file
 
-import "C"
 import (
 	"errors"
 	"net/http"
