@@ -455,6 +455,7 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 		logs.Error("handleP2PUdp failed: %v", err)
 		return
 	}
+	//logs.Debug("handleP2PUdp ok")
 
 	udpTunnel, err := kcp.NewConn(remoteAddr, nil, 150, 3, localConn)
 	if err != nil || udpTunnel == nil {

@@ -665,36 +665,54 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 
 	case common.WORK_P2P:
 		// read md5 secret
-		if b, err := c.GetShortContent(32); err != nil {
+		b, err := c.GetShortContent(32)
+		if err != nil {
 			logs.Error("p2p error, %v", err)
-		} else if t := file.GetDb().GetTaskByMd5Password(string(b)); t == nil {
-			logs.Error("p2p error, failed to match the key successfully")
-		} else if v, ok := s.Client.Load(t.Client.Id); ok {
-			serverPort := beego.AppConfig.String("p2p_port")
-			if serverPort == "" {
-				logs.Warn("get local udp addr error")
-				return
-			}
-			serverIP := common.GetServerIp()
-			svrAddr := common.BuildAddress(serverIP, serverPort)
-			signalAddr := common.BuildAddress(serverIP, serverPort)
-			remoteIP := net.ParseIP(common.GetIpByAddr(c.RemoteAddr().String()))
-			if remoteIP != nil && (remoteIP.IsPrivate() || remoteIP.IsLoopback() || remoteIP.IsLinkLocalUnicast()) {
-				svrAddr = common.BuildAddress(common.GetIpByAddr(c.LocalAddr().String()), serverPort)
-			}
-			client := v.(*Client)
-			signalIP := net.ParseIP(common.GetIpByAddr(client.signal.RemoteAddr().String()))
-			if signalIP != nil && (signalIP.IsPrivate() || signalIP.IsLoopback() || signalIP.IsLinkLocalUnicast()) {
-				signalAddr = common.BuildAddress(common.GetIpByAddr(client.signal.LocalAddr().String()), serverPort)
-			}
-			client.signal.Write([]byte(common.NEW_UDP_CONN))
-			client.signal.WriteLenContent([]byte(signalAddr))
-			client.signal.WriteLenContent(b)
-			c.WriteLenContent([]byte(svrAddr))
-			logs.Trace("P2P: remoteIP=%s, svr1Addr=%s, clientIP=%s, svr2Addr=%s", remoteIP, svrAddr, signalIP, signalAddr)
-		} else {
+			c.Close()
 			return
 		}
+		t := file.GetDb().GetTaskByMd5Password(string(b))
+		if t == nil {
+			logs.Error("p2p error, failed to match the key successfully")
+			c.Close()
+			return
+		}
+		v, ok := s.Client.Load(t.Client.Id)
+		if !ok {
+			c.Close()
+			return
+		}
+		serverPort := beego.AppConfig.String("p2p_port")
+		if serverPort == "" {
+			logs.Warn("get local udp addr error")
+			c.Close()
+			return
+		}
+		serverIP := common.GetServerIp()
+		svrAddr := common.BuildAddress(serverIP, serverPort)
+		signalAddr := common.BuildAddress(serverIP, serverPort)
+		remoteIP := net.ParseIP(common.GetIpByAddr(c.RemoteAddr().String()))
+		if remoteIP != nil && (remoteIP.IsPrivate() || remoteIP.IsLoopback() || remoteIP.IsLinkLocalUnicast()) {
+			svrAddr = common.BuildAddress(common.GetIpByAddr(c.LocalAddr().String()), serverPort)
+		}
+		client := v.(*Client)
+		signalIP := net.ParseIP(common.GetIpByAddr(client.signal.RemoteAddr().String()))
+		if signalIP != nil && (signalIP.IsPrivate() || signalIP.IsLoopback() || signalIP.IsLinkLocalUnicast()) {
+			signalAddr = common.BuildAddress(common.GetIpByAddr(client.signal.LocalAddr().String()), serverPort)
+		}
+		client.signal.BufferWrite([]byte(common.NEW_UDP_CONN))
+		client.signal.WriteLenContent([]byte(signalAddr))
+		client.signal.WriteLenContent(b)
+		if err := client.signal.FlushBuf(); err != nil {
+			logs.Warn("client signal flush error: %v", err)
+		}
+		c.WriteLenContent([]byte(svrAddr))
+		if err := c.FlushBuf(); err != nil {
+			logs.Warn("p2p head flush error: %v", err)
+		}
+		logs.Trace("P2P: remoteIP=%s, svr1Addr=%s, clientIP=%s, svr2Addr=%s", remoteIP, svrAddr, signalIP, signalAddr)
+		c.Close()
+		return
 	}
 
 	c.SetAlive()

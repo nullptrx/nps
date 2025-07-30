@@ -130,6 +130,21 @@ func GetPortStrByAddr(addr string) string {
 	return strconv.Itoa(port)
 }
 
+func ValidateAddr(s string) string {
+	host, port, err := net.SplitHostPort(s)
+	if err != nil {
+		return ""
+	}
+	if ip := net.ParseIP(host); ip == nil {
+		return ""
+	}
+	p, err := strconv.Atoi(port)
+	if err != nil || p < 1 || p > 65535 {
+		return ""
+	}
+	return s
+}
+
 func BuildAddress(host string, port string) string {
 	if strings.Contains(host, ":") { // IPv6
 		return fmt.Sprintf("[%s]:%s", host, port)

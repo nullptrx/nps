@@ -588,7 +588,7 @@ func getBasicAuth(username, password string) string {
 	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
-func getRemoteAddressFromServer(rAddr string, localConn *net.UDPConn, md5Password, role string, add int) error {
+func getRemoteAddressFromServer(rAddr string, localConn net.PacketConn, md5Password, role string, add int) error {
 	rAddr, err := getNextAddr(rAddr, add)
 	if err != nil {
 		logs.Error("%v", err)
@@ -627,6 +627,7 @@ func handleP2PUdp(pCtx context.Context, localAddr, rAddr, md5Password, role stri
 		return
 	}
 	var remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal string
+	//logs.Debug("get remote address from server")
 Loop:
 	for {
 		select {
@@ -635,24 +636,26 @@ Loop:
 		default:
 		}
 		buf := make([]byte, 1024)
-		n, addr, er := localConn.ReadFromUDP(buf)
+		n, addr, er := localConn.ReadFrom(buf)
 		if er != nil {
 			err = er
 			return
 		}
 		parts := strings.Split(string(buf[:n]), common.CONN_DATA_SEQ)
-		payload := parts[0]
+		payload := common.ValidateAddr(parts[0])
 		if len(parts) >= 2 {
-			remoteLocal = parts[1]
+			remoteLocal = common.ValidateAddr(parts[1])
 		}
-		rAddr2, _ := getNextAddr(rAddr, 1)
-		rAddr3, _ := getNextAddr(rAddr, 2)
-		switch addr.String() {
-		case rAddr:
+		rPort := common.GetPortByAddr(rAddr)
+		//rAddr2, _ := getNextAddr(rAddr, 1)
+		//rAddr3, _ := getNextAddr(rAddr, 2)
+
+		switch common.GetPortByAddr(addr.String()) {
+		case rPort:
 			remoteAddr1 = payload
-		case rAddr2:
+		case rPort + 1:
 			remoteAddr2 = payload
-		case rAddr3:
+		case rPort + 2:
 			remoteAddr3 = payload
 		}
 		//logs.Debug("buf: %s", buf)
@@ -674,7 +677,7 @@ Loop:
 	return
 }
 
-func sendP2PTestMsg(pCtx context.Context, localConn *net.UDPConn, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal string) (string, error) {
+func sendP2PTestMsg(pCtx context.Context, localConn net.PacketConn, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal string) (string, error) {
 	defer localConn.Close()
 	isClose := false
 	defer func() { isClose = true }()
@@ -781,7 +784,7 @@ Loop:
 		default:
 		}
 		localConn.SetReadDeadline(time.Now().Add(time.Second * 10))
-		n, addr, err := localConn.ReadFromUDP(buf)
+		n, addr, err := localConn.ReadFrom(buf)
 		localConn.SetReadDeadline(time.Time{})
 		if err != nil {
 			break
@@ -814,16 +817,26 @@ Loop:
 	return "", errors.New("connect to the target failed, maybe the nat type is not support p2p")
 }
 
-func newUdpConnByAddr(addr string) (*net.UDPConn, error) {
+type udpConnWrapper struct {
+	net.PacketConn
+	fakeLocal *net.UDPAddr
+}
+
+func (u *udpConnWrapper) LocalAddr() net.Addr {
+	return u.fakeLocal
+}
+
+func newUdpConnByAddr(addr string) (net.PacketConn, error) {
+	port := common.GetPortStrByAddr(addr)
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return nil, err
 	}
-	udpConn, err := net.ListenUDP("udp", udpAddr)
+	pc, err := net.ListenPacket("udp", ":"+port)
 	if err != nil {
 		return nil, err
 	}
-	return udpConn, nil
+	return &udpConnWrapper{PacketConn: pc, fakeLocal: udpAddr}, nil
 }
 
 func getNextAddr(addr string, n int) (string, error) {
