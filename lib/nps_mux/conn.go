@@ -18,8 +18,8 @@ type Conn struct {
 	connStatusOkCh   chan struct{}
 	connStatusFailCh chan struct{}
 	connId           int32
-	isClose          bool
-	closingFlag      bool // closing Conn flag
+	isClose          uint32
+	closingFlag      uint32 // closing Conn flag
 	receiveWindow    *receiveWindow
 	sendWindow       *sendWindow
 	once             sync.Once
@@ -40,7 +40,7 @@ func NewConn(connId int32, mux *Mux) *Conn {
 }
 
 func (s *Conn) Read(buf []byte) (n int, err error) {
-	if s.isClose || buf == nil {
+	if s.IsClosed() || buf == nil {
 		return 0, errors.New("the conn has closed")
 	}
 	if len(buf) == 0 {
@@ -52,10 +52,10 @@ func (s *Conn) Read(buf []byte) (n int, err error) {
 }
 
 func (s *Conn) Write(buf []byte) (n int, err error) {
-	if s.isClose {
+	if s.IsClosed() {
 		return 0, errors.New("the conn has closed")
 	}
-	if s.closingFlag {
+	if atomic.LoadUint32(&s.closingFlag) == 1 {
 		return 0, errors.New("io: write on closed conn")
 	}
 	if len(buf) == 0 {
@@ -65,15 +65,23 @@ func (s *Conn) Write(buf []byte) (n int, err error) {
 	return
 }
 
+func (s *Conn) IsClosed() bool {
+	return atomic.LoadUint32(&s.isClose) == 1
+}
+
+func (s *Conn) SetClosingFlag() {
+	atomic.StoreUint32(&s.closingFlag, 1)
+}
+
 func (s *Conn) Close() (err error) {
 	s.once.Do(s.closeProcess)
 	return
 }
 
 func (s *Conn) closeProcess() {
-	s.isClose = true
+	atomic.StoreUint32(&s.isClose, 1)
 	s.receiveWindow.mux.connMap.Delete(s.connId)
-	if !s.receiveWindow.mux.IsClose {
+	if !s.receiveWindow.mux.IsClosed() {
 		// if server or user close the conn while reading, will Get a io.EOF
 		// and this Close method will be invoke, send this signal to close other side
 		s.receiveWindow.mux.sendInfo(muxConnClose, s.connId, nil)

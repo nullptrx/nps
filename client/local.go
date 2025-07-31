@@ -65,7 +65,7 @@ func (fsm *FileServerManager) StartFileServer(cfg *config.CommonConfig, t *file.
 	registered := false
 	defer func() {
 		if !registered {
-			remoteConn.Close()
+			_ = remoteConn.Close()
 		}
 	}()
 	fs := http.FileServer(http.Dir(t.LocalPath))
@@ -118,7 +118,7 @@ func (fsm *FileServerManager) StartFileServer(cfg *config.CommonConfig, t *file.
 	fsm.wg.Add(1)
 	go func() {
 		defer fsm.wg.Done()
-		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
+		if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logs.Error("WebDAV Serve error: %v", err)
 		}
 	}()
@@ -136,8 +136,8 @@ func (fsm *FileServerManager) CloseAll() {
 			logs.Error("FileServer Shutdown error: %v", err)
 		}
 		cancel2()
-		e.listener.Close()
-		e.remoteConn.Close()
+		_ = e.listener.Close()
+		_ = e.remoteConn.Close()
 	}
 	fsm.wg.Wait()
 }
@@ -221,7 +221,7 @@ func (b *p2pBridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) 
 			mgr.mu.Lock()
 			session := mgr.muxSession
 			mgr.mu.Unlock()
-			if session == nil || session.IsClose {
+			if session == nil { // session.IsClosed()
 				continue
 			}
 			nowConn, err := session.NewConn()
@@ -232,7 +232,7 @@ func (b *p2pBridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) 
 				return nil, err
 			}
 			if _, err := conn.NewConn(nowConn).SendInfo(link, ""); err != nil {
-				nowConn.Close()
+				_ = nowConn.Close()
 				mgr.mu.Lock()
 				mgr.statusOK = false
 				mgr.mu.Unlock()
@@ -286,7 +286,7 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 		mgr.wg.Add(1)
 		go func() {
 			defer mgr.wg.Done()
-			srv.Start()
+			_ = srv.Start()
 		}()
 		return nil
 	case "p2pt":
@@ -298,7 +298,7 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 		mgr.wg.Add(1)
 		go func() {
 			defer mgr.wg.Done()
-			srv.Start()
+			_ = srv.Start()
 		}()
 		return nil
 	}
@@ -324,7 +324,7 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 		mgr.wg.Add(1)
 		go func() {
 			defer mgr.wg.Done()
-			srv.Start()
+			_ = srv.Start()
 		}()
 	}
 
@@ -365,7 +365,7 @@ func (mgr *P2PManager) handleUdpMonitor(cfg *config.CommonConfig, l *config.Loca
 
 		mgr.mu.Lock()
 		if oldConn != nil {
-			oldConn.Close()
+			_ = oldConn.Close()
 			mgr.udpConn = nil
 		}
 		mgr.mu.Unlock()
@@ -425,17 +425,20 @@ func (mgr *P2PManager) handleUdpMonitor(cfg *config.CommonConfig, l *config.Loca
 func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l *config.LocalServer) {
 	remoteConn, err := NewConn(cfg.Tp, cfg.VKey, cfg.Server, common.WORK_P2P, cfg.ProxyUrl)
 	if err != nil {
-		logs.Error("newUdpConn NewConn failed: %v", err)
+		logs.Error("Failed to connect to server: %v", err)
+		time.Sleep(5 * time.Second)
 		return
 	}
 	defer remoteConn.Close()
 	if _, err := remoteConn.Write([]byte(crypt.Md5(l.Password))); err != nil {
-		logs.Error("newUdpConn write pwd failed: %v", err)
+		logs.Error("Failed to send password to server: %v", err)
+		time.Sleep(5 * time.Second)
 		return
 	}
 	rAddrBuf, err := remoteConn.GetShortLenContent()
 	if err != nil {
-		logs.Error("newUdpConn GetShortLenContent: %v", err)
+		logs.Error("Target client is offline or tunnel config not found: %v", err)
+		time.Sleep(5 * time.Second)
 		return
 	}
 	rAddr := string(rAddrBuf)
@@ -452,15 +455,15 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 
 	remoteAddr, localConn, err := handleP2PUdp(mgr.ctx, localAddr, rAddr, crypt.Md5(l.Password), common.WORK_P2P_VISITOR)
 	if err != nil {
-		logs.Error("handleP2PUdp failed: %v", err)
+		logs.Error("Handle P2P failed: %v", err)
 		return
 	}
 	//logs.Debug("handleP2PUdp ok")
 
 	udpTunnel, err := kcp.NewConn(remoteAddr, nil, 150, 3, localConn)
 	if err != nil || udpTunnel == nil {
-		logs.Warn("kcp NewConn failed: %v", err)
-		localConn.Close()
+		logs.Warn("KCP NewConn failed: %v", err)
+		_ = localConn.Close()
 		return
 	}
 	conn.SetUdpSession(udpTunnel)
@@ -468,10 +471,10 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 
 	mgr.mu.Lock()
 	if mgr.udpConn != nil {
-		mgr.udpConn.Close()
+		_ = mgr.udpConn.Close()
 	}
 	if mgr.muxSession != nil {
-		mgr.muxSession.Close()
+		_ = mgr.muxSession.Close()
 	}
 	mgr.udpConn = udpTunnel
 	mgr.muxSession = nps_mux.NewMux(udpTunnel, "kcp", cfg.DisconnectTime)
@@ -483,13 +486,13 @@ func (mgr *P2PManager) handleSecret(c net.Conn, cfg *config.CommonConfig, l *con
 	remoteConn, err := NewConn(cfg.Tp, cfg.VKey, cfg.Server, common.WORK_SECRET, cfg.ProxyUrl)
 	if err != nil {
 		logs.Error("secret NewConn failed: %v", err)
-		c.Close()
+		_ = c.Close()
 		return
 	}
 	defer remoteConn.Close()
 	if _, err := remoteConn.Write([]byte(crypt.Md5(l.Password))); err != nil {
 		logs.Error("secret write failed: %v", err)
-		c.Close()
+		_ = c.Close()
 		return
 	}
 	conn.CopyWaitGroup(remoteConn.Conn, c, false, false, nil, nil, false, 0, nil, nil)
@@ -515,7 +518,7 @@ func (mgr *P2PManager) handleP2PVisitor(c net.Conn, cfg *config.CommonConfig, l 
 		mgr.mu.Lock()
 		mgr.statusOK = false
 		mgr.mu.Unlock()
-		c.Close()
+		_ = c.Close()
 		return
 	}
 	defer target.Close()
@@ -532,16 +535,16 @@ func (mgr *P2PManager) Close() {
 	mgr.mu.Unlock()
 
 	for _, ln := range lnList {
-		ln.Close()
+		_ = ln.Close()
 	}
 	for _, srv := range psList {
-		srv.Close()
+		_ = srv.Close()
 	}
 	if udp != nil {
-		udp.Close()
+		_ = udp.Close()
 	}
 	if mux != nil {
-		mux.Close()
+		_ = mux.Close()
 	}
 	mgr.wg.Wait()
 }

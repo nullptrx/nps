@@ -10,7 +10,7 @@ type Rate struct {
 	bucketSize        int64
 	bucketSurplusSize int64
 	bucketAddSize     int64
-	stopChan          chan bool
+	stopChan          chan struct{}
 	NowRate           int64
 }
 
@@ -19,7 +19,7 @@ func NewRate(addSize int64) *Rate {
 		bucketSize:        addSize * 2,
 		bucketSurplusSize: 0,
 		bucketAddSize:     addSize,
-		stopChan:          make(chan bool),
+		stopChan:          make(chan struct{}),
 	}
 }
 
@@ -42,7 +42,7 @@ func (s *Rate) ReturnBucket(size int64) {
 
 // 停止
 func (s *Rate) Stop() {
-	s.stopChan <- true
+	close(s.stopChan)
 }
 
 func (s *Rate) Get(size int64) {

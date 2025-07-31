@@ -781,7 +781,7 @@ func dealClientData() {
 				v.LocalAddr = common.GetOutboundIP().String()
 				// Add Local Client
 				if _, exists := Bridge.Client.Load(v.Id); !exists && v.Status {
-					Bridge.Client.Store(v.Id, bridge.NewClient(nil, nil, nil, version.VERSION))
+					Bridge.Client.Store(v.Id, bridge.NewClient(v.Id, nil, nil, nil, version.VERSION))
 					logs.Debug("Inserted virtual client for ID %d", v.Id)
 				}
 			} else {

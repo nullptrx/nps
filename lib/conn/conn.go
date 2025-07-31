@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/djylb/nps/lib/common"
@@ -30,10 +31,12 @@ import (
 var LocalTCPAddr = &net.TCPAddr{IP: net.ParseIP("127.0.0.1")}
 
 type Conn struct {
-	Conn net.Conn
-	Rb   []byte
-	wBuf *bytes.Buffer
-	mu   sync.Mutex
+	Conn      net.Conn
+	Rb        []byte
+	wBuf      *bytes.Buffer
+	mu        sync.Mutex
+	closed    uint32
+	closeOnce sync.Once
 }
 
 // new conn
@@ -304,21 +307,41 @@ func (s *Conn) getInfo(t interface{}) (err error) {
 	return
 }
 
-// close
+func IsTempOrTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	var ne net.Error
+	return errors.As(err, &ne) && (ne.Temporary() || ne.Timeout())
+}
+
+func (s *Conn) IsClosed() bool {
+	return atomic.LoadUint32(&s.closed) == 1
+}
+
 func (s *Conn) Close() error {
-	return s.Conn.Close()
+	if atomic.CompareAndSwapUint32(&s.closed, 0, 1) {
+		return s.Conn.Close()
+	}
+	return errors.New("connection already closed")
 }
 
 // write
 func (s *Conn) Write(b []byte) (n int, err error) {
-	if s == nil {
-		return -1, errors.New("connection error")
+	if s == nil || s.IsClosed() {
+		return 0, errors.New("connection error")
 	}
 
 	s.mu.Lock()
 	if s.wBuf.Len() == 0 {
 		s.mu.Unlock()
-		return s.Conn.Write(b)
+		n, err = s.Conn.Write(b)
+		if err != nil {
+			if IsTempOrTimeout(err) {
+				_ = s.Close()
+			}
+		}
+		return n, err
 	}
 	n, err = s.wBuf.Write(b)
 	toSend := s.wBuf.Bytes()
@@ -326,6 +349,9 @@ func (s *Conn) Write(b []byte) (n int, err error) {
 	defer s.mu.Unlock()
 
 	if _, err := s.Conn.Write(toSend); err != nil {
+		if IsTempOrTimeout(err) {
+			_ = s.Close()
+		}
 		return 0, err
 	}
 
@@ -333,24 +359,39 @@ func (s *Conn) Write(b []byte) (n int, err error) {
 }
 
 func (s *Conn) BufferWrite(b []byte) (int, error) {
+	if s.IsClosed() {
+		return 0, errors.New("connection closed")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.wBuf.Write(b)
 }
 
 func (s *Conn) FlushBuf() error {
+	if s.IsClosed() {
+		return errors.New("connection closed")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.wBuf.Len() == 0 {
 		return nil
 	}
-	_, err := s.Conn.Write(s.wBuf.Bytes())
+	if _, err := s.Conn.Write(s.wBuf.Bytes()); err != nil {
+		if IsTempOrTimeout(err) {
+			_ = s.Close()
+		}
+		return err
+	}
 	s.wBuf.Reset()
-	return err
+	return nil
 }
 
 // read
 func (s *Conn) Read(b []byte) (n int, err error) {
+	if s.IsClosed() {
+		return 0, io.EOF
+	}
+
 	if err = s.FlushBuf(); err != nil {
 		return 0, err
 	}
@@ -364,7 +405,13 @@ func (s *Conn) Read(b []byte) (n int, err error) {
 		}
 		s.Rb = nil
 	}
-	return s.Conn.Read(b)
+	n, err = s.Conn.Read(b)
+	if err != nil {
+		if IsTempOrTimeout(err) {
+			_ = s.Close()
+		}
+	}
+	return n, err
 }
 
 // write sign flag

@@ -347,7 +347,7 @@ func (s *TRPClient) ping() {
 	for {
 		select {
 		case <-s.ticker.C:
-			if s.tunnel == nil || s.tunnel.IsClose {
+			if s.tunnel == nil || s.tunnel.IsClosed() {
 				s.Close()
 				return
 			}

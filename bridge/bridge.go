@@ -36,56 +36,6 @@ var (
 	ServerSecureMode bool = false
 )
 
-type replay struct {
-	mu    sync.Mutex
-	items map[string]int64
-	ttl   int64
-}
-
-var rep = replay{
-	items: make(map[string]int64, 100),
-	ttl:   300,
-}
-
-func IsReplay(key string) bool {
-	now := time.Now().Unix()
-	rep.mu.Lock()
-	defer rep.mu.Unlock()
-	expireBefore := now - rep.ttl
-	for k, ts := range rep.items {
-		if ts < expireBefore {
-			delete(rep.items, k)
-		}
-	}
-	if _, ok := rep.items[key]; ok {
-		return true
-	}
-	rep.items[key] = now
-	return false
-}
-
-type Client struct {
-	signal    *conn.Conn   // WORK_MAIN connection
-	tunnel    *nps_mux.Mux // WORK_CHAN connection
-	file      *nps_mux.Mux // WORK_FILE connection
-	Version   string
-	retryTime int      // it will add 1 when ping not ok until to 3 will close the client
-	signals   sync.Map // map[*conn.Conn]struct{}
-	tunnels   sync.Map // map[*nps_mux.Mux]struct{}
-}
-
-func NewClient(t, f *nps_mux.Mux, s *conn.Conn, vs string) *Client {
-	cli := &Client{
-		signal:  s,
-		tunnel:  t,
-		file:    f,
-		Version: vs,
-		signals: sync.Map{},
-		tunnels: sync.Map{},
-	}
-	return cli
-}
-
 type Bridge struct {
 	TunnelPort     int
 	Client         *sync.Map
@@ -238,8 +188,8 @@ func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 	for {
 		info, status, err := c.GetHealthInfo(10 * time.Second)
 		if err != nil {
-			//logs.Trace("GetHealthInfo error, id=%d, retry=%d, err=%v", id, retry, err)
-			if ne, ok := err.(interface{ Temporary() bool }); ok && ne.Temporary() && retry < maxRetry {
+			logs.Trace("GetHealthInfo error, id=%d, retry=%d, err=%v", id, retry, err)
+			if conn.IsTempOrTimeout(err) && retry < maxRetry {
 				retry++
 				continue
 			}
@@ -309,44 +259,45 @@ func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 			})
 		}
 	}
-	s.DelClient(id)
+	//s.DelClient(id)
+	_ = c.Close()
 }
 
 func (s *Bridge) verifyError(c *conn.Conn) {
 	if !ServerSecureMode {
-		c.Write([]byte(common.VERIFY_EER))
+		_, _ = c.Write([]byte(common.VERIFY_EER))
 	}
-	c.Close()
+	_ = c.Close()
 }
 
 func (s *Bridge) verifySuccess(c *conn.Conn) {
-	c.Write([]byte(common.VERIFY_SUCCESS))
+	_, _ = c.Write([]byte(common.VERIFY_SUCCESS))
 }
 
 func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 	if c.Conn == nil || c.Conn.RemoteAddr() == nil {
 		logs.Warn("Invalid connection")
-		c.Close()
+		_ = c.Close()
 		return
 	}
 
 	//read test flag
 	if _, err := c.GetShortContent(3); err != nil {
 		logs.Trace("The client %v connect error: %v", c.Conn.RemoteAddr(), err)
-		c.Close()
+		_ = c.Close()
 		return
 	}
 	//version check
 	minVerBytes, err := c.GetShortLenContent()
 	if err != nil {
 		logs.Trace("Failed to read version length from client %v: %v", c.Conn.RemoteAddr(), err)
-		c.Close()
+		_ = c.Close()
 		return
 	}
 	ver := version.GetIndex(string(minVerBytes))
 	if (ServerSecureMode && ver < version.MinVer) || ver == -1 {
 		logs.Warn("Client %v basic version mismatch: expected %s, got %s", c.Conn.RemoteAddr(), version.GetLatest(), string(minVerBytes))
-		c.Close()
+		_ = c.Close()
 		return
 	}
 
@@ -354,7 +305,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 	vs, err := c.GetShortLenContent()
 	if err != nil {
 		logs.Error("Failed to read client version from %v: %v", c.Conn.RemoteAddr(), err)
-		c.Close()
+		_ = c.Close()
 		return
 	}
 	clientVer := string(bytes.TrimRight(vs, "\x00"))
@@ -364,7 +315,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		//write server version to client
 		if _, err := c.Write([]byte(crypt.Md5(version.GetVersion(ver)))); err != nil {
 			logs.Error("Failed to write server version to client %v: %v", c.Conn.RemoteAddr(), err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		c.SetReadDeadlineBySecond(5)
@@ -372,7 +323,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		keyBuf, err := c.GetShortContent(32)
 		if err != nil {
 			logs.Trace("Failed to read vKey from client %v: %v", c.Conn.RemoteAddr(), err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		//verify
@@ -387,7 +338,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		flag, err := c.ReadFlag()
 		if err != nil {
 			logs.Warn("Failed to read operation flag from %v: %v", c.Conn.RemoteAddr(), err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		s.typeDeal(flag, c, id, clientVer)
@@ -396,20 +347,20 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		tsBuf, err := c.GetShortContent(8)
 		if err != nil {
 			logs.Error("Failed to read timestamp from client %v: %v", c.Conn.RemoteAddr(), err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		ts := common.BytesToTimestamp(tsBuf)
 		now := common.TimeNow().Unix()
 		if ServerSecureMode && (ts > now+rep.ttl || ts < now-rep.ttl) {
 			logs.Error("Timestamp validation failed for %v: ts=%d, now=%d", c.Conn.RemoteAddr(), ts, now)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		keyBuf, err := c.GetShortContent(64)
 		if err != nil {
 			logs.Error("Failed to read vKey (64 bytes) from %v: %v", c.Conn.RemoteAddr(), err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		//verify
@@ -423,25 +374,25 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		client, err := file.GetDb().GetClient(id)
 		if err != nil {
 			logs.Error("Failed to load client record for ID %d: %v", id, err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		if !client.Status {
 			logs.Info("Client %v (ID %d) is disabled", c.Conn.RemoteAddr(), id)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		client.Addr = common.GetIpByAddr(c.Conn.RemoteAddr().String())
 		infoBuf, err := c.GetShortLenContent()
 		if err != nil {
 			logs.Error("Failed to read encrypted IP from %v: %v", c.Conn.RemoteAddr(), err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		infoDec, err := crypt.DecryptBytes(infoBuf, client.VerifyKey)
 		if err != nil {
 			logs.Error("Failed to decrypt Info for %v: %v", c.Conn.RemoteAddr(), err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		if ver < 3 {
@@ -453,20 +404,20 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			// infoDec = [17-byte IP][1-byte L][L-byte tp]
 			if len(infoDec) < 18 {
 				logs.Error("Invalid payload length from %v: %d", c.Conn.RemoteAddr(), len(infoDec))
-				c.Close()
+				_ = c.Close()
 				return
 			}
 			ipPart := infoDec[:17]
 			l := int(infoDec[17])
 			if len(infoDec) < 18+l {
 				logs.Error("Declared tp length %d exceeds payload from %v", l, c.Conn.RemoteAddr())
-				c.Close()
+				_ = c.Close()
 				return
 			}
 			ip := common.DecodeIP(ipPart)
 			if ip == nil {
 				logs.Error("Failed to decode IP from %v", c.Conn.RemoteAddr())
-				c.Close()
+				_ = c.Close()
 				return
 			}
 			client.LocalAddr = ip.String()
@@ -476,28 +427,28 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		randBuf, err := c.GetShortLenContent()
 		if err != nil {
 			logs.Error("Failed to read random buffer from %v: %v", c.Conn.RemoteAddr(), err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		hmacBuf, err := c.GetShortContent(32)
 		if err != nil {
 			logs.Error("Failed to read HMAC from %v: %v", c.Conn.RemoteAddr(), err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		if ServerSecureMode && !bytes.Equal(hmacBuf, crypt.ComputeHMAC(client.VerifyKey, ts, minVerBytes, vs, infoBuf, randBuf)) {
 			logs.Error("HMAC verification failed for %v", c.Conn.RemoteAddr())
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		if ServerSecureMode && IsReplay(string(hmacBuf)) {
 			logs.Error("Replay detected for client %v", c.Conn.RemoteAddr())
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		if _, err := c.BufferWrite(crypt.ComputeHMAC(client.VerifyKey, ts, hmacBuf, []byte(version.GetVersion(ver)))); err != nil {
 			logs.Error("Failed to write HMAC response to %v: %v", c.Conn.RemoteAddr(), err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		if ver > 1 {
@@ -505,28 +456,28 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			fpBuf, err := crypt.EncryptBytes(crypt.GetCertFingerprint(crypt.GetCert()), client.VerifyKey)
 			if err != nil {
 				logs.Error("Failed to encrypt cert fingerprint for %v: %v", c.Conn.RemoteAddr(), err)
-				c.Close()
+				_ = c.Close()
 				return
 			}
-			c.WriteLenContent(fpBuf)
+			_ = c.WriteLenContent(fpBuf)
 			if ver > 3 {
 				// --- protocol 0.30.0+ path ---
 				randByte, err := common.RandomBytes(1000)
 				if err != nil {
 					logs.Error("Failed to generate rand byte for %v: %v", c.Conn.RemoteAddr(), err)
-					c.Close()
+					_ = c.Close()
 					return
 				}
 				if err := c.WriteLenContent(randByte); err != nil {
 					logs.Error("Failed to write rand byte for %v: %v", c.Conn.RemoteAddr(), err)
-					c.Close()
+					_ = c.Close()
 					return
 				}
 			}
 		}
 		if err := c.FlushBuf(); err != nil {
 			logs.Error("Failed to write to %v: %v", c.Conn.RemoteAddr(), err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		c.SetReadDeadlineBySecond(5)
@@ -534,7 +485,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		flag, err := c.ReadFlag()
 		if err != nil {
 			logs.Warn("Failed to read operation flag from %v: %v", c.Conn.RemoteAddr(), err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		if ver > 3 {
@@ -542,7 +493,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			_, err := c.GetShortLenContent()
 			if err != nil {
 				logs.Error("Failed to read random buffer from %v: %v", c.Conn.RemoteAddr(), err)
-				c.Close()
+				_ = c.Close()
 				return
 			}
 		}
@@ -554,32 +505,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 func (s *Bridge) DelClient(id int) {
 	if v, ok := s.Client.Load(id); ok {
 		client := v.(*Client)
-
-		if client.signal != nil {
-			client.signal.Close()
-		}
-
-		if client.tunnel != nil {
-			client.tunnel.Close()
-		}
-
-		if client.file != nil {
-			client.file.Close()
-		}
-
-		client.signals.Range(func(key, _ interface{}) bool {
-			c := key.(*conn.Conn)
-			c.Close()
-			client.signals.Delete(key)
-			return true
-		})
-
-		client.tunnels.Range(func(key, _ interface{}) bool {
-			t := key.(*nps_mux.Mux)
-			t.Close()
-			client.tunnels.Delete(key)
-			return true
-		})
+		_ = client.Close()
 
 		s.Client.Delete(id)
 
@@ -602,7 +528,7 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 	switch typeVal {
 	case common.WORK_MAIN:
 		if isPub {
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		tcpConn, ok := c.Conn.(*net.TCPConn)
@@ -613,13 +539,13 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 		}
 
 		//the vKey connect by another, close the client of before
-		if v, loaded := s.Client.LoadOrStore(id, NewClient(nil, nil, c, vs)); loaded {
+		if v, loaded := s.Client.LoadOrStore(id, NewClient(id, nil, nil, c, vs)); loaded {
 			client := v.(*Client)
-			if client.signal != nil {
-				client.signal.WriteClose()
-				client.signals.LoadOrStore(client.signal, struct{}{})
-			}
-			client.signal = c
+			//if client.signal != nil {
+			//	_, _ = client.signal.WriteClose()
+			//	client.signals.LoadOrStore(client.signal, struct{}{})
+			//}
+			client.AddSignal(c)
 			client.Version = vs
 		}
 
@@ -628,21 +554,21 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 
 	case common.WORK_CHAN:
 		muxConn := nps_mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime)
-		if v, loaded := s.Client.LoadOrStore(id, NewClient(muxConn, nil, nil, vs)); loaded {
+		if v, loaded := s.Client.LoadOrStore(id, NewClient(id, muxConn, nil, nil, vs)); loaded {
 			client := v.(*Client)
-			if client.tunnel != nil {
-				client.tunnels.LoadOrStore(client.tunnel, struct{}{})
-			}
-			client.tunnel = muxConn
+			//if client.tunnel != nil {
+			//	client.tunnels.LoadOrStore(client.tunnel, struct{}{})
+			//}
+			client.AddTunnel(muxConn)
 		}
 
 	case common.WORK_CONFIG:
 		client, err := file.GetDb().GetClient(id)
 		if err != nil || (!isPub && !client.ConfigConnAllow) {
-			c.Close()
+			_ = c.Close()
 			return
 		}
-		binary.Write(c, binary.LittleEndian, isPub)
+		_ = binary.Write(c, binary.LittleEndian, isPub)
 		go s.getConfig(c, isPub, client)
 
 	case common.WORK_REGISTER:
@@ -653,19 +579,19 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 		b, err := c.GetShortContent(32)
 		if err != nil {
 			logs.Error("secret error, failed to match the key successfully")
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		s.SecretChan <- conn.NewSecret(string(b), c)
 
 	case common.WORK_FILE:
 		muxConn := nps_mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime)
-		if v, loaded := s.Client.LoadOrStore(id, NewClient(nil, muxConn, nil, vs)); loaded {
+		if v, loaded := s.Client.LoadOrStore(id, NewClient(id, nil, muxConn, nil, vs)); loaded {
 			client := v.(*Client)
-			if client.file != nil {
-				client.tunnels.LoadOrStore(client.file, struct{}{})
-			}
-			client.file = muxConn
+			//if client.file != nil {
+			//	client.files.LoadOrStore(client.file, struct{}{})
+			//}
+			client.AddFile(muxConn)
 		}
 
 	case common.WORK_P2P:
@@ -673,24 +599,24 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 		b, err := c.GetShortContent(32)
 		if err != nil {
 			logs.Error("p2p error, %v", err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		t := file.GetDb().GetTaskByMd5Password(string(b))
 		if t == nil {
 			logs.Error("p2p error, failed to match the key successfully")
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		v, ok := s.Client.Load(t.Client.Id)
 		if !ok {
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		serverPort := beego.AppConfig.String("p2p_port")
 		if serverPort == "" {
 			logs.Warn("get local udp addr error")
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		serverIP := common.GetServerIp()
@@ -701,22 +627,23 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 			svrAddr = common.BuildAddress(common.GetIpByAddr(c.LocalAddr().String()), serverPort)
 		}
 		client := v.(*Client)
-		signalIP := net.ParseIP(common.GetIpByAddr(client.signal.RemoteAddr().String()))
+		signal := client.signal
+		signalIP := net.ParseIP(common.GetIpByAddr(signal.RemoteAddr().String()))
 		if signalIP != nil && (signalIP.IsPrivate() || signalIP.IsLoopback() || signalIP.IsLinkLocalUnicast()) {
-			signalAddr = common.BuildAddress(common.GetIpByAddr(client.signal.LocalAddr().String()), serverPort)
+			signalAddr = common.BuildAddress(common.GetIpByAddr(signal.LocalAddr().String()), serverPort)
 		}
-		client.signal.BufferWrite([]byte(common.NEW_UDP_CONN))
-		client.signal.WriteLenContent([]byte(signalAddr))
-		client.signal.WriteLenContent(b)
-		if err := client.signal.FlushBuf(); err != nil {
+		_, _ = signal.BufferWrite([]byte(common.NEW_UDP_CONN))
+		_ = signal.WriteLenContent([]byte(signalAddr))
+		_ = signal.WriteLenContent(b)
+		if err := signal.FlushBuf(); err != nil {
 			logs.Warn("client signal flush error: %v", err)
 		}
-		c.WriteLenContent([]byte(svrAddr))
+		_ = c.WriteLenContent([]byte(svrAddr))
 		if err := c.FlushBuf(); err != nil {
 			logs.Warn("p2p head flush error: %v", err)
 		}
 		logs.Trace("P2P: remoteIP=%s, svr1Addr=%s, clientIP=%s, svr2Addr=%s", remoteIP, svrAddr, signalIP, signalAddr)
-		c.Close()
+		_ = c.Close()
 		return
 	}
 
@@ -727,7 +654,7 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 // register ip
 func (s *Bridge) register(c *conn.Conn) {
 	defer c.Close()
-	c.SetReadDeadline(time.Now().Add(5 * time.Second))
+	_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
 	var hour int32
 	if err := binary.Read(c, binary.LittleEndian, &hour); err == nil {
 		ip := common.GetIpByAddr(c.Conn.RemoteAddr().String())
@@ -818,11 +745,16 @@ func (s *Bridge) ping() {
 					return true
 				}
 
-				if client == nil || client.signal == nil || client.tunnel == nil || client.tunnel.IsClose {
+				if client == nil || (client.signal == nil || client.signal.IsClosed()) || (client.tunnel == nil || client.tunnel.IsClosed()) {
 					client.retryTime++
 					if client.retryTime >= 3 {
 						logs.Trace("Stop client %d", clientID)
 						closedClients = append(closedClients, clientID)
+					}
+					if client != nil {
+						client.SwitchSignal()
+						client.SwitchTunnel()
+						client.SwitchFile()
 					}
 				} else {
 					client.retryTime = 0 // Reset retry count when the state is normal
@@ -878,32 +810,32 @@ loop:
 			})
 
 			str := strBuilder.String()
-			binary.Write(c, binary.LittleEndian, int32(len([]byte(str))))
-			binary.Write(c, binary.LittleEndian, []byte(str))
+			_ = binary.Write(c, binary.LittleEndian, int32(len([]byte(str))))
+			_ = binary.Write(c, binary.LittleEndian, []byte(str))
 
 		case common.NEW_CONF:
 			client, err = c.GetConfigInfo()
 			if err != nil {
 				fail = true
-				c.WriteAddFail()
+				_ = c.WriteAddFail()
 				break loop
 			}
 
 			if err = file.GetDb().NewClient(client); err != nil {
 				fail = true
-				c.WriteAddFail()
+				_ = c.WriteAddFail()
 				break loop
 			}
 
-			c.WriteAddOk()
-			c.Write([]byte(client.VerifyKey))
-			s.Client.Store(client.Id, NewClient(nil, nil, nil, ""))
+			_ = c.WriteAddOk()
+			_, _ = c.Write([]byte(client.VerifyKey))
+			s.Client.Store(client.Id, NewClient(client.Id, nil, nil, nil, ""))
 
 		case common.NEW_HOST:
 			h, err := c.GetHostInfo()
 			if err != nil {
 				fail = true
-				c.WriteAddFail()
+				_ = c.WriteAddFail()
 				break loop
 			}
 
@@ -915,18 +847,18 @@ loop:
 			if !client.HasHost(h) {
 				if file.GetDb().IsHostExist(h) {
 					fail = true
-					c.WriteAddFail()
+					_ = c.WriteAddFail()
 					break loop
 				}
-				file.GetDb().NewHost(h)
+				_ = file.GetDb().NewHost(h)
 			}
-			c.WriteAddOk()
+			_ = c.WriteAddOk()
 
 		case common.NEW_TASK:
 			t, err := c.GetTaskInfo()
 			if err != nil {
 				fail = true
-				c.WriteAddFail()
+				_ = c.WriteAddFail()
 				break loop
 			}
 
@@ -934,7 +866,7 @@ loop:
 			targets := common.GetPorts(t.Target.TargetStr)
 			if len(ports) > 1 && (t.Mode == "tcp" || t.Mode == "udp") && (len(ports) != len(targets)) {
 				fail = true
-				c.WriteAddFail()
+				_ = c.WriteAddFail()
 				break loop
 			} else if t.Mode == "secret" || t.Mode == "p2p" {
 				ports = append(ports, 0)
@@ -942,7 +874,7 @@ loop:
 
 			if len(ports) == 0 {
 				fail = true
-				c.WriteAddFail()
+				_ = c.WriteAddFail()
 				break loop
 			}
 
@@ -982,19 +914,19 @@ loop:
 					if err := file.GetDb().NewTask(tl); err != nil {
 						logs.Warn("add task error: %v", err)
 						fail = true
-						c.WriteAddFail()
+						_ = c.WriteAddFail()
 						break loop
 					}
 
 					if b := tool.TestServerPort(tl.Port, tl.Mode); !b && t.Mode != "secret" && t.Mode != "p2p" {
 						fail = true
-						c.WriteAddFail()
+						_ = c.WriteAddFail()
 						break loop
 					}
 
 					s.OpenTask <- tl
 				}
-				c.WriteAddOk()
+				_ = c.WriteAddOk()
 			}
 		}
 	}
@@ -1002,5 +934,5 @@ loop:
 	if fail && client != nil {
 		s.DelClient(client.Id)
 	}
-	c.Close()
+	_ = c.Close()
 }
