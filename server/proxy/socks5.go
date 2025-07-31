@@ -67,7 +67,7 @@ func (s *TunnelModeServer) handleSocks5Request(c net.Conn) {
 
 	if err != nil {
 		logs.Warn("illegal request %v", err)
-		c.Close()
+		_ = c.Close()
 		return
 	}
 
@@ -80,7 +80,7 @@ func (s *TunnelModeServer) handleSocks5Request(c net.Conn) {
 		s.handleUDP(c)
 	default:
 		s.sendReply(c, commandNotSupported)
-		c.Close()
+		_ = c.Close()
 	}
 }
 
@@ -105,28 +105,28 @@ func (s *TunnelModeServer) sendReply(c net.Conn, rep uint8) {
 	binary.BigEndian.PutUint16(portBytes, uint16(nPort))
 	reply = append(reply, portBytes...)
 
-	c.Write(reply)
+	_, _ = c.Write(reply)
 }
 
 // do conn
 func (s *TunnelModeServer) doConnect(c net.Conn, command uint8) {
 	addrType := make([]byte, 1)
-	c.Read(addrType)
+	_, _ = c.Read(addrType)
 	var host string
 	switch addrType[0] {
 	case ipV4:
 		ipv4 := make(net.IP, net.IPv4len)
-		c.Read(ipv4)
+		_, _ = c.Read(ipv4)
 		host = ipv4.String()
 	case ipV6:
 		ipv6 := make(net.IP, net.IPv6len)
-		c.Read(ipv6)
+		_, _ = c.Read(ipv6)
 		host = ipv6.String()
 	case domainName:
 		var domainLen uint8
-		binary.Read(c, binary.BigEndian, &domainLen)
+		_ = binary.Read(c, binary.BigEndian, &domainLen)
 		domain := make([]byte, domainLen)
-		c.Read(domain)
+		_, _ = c.Read(domain)
 		host = string(domain)
 	default:
 		s.sendReply(c, addrTypeNotSupported)
@@ -134,7 +134,7 @@ func (s *TunnelModeServer) doConnect(c net.Conn, command uint8) {
 	}
 
 	var port uint16
-	binary.Read(c, binary.BigEndian, &port)
+	_ = binary.Read(c, binary.BigEndian, &port)
 	// connect to host
 	addr := net.JoinHostPort(host, strconv.Itoa(int(port)))
 	var ltype string
@@ -143,7 +143,7 @@ func (s *TunnelModeServer) doConnect(c net.Conn, command uint8) {
 	} else {
 		ltype = common.CONN_TCP
 	}
-	s.DealClient(conn.NewConn(c), s.Task.Client, addr, nil, ltype, func() {
+	_ = s.DealClient(conn.NewConn(c), s.Task.Client, addr, nil, ltype, func() {
 		s.sendReply(c, succeeded)
 	}, []*file.Flow{s.Task.Flow, s.Task.Client.Flow}, s.Task.Target.ProxyProtocol, s.Task.Target.LocalProxy, s.Task)
 	return
@@ -156,6 +156,8 @@ func (s *TunnelModeServer) handleConnect(c net.Conn) {
 
 // passive mode
 func (s *TunnelModeServer) handleBind(c net.Conn) {
+	s.sendReply(c, commandNotSupported)
+	_ = c.Close()
 }
 func (s *TunnelModeServer) sendUdpReply(writeConn net.Conn, c net.Conn, rep uint8, serverIp string) {
 	reply := []byte{
@@ -172,29 +174,28 @@ func (s *TunnelModeServer) sendUdpReply(writeConn net.Conn, c net.Conn, rep uint
 	portBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(portBytes, uint16(nPort))
 	reply = append(reply, portBytes...)
-	writeConn.Write(reply)
-
+	_, _ = writeConn.Write(reply)
 }
 
 func (s *TunnelModeServer) handleUDP(c net.Conn) {
 	defer c.Close()
 	addrType := make([]byte, 1)
-	c.Read(addrType)
+	_, _ = c.Read(addrType)
 	var host string
 	switch addrType[0] {
 	case ipV4:
 		ipv4 := make(net.IP, net.IPv4len)
-		c.Read(ipv4)
+		_, _ = c.Read(ipv4)
 		host = ipv4.String()
 	case ipV6:
 		ipv6 := make(net.IP, net.IPv6len)
-		c.Read(ipv6)
+		_, _ = c.Read(ipv6)
 		host = ipv6.String()
 	case domainName:
 		var domainLen uint8
-		binary.Read(c, binary.BigEndian, &domainLen)
+		_ = binary.Read(c, binary.BigEndian, &domainLen)
 		domain := make([]byte, domainLen)
-		c.Read(domain)
+		_, _ = c.Read(domain)
 		host = string(domain)
 	default:
 		s.sendReply(c, addrTypeNotSupported)
@@ -202,7 +203,7 @@ func (s *TunnelModeServer) handleUDP(c net.Conn) {
 	}
 	//读取端口
 	var port uint16
-	binary.Read(c, binary.BigEndian, &port)
+	_ = binary.Read(c, binary.BigEndian, &port)
 	logs.Trace("%s %d", host, port)
 	replyAddr, err := net.ResolveUDPAddr("udp", s.Task.ServerIp+":0")
 	if err != nil {
@@ -261,7 +262,7 @@ func (s *TunnelModeServer) handleUDP(c net.Conn) {
 				logs.Debug("read len bytes error %v", err)
 				return
 			}
-			binary.Read(flowConn, binary.LittleEndian, b[:l])
+			_ = binary.Read(flowConn, binary.LittleEndian, b[:l])
 			if err != nil {
 				logs.Warn("read data form client error %v", err)
 				return
@@ -279,13 +280,12 @@ func (s *TunnelModeServer) handleUDP(c net.Conn) {
 	for {
 		_, err := c.Read(b)
 		if err != nil {
-			c.Close()
+			_ = c.Close()
 			return
 		}
 	}
 }
 
-// socks5 auth
 func (s *TunnelModeServer) SocksAuth(c net.Conn) error {
 	header := []byte{0, 0}
 	if _, err := io.ReadAtLeast(c, header, 2); err != nil {
@@ -336,7 +336,7 @@ func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
 	buf := make([]byte, 2)
 	if _, err := io.ReadFull(c, buf); err != nil {
 		logs.Warn("negotiation err %v", err)
-		c.Close()
+		_ = c.Close()
 		return err
 	}
 
@@ -346,7 +346,7 @@ func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
 		case "GE", "PO", "HE", "PU ", "DE", "OP", "CO", "TR", "PA", "PR", "MK", "MO", "LO", "UN", "RE", "AC", "SE", "LI":
 			if !s.Task.HttpProxy {
 				logs.Warn("http proxy is disable, client %d request from: %v", s.Task.Client.Id, c.RemoteAddr())
-				c.Close()
+				_ = c.Close()
 				return errors.New("http proxy is disabled")
 			}
 			nConn := conn.NewConnWithRb(c, buf)
@@ -354,41 +354,42 @@ func ProcessMix(c *conn.Conn, s *TunnelModeServer) error {
 			defer ss.Close()
 			if err := ProcessHttp(nConn, ss); err != nil {
 				logs.Warn("http proxy error: %v", err)
+				_ = c.Close()
 				return err
 			}
-			c.Close()
+			_ = c.Close()
 			return nil
 		}
 		logs.Trace("Socks5 Buf: %s", buf)
 		logs.Warn("only support socks5 and http, request from: %v", c.RemoteAddr())
-		c.Close()
+		_ = c.Close()
 		return errors.New("unknown protocol")
 	}
 
 	if !s.Task.Socks5Proxy {
 		logs.Warn("socks5 proxy is disable, client %d request from: %v", s.Task.Client.Id, c.RemoteAddr())
-		c.Close()
+		_ = c.Close()
 		return errors.New("socks5 proxy is disabled")
 	}
 
 	nMethods := buf[1]
 	methods := make([]byte, nMethods)
-	if len, err := c.Read(methods); len != int(nMethods) || err != nil {
+	if l, err := c.Read(methods); l != int(nMethods) || err != nil {
 		logs.Warn("wrong method")
-		c.Close()
+		_ = c.Close()
 		return errors.New("wrong method")
 	}
 	if (s.Task.Client.Cnf.U != "" && s.Task.Client.Cnf.P != "") || (s.Task.MultiAccount != nil && len(s.Task.MultiAccount.AccountMap) > 0) || (s.Task.UserAuth != nil && len(s.Task.UserAuth.AccountMap) > 0) {
 		buf[1] = UserPassAuth
-		c.Write(buf)
+		_, _ = c.Write(buf)
 		if err := s.SocksAuth(c); err != nil {
-			c.Close()
+			_ = c.Close()
 			logs.Warn("Validation failed: %v", err)
 			return err
 		}
 	} else {
 		buf[1] = 0
-		c.Write(buf)
+		_, _ = c.Write(buf)
 	}
 	s.handleSocks5Request(c)
 	return nil
