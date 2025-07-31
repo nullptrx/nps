@@ -8,12 +8,11 @@ import (
 )
 
 type Pool[T comparable] struct {
-	rr      atomic.Uint64
-	head    uint64
-	reverse bool
-	mu      sync.RWMutex
-	list    []T
-	idx     map[T]int
+	rr   atomic.Uint64
+	head uint64
+	mu   sync.RWMutex
+	list []T
+	idx  map[T]int
 }
 
 func New[T comparable]() *Pool[T] {
@@ -38,7 +37,6 @@ func (p *Pool[T]) Remove(v T) {
 		p.removeAt(i)
 		if len(p.list) == 0 {
 			p.head = 0
-			p.reverse = false
 		}
 	}
 	p.mu.Unlock()
@@ -58,7 +56,6 @@ func (p *Pool[T]) pop() (v T, ok bool) {
 		p.removeAt(n - 1)
 		if len(p.list) == 0 {
 			p.head = 0
-			p.reverse = false
 		}
 	}
 	return
@@ -81,9 +78,6 @@ func (p *Pool[T]) Dequeue() (v T, ok bool) {
 		return
 	}
 	head := int(p.head)
-	if p.reverse {
-		p.reverse = false
-	}
 
 	idx := head % n
 	v, ok = p.list[idx], true
@@ -92,31 +86,17 @@ func (p *Pool[T]) Dequeue() (v T, ok bool) {
 
 	if n <= 2 {
 		p.head = 0
-		p.reverse = false
 		return
 	}
 
 	last := uint64(n - 2)
 
-	if !p.reverse { // add
-		if p.head >= last {
-			p.head = last
-			p.reverse = true
-		} else {
-			p.head++
-		}
-	} else { // dec
-		if p.head >= last {
-			p.head = last
-			p.reverse = true
-		} else {
-			if p.head > 0 {
-				p.head--
-			} else {
-				p.reverse = false
-			}
-		}
+	if p.head >= last {
+		p.head = last
+	} else {
+		p.head++
 	}
+
 	return
 }
 
@@ -179,7 +159,6 @@ func (p *Pool[T]) Clear(clean func(T)) {
 		p.idx = make(map[T]int)
 		p.rr.Store(0)
 		p.head = 0
-		p.reverse = false
 		p.mu.Unlock()
 		return
 	}
@@ -190,7 +169,6 @@ func (p *Pool[T]) Clear(clean func(T)) {
 	p.idx = make(map[T]int)
 	p.rr.Store(0)
 	p.head = 0
-	p.reverse = false
 	p.mu.Unlock()
 
 	for _, v := range snap {
@@ -210,15 +188,13 @@ func (p *Pool[T]) removeAt(i int) {
 
 	if last <= 1 {
 		p.head = 0
-		p.reverse = false
 		return
 	}
 
 	lastIdx := uint64(last - 1)
 
-	if p.head >= lastIdx {
+	if p.head > lastIdx {
 		p.head = lastIdx
-		p.reverse = true
 	}
 	return
 }
