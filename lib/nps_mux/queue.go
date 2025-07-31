@@ -16,7 +16,7 @@ type priorityQueue struct {
 	middleChain  *bufChain
 	lowestChain  *bufChain
 	starving     uint8
-	stop         bool
+	stop         uint32
 	cond         *sync.Cond
 }
 
@@ -60,7 +60,7 @@ func (Self *priorityQueue) Pop() (packager *muxPackager) {
 		if packager != nil {
 			return
 		}
-		if Self.stop {
+		if atomic.LoadUint32(&Self.stop) == 1 {
 			return
 		}
 		if iter {
@@ -73,7 +73,7 @@ func (Self *priorityQueue) Pop() (packager *muxPackager) {
 	Self.cond.L.Lock()
 	defer Self.cond.L.Unlock()
 	for packager = Self.TryPop(); packager == nil; {
-		if Self.stop {
+		if atomic.LoadUint32(&Self.stop) == 1 {
 			return
 		}
 		Self.cond.Wait()
@@ -118,14 +118,14 @@ func (Self *priorityQueue) TryPop() (packager *muxPackager) {
 }
 
 func (Self *priorityQueue) Stop() {
-	Self.stop = true
+	atomic.StoreUint32(&Self.stop, 1)
 	Self.cond.Broadcast()
 }
 
 type connQueue struct {
 	chain    *bufChain
 	starving uint8
-	stop     bool
+	stop     uint32
 	cond     *sync.Cond
 }
 
@@ -149,7 +149,7 @@ func (Self *connQueue) Pop() (connection *Conn) {
 		if connection != nil {
 			return
 		}
-		if Self.stop {
+		if atomic.LoadUint32(&Self.stop) == 1 {
 			return
 		}
 		if iter {
@@ -162,7 +162,7 @@ func (Self *connQueue) Pop() (connection *Conn) {
 	Self.cond.L.Lock()
 	defer Self.cond.L.Unlock()
 	for connection = Self.TryPop(); connection == nil; {
-		if Self.stop {
+		if atomic.LoadUint32(&Self.stop) == 1 {
 			return
 		}
 		Self.cond.Wait()
@@ -182,7 +182,7 @@ func (Self *connQueue) TryPop() (connection *Conn) {
 }
 
 func (Self *connQueue) Stop() {
-	Self.stop = true
+	atomic.StoreUint32(&Self.stop, 1)
 	Self.cond.Broadcast()
 }
 

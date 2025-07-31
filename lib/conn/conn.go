@@ -212,21 +212,25 @@ func (s *Conn) SendHealthInfo(info, status string) (int, error) {
 }
 
 // get health info from conn
-func (s *Conn) GetHealthInfo() (info string, status bool, err error) {
+func (s *Conn) GetHealthInfo(timeout time.Duration) (info string, status bool, err error) {
+	_ = s.SetReadDeadline(time.Now().Add(timeout))
+	defer s.SetReadDeadline(time.Time{})
 	var l int
+	l, err = s.GetLen()
+	if err != nil {
+		return
+	}
 	buf := common.BufPoolMax.Get().([]byte)
 	defer common.PutBufPoolMax(buf)
-	if l, err = s.GetLen(); err != nil {
+	_, err = s.ReadLen(l, buf)
+	if err != nil {
 		return
-	} else if _, err = s.ReadLen(l, buf); err != nil {
-		return
-	} else {
-		arr := strings.Split(string(buf[:l]), common.CONN_DATA_SEQ)
-		if len(arr) >= 2 {
-			return arr[0], common.GetBoolByStr(arr[1]), nil
-		}
 	}
-	return "", false, errors.New("receive health info error")
+	arr := strings.Split(string(buf[:l]), common.CONN_DATA_SEQ)
+	if len(arr) < 2 {
+		return "", false, errors.New("receive health info error")
+	}
+	return arr[0], common.GetBoolByStr(arr[1]), nil
 }
 
 // get task info

@@ -231,20 +231,25 @@ func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 		return
 	}
 
-	var retry int
 	const maxRetry = 3
+	var retry int
+	firstSuccess := false
 
 	for {
-		info, status, err := c.GetHealthInfo()
+		info, status, err := c.GetHealthInfo(10 * time.Second)
 		if err != nil {
 			//logs.Trace("GetHealthInfo error, id=%d, retry=%d, err=%v", id, retry, err)
 			if ne, ok := err.(interface{ Temporary() bool }); ok && ne.Temporary() && retry < maxRetry {
 				retry++
 				continue
 			}
+			if !firstSuccess {
+				return
+			}
 			break
 		}
 
+		firstSuccess = true
 		retry = 0
 
 		if !status { //the status is true , return target to the targetArr

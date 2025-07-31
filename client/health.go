@@ -37,7 +37,8 @@ func NewHealthChecker(parentCtx context.Context, healths []*file.Health, c *conn
 	now := time.Now()
 	for _, hc := range healths {
 		if hc.HealthMaxFail > 0 && hc.HealthCheckInterval > 0 && hc.HealthCheckTimeout > 0 {
-			hc.HealthNextTime = now.Add(time.Duration(hc.HealthCheckInterval) * time.Second)
+			//hc.HealthNextTime = now.Add(time.Duration(hc.HealthCheckInterval) * time.Second)
+			hc.HealthNextTime = now
 			heap.Push(hq, hc.HealthNextTime.Unix())
 			hc.HealthMap = make(map[string]int)
 		}

@@ -156,7 +156,7 @@ func (s *Mux) writeSession() {
 				break
 			}
 			pack := s.writeQueue.Pop()
-			if s.IsClose {
+			if pack == nil {
 				break
 			}
 			//if pack.flag == muxNewMsg || pack.flag == muxNewMsgPart {
@@ -181,27 +181,42 @@ func (s *Mux) ping() {
 	go func() {
 		rand.Seed(time.Now().UnixNano())
 		buf := make([]byte, 8+PingMaxPad)
+		initialJitter := time.Duration(rand.Int63n(int64(PingJitter))) - PingJitter/2
+		timer := time.NewTimer(PingInterval + initialJitter)
+		defer timer.Stop()
 		for {
 			if s.IsClose {
 				return
 			}
-			if atomic.LoadUint32(&s.pingCheckTime) > s.pingCheckThreshold {
-				logs.Println("mux: ping timeout, check-time", s.pingCheckTime, "threshold", s.pingCheckThreshold)
-				_ = s.Close()
-				// more than limit times not receive the ping return package,
-				// mux conn is damaged, maybe a packet drop, close it
+			select {
+			case <-s.closeChan:
 				return
+			case <-timer.C:
+				if atomic.LoadUint32(&s.pingCheckTime) > s.pingCheckThreshold {
+					logs.Println("mux: ping timeout, check-time", s.pingCheckTime, "threshold", s.pingCheckThreshold)
+					_ = s.Close()
+					// more than limit times not receive the ping return package,
+					// mux conn is damaged, maybe a packet drop, close it
+					return
+				}
+
+				binary.BigEndian.PutUint64(buf[:8], uint64(time.Now().UnixNano()))
+				pad := rand.Intn(PingMaxPad)
+				payload := buf[:8+pad]
+
+				s.sendInfo(muxPingFlag, muxPing, payload)
+				atomic.AddUint32(&s.pingCheckTime, 1)
+
+				jitter := time.Duration(rand.Int63n(int64(PingJitter))) - PingJitter/2
+				next := PingInterval + jitter
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				timer.Reset(next)
 			}
-
-			binary.BigEndian.PutUint64(buf[:8], uint64(time.Now().UnixNano()))
-			pad := rand.Intn(PingMaxPad)
-			payload := buf[:8+pad]
-
-			s.sendInfo(muxPingFlag, muxPing, payload)
-			atomic.AddUint32(&s.pingCheckTime, 1)
-
-			delta := time.Duration(rand.Int63n(int64(PingJitter))) - PingJitter/2
-			time.Sleep(PingInterval + delta)
 		}
 	}()
 
@@ -244,7 +259,7 @@ func (s *Mux) readSession() {
 				return
 			}
 			connection = s.newConnQueue.Pop()
-			if s.IsClose {
+			if connection == nil {
 				return
 			}
 			s.connMap.Set(connection.connId, connection) //it has been Set before send ok
