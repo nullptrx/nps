@@ -157,14 +157,6 @@ func NewUdpConnByAddr(addr string) (net.PacketConn, error) {
 	}
 	port := common.GetPortStrByAddr(addr)
 
-	if pc, err := net.ListenPacket("udp", ":"+port); err == nil {
-		test := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: udpAddr.Port}
-		if _, e := pc.WriteTo([]byte{0}, test); e == nil {
-			return pc, nil
-		}
-		_ = pc.Close()
-	}
-
 	var conns []net.PacketConn
 	if pc4, e4 := net.ListenPacket("udp4", ":"+port); e4 == nil {
 		conns = append(conns, pc4)

@@ -289,6 +289,7 @@ func (s *Mux) readSession() {
 				muxPack.Put(pack)
 				return
 			}
+			atomic.StoreUint32(&s.pingCheckTime, 0)
 			s.bw.SetCopySize(l)
 			//if pack.flag == muxNewMsg || pack.flag == muxNewMsgPart {
 			//	if pack.length >= 100 {

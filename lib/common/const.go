@@ -27,6 +27,7 @@ const (
 	NEW_HOST          = "host"
 	CONN_TCP          = "tcp"
 	CONN_UDP          = "udp"
+	CONN_KCP          = "kcp"
 	CONN_TEST         = "TST"
 
 	TOTP_SEQ = "totp:" // TOTP Separator

@@ -42,7 +42,7 @@ type TRPClient struct {
 func NewRPClient(svraddr string, vKey string, bridgeConnType string, proxyUrl string, cnf *config.Config, disconnectTime int) *TRPClient {
 	return &TRPClient{
 		svrAddr:        svraddr,
-		p2pAddr:        make(map[string]string, 0),
+		p2pAddr:        make(map[string]string),
 		vKey:           vKey,
 		bridgeConnType: bridgeConnType,
 		proxyUrl:       proxyUrl,
@@ -55,7 +55,6 @@ func NewRPClient(svraddr string, vKey string, bridgeConnType string, proxyUrl st
 var NowStatus int
 var HasFailed = false
 
-// start
 func (s *TRPClient) Start() {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	defer s.Close()
@@ -167,11 +166,12 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 			conn.SetUdpSession(udpTunnel)
 			logs.Trace("successful connection with client ,address %v", udpTunnel.RemoteAddr())
 			//read link info from remote
-			tunnel := nps_mux.NewMux(udpTunnel, s.bridgeConnType, s.disconnectTime)
+			tunnel := nps_mux.NewMux(udpTunnel, "kcp", s.disconnectTime)
 			defer tunnel.Close()
 			conn.Accept(tunnel, func(c net.Conn) {
 				go s.handleChan(c)
 			})
+			logs.Trace("p2p connection closed, remote %v", udpTunnel.RemoteAddr())
 			return
 		}
 	}
