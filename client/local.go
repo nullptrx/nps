@@ -449,7 +449,7 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 
 	if !common.IsSameIPType(localAddr, rAddr) {
 		logs.Debug("IP type mismatch local=%s remote=%s", localAddr, rAddr)
-		//return
+		return
 	}
 	//logs.Debug("localAddr is %s, rAddr is %s", localAddr, rAddr)
 

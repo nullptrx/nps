@@ -606,27 +606,18 @@ func getRemoteAddressFromServer(rAddr string, localConn net.PacketConn, md5Passw
 
 func handleP2PUdp(pCtx context.Context, localAddr, rAddr, md5Password, role string) (c net.PacketConn, remoteAddress, localAddress string, err error) {
 	localAddress = localAddr
-	parentCtx, parentCancel := context.WithCancel(pCtx)
+	parentCtx, parentCancel := context.WithTimeout(pCtx, 30*time.Second)
 	defer parentCancel()
 	localConn, err := conn.NewUdpConnByAddr(localAddr)
+	if err != nil {
+		return
+	}
 	defer localConn.Close()
-	if err != nil {
-		return
-	}
-	err = getRemoteAddressFromServer(rAddr, localConn, md5Password, role, 0)
-	if err != nil {
-		logs.Error("%v", err)
-		return
-	}
-	err = getRemoteAddressFromServer(rAddr, localConn, md5Password, role, 1)
-	if err != nil {
-		logs.Error("%v", err)
-		return
-	}
-	err = getRemoteAddressFromServer(rAddr, localConn, md5Password, role, 2)
-	if err != nil {
-		logs.Error("%v", err)
-		return
+	for seq := 0; seq < 3; seq++ {
+		if err = getRemoteAddressFromServer(rAddr, localConn, md5Password, role, seq); err != nil {
+			logs.Error("%v", err)
+			return
+		}
 	}
 	var remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal string
 	//logs.Debug("get remote address from server")
@@ -668,19 +659,18 @@ Loop:
 		//logs.Debug("rAddr1: %s rAddr2: %s rAddr3: %s", rAddr, rAddr2, rAddr3)
 		//logs.Debug("remoteAddr1: %s remoteAddr2: %s remoteAddr3: %s remoteLocal: %s", remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal)
 		if remoteAddr1 != "" && remoteAddr2 != "" && remoteAddr3 != "" {
-			logs.Debug("remoteAddr1: %s remoteAddr2: %s remoteAddr3: %s remoteLocal: %s", remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal)
+			//logs.Debug("remoteAddr1: %s remoteAddr2: %s remoteAddr3: %s remoteLocal: %s", remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal)
 			break
 		}
 	}
-	if remoteAddress, err = sendP2PTestMsg(parentCtx, localConn, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal); err != nil {
+	if remoteAddress, localAddress, err = sendP2PTestMsg(parentCtx, localConn, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal); err != nil {
 		return
 	}
-	localAddress, _ = common.GetMatchingLocalAddr(remoteAddress, localAddr)
 	c, err = conn.NewUdpConnByAddr(localAddress)
 	return
 }
 
-func sendP2PTestMsg(pCtx context.Context, localConn net.PacketConn, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal string) (string, error) {
+func sendP2PTestMsg(pCtx context.Context, localConn net.PacketConn, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal string) (remoteAddr, localAddr string, err error) {
 	defer localConn.Close()
 	isClose := false
 	defer func() { isClose = true }()
@@ -704,7 +694,7 @@ func sendP2PTestMsg(pCtx context.Context, localConn net.PacketConn, remoteAddr1,
 	if remoteAddr1 != "" && remoteAddr2 != "" && remoteAddr3 != "" {
 		interval, err := getAddrInterval(remoteAddr1, remoteAddr2, remoteAddr3)
 		if err != nil {
-			return "", err
+			return "", localConn.LocalAddr().String(), err
 		}
 		go func() {
 			addr, err := getNextAddr(remoteAddr3, interval)
@@ -796,13 +786,13 @@ Loop:
 		case common.WORK_P2P_SUCCESS:
 			for i := 20; i > 0; i-- {
 				if _, err = localConn.WriteTo([]byte(common.WORK_P2P_END), addr); err != nil {
-					return "", err
+					return "", localConn.LocalAddr().String(), err
 				}
 			}
-			return addr.String(), nil
+			return addr.String(), localConn.LocalAddr().String(), nil
 		case common.WORK_P2P_END:
 			logs.Debug("Remotely Address %v Reply Packet Successfully Received", addr)
-			return addr.String(), nil
+			return addr.String(), localConn.LocalAddr().String(), nil
 		case common.WORK_P2P_CONNECT:
 			go func() {
 				for i := 20; i > 0; i-- {
@@ -817,20 +807,7 @@ Loop:
 			continue
 		}
 	}
-	return "", errors.New("connect to the target failed, maybe the nat type is not support p2p")
-}
-
-func newUdpConnByAddrOld(addr string) (net.PacketConn, error) {
-	port := common.GetPortStrByAddr(addr)
-	udpAddr, err := net.ResolveUDPAddr("udp", addr)
-	if err != nil {
-		return nil, err
-	}
-	pc, err := net.ListenPacket("udp", ":"+port)
-	if err != nil {
-		return nil, err
-	}
-	return conn.NewUdpConnWrapper(pc, udpAddr), nil
+	return "", localConn.LocalAddr().String(), errors.New("connect to the target failed, maybe the nat type is not support p2p")
 }
 
 func getNextAddr(addr string, n int) (string, error) {

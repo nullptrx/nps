@@ -10,19 +10,6 @@ import (
 	"github.com/djylb/nps/lib/common"
 )
 
-type UdpConnWrapper struct {
-	net.PacketConn
-	FakeLocal *net.UDPAddr
-}
-
-func NewUdpConnWrapper(conn net.PacketConn, addr *net.UDPAddr) *UdpConnWrapper {
-	return &UdpConnWrapper{PacketConn: conn, FakeLocal: addr}
-}
-
-func (u *UdpConnWrapper) LocalAddr() net.Addr {
-	return u.FakeLocal
-}
-
 type packet struct {
 	buf  []byte
 	n    int
@@ -38,6 +25,8 @@ type SmartUdpConn struct {
 	wg        sync.WaitGroup
 	closeOnce sync.Once
 	closeErr  error
+	mu        sync.Mutex
+	lastConn  net.PacketConn
 }
 
 func NewSmartUdpConn(conns []net.PacketConn, addr *net.UDPAddr) *SmartUdpConn {
@@ -59,6 +48,9 @@ func (s *SmartUdpConn) readLoop(c net.PacketConn) {
 	for {
 		buf := common.BufPoolMax.Get().([]byte)
 		n, addr, err := c.ReadFrom(buf)
+		s.mu.Lock()
+		s.lastConn = c
+		s.mu.Unlock()
 		pkt := packet{buf: buf, n: n, addr: addr, err: err}
 
 		select {
@@ -100,9 +92,15 @@ func (s *SmartUdpConn) WriteTo(p []byte, addr net.Addr) (int, error) {
 		la := c.LocalAddr().(*net.UDPAddr)
 		is4 := la.IP == nil || la.IP.To4() != nil
 		if is4 == want4 {
+			s.mu.Lock()
+			s.lastConn = c
+			s.mu.Unlock()
 			return c.WriteTo(p, addr)
 		}
 	}
+	s.mu.Lock()
+	s.lastConn = s.conns[0]
+	s.mu.Unlock()
 	return s.conns[0].WriteTo(p, addr)
 }
 
@@ -124,6 +122,12 @@ func (s *SmartUdpConn) Close() error {
 }
 
 func (s *SmartUdpConn) LocalAddr() net.Addr {
+	s.mu.Lock()
+	c := s.lastConn
+	s.mu.Unlock()
+	if c != nil {
+		return c.LocalAddr()
+	}
 	return s.fakeLocal
 }
 
@@ -156,7 +160,7 @@ func NewUdpConnByAddr(addr string) (net.PacketConn, error) {
 	if pc, err := net.ListenPacket("udp", ":"+port); err == nil {
 		test := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: udpAddr.Port}
 		if _, e := pc.WriteTo([]byte{0}, test); e == nil {
-			return NewUdpConnWrapper(pc, udpAddr), nil
+			return pc, nil
 		}
 		_ = pc.Close()
 	}
@@ -169,7 +173,7 @@ func NewUdpConnByAddr(addr string) (net.PacketConn, error) {
 		conns = append(conns, pc6)
 	}
 	if len(conns) == 1 {
-		return NewUdpConnWrapper(conns[0], udpAddr), nil
+		return conns[0], nil
 	}
 	if len(conns) > 1 {
 		return NewSmartUdpConn(conns, udpAddr), nil
