@@ -31,15 +31,14 @@ import (
 var LocalTCPAddr = &net.TCPAddr{IP: net.ParseIP("127.0.0.1")}
 
 type Conn struct {
-	Conn      net.Conn
-	Rb        []byte
-	wBuf      *bytes.Buffer
-	mu        sync.Mutex
-	closed    uint32
-	closeOnce sync.Once
+	Conn   net.Conn
+	Rb     []byte
+	wBuf   *bytes.Buffer
+	mu     sync.Mutex
+	closed uint32
 }
 
-// new conn
+// NewConn new conn
 func NewConn(conn net.Conn) *Conn {
 	return &Conn{
 		Conn: conn,
@@ -77,7 +76,7 @@ func (s *Conn) readRequest(buf []byte) (n int, err error) {
 	}
 }
 
-// get host 、connection type、method...from connection
+// GetHost get host 、connection type、method...from connection
 func (s *Conn) GetHost() (method, address string, rb []byte, err error, r *http.Request) {
 	var b [32 * 1024]byte
 	var n int
@@ -155,13 +154,13 @@ func (s *Conn) WriteLenContent(buf []byte) (err error) {
 	return
 }
 
-// read flag
+// ReadFlag read flag
 func (s *Conn) ReadFlag() (string, error) {
 	buf := make([]byte, 4)
 	return string(buf), binary.Read(s, binary.LittleEndian, &buf)
 }
 
-// set alive
+// SetAlive set alive
 func (s *Conn) SetAlive() {
 	switch s.Conn.(type) {
 	case *kcp.UDPSession:
@@ -181,40 +180,40 @@ func (s *Conn) SetAlive() {
 	}
 }
 
-// set read deadline
+// SetReadDeadlineBySecond set read deadline
 func (s *Conn) SetReadDeadlineBySecond(t time.Duration) {
 	switch s.Conn.(type) {
 	case *kcp.UDPSession:
-		_ = s.Conn.(*kcp.UDPSession).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
+		_ = s.Conn.(*kcp.UDPSession).SetReadDeadline(time.Now().Add(t * time.Second))
 	case *net.TCPConn:
-		_ = s.Conn.(*net.TCPConn).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
+		_ = s.Conn.(*net.TCPConn).SetReadDeadline(time.Now().Add(t * time.Second))
 	case *pmux.PortConn:
-		_ = s.Conn.(*pmux.PortConn).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
+		_ = s.Conn.(*pmux.PortConn).SetReadDeadline(time.Now().Add(t * time.Second))
 	case *tls.Conn:
-		_ = s.Conn.(*tls.Conn).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
+		_ = s.Conn.(*tls.Conn).SetReadDeadline(time.Now().Add(t * time.Second))
 	case *TlsConn:
-		_ = s.Conn.(*TlsConn).SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
+		_ = s.Conn.(*TlsConn).SetReadDeadline(time.Now().Add(t * time.Second))
 	default:
 		if conn, ok := s.Conn.(interface{ SetReadDeadline(time.Time) error }); ok {
-			_ = conn.SetReadDeadline(time.Now().Add(time.Duration(t) * time.Second))
+			_ = conn.SetReadDeadline(time.Now().Add(t * time.Second))
 		}
 	}
 }
 
-// get link info from conn
+// GetLinkInfo get link info from conn
 func (s *Conn) GetLinkInfo() (lk *Link, err error) {
 	err = s.getInfo(&lk)
 	return
 }
 
-// send info for link
+// SendHealthInfo send info for link
 func (s *Conn) SendHealthInfo(info, status string) (int, error) {
 	raw := bytes.NewBuffer([]byte{})
 	common.BinaryWrite(raw, info, status)
 	return s.Write(raw.Bytes())
 }
 
-// get health info from conn
+// GetHealthInfo get health info from conn
 func (s *Conn) GetHealthInfo(timeout time.Duration) (info string, status bool, err error) {
 	_ = s.SetReadDeadline(time.Now().Add(timeout))
 	defer s.SetReadDeadline(time.Time{})
@@ -236,7 +235,7 @@ func (s *Conn) GetHealthInfo(timeout time.Duration) (info string, status bool, e
 	return arr[0], common.GetBoolByStr(arr[1]), nil
 }
 
-// get task info
+// GetHostInfo get task info
 func (s *Conn) GetHostInfo() (h *file.Host, err error) {
 	err = s.getInfo(&h)
 	h.Id = int(file.GetDb().JsonDb.GetHostId())
@@ -245,7 +244,7 @@ func (s *Conn) GetHostInfo() (h *file.Host, err error) {
 	return
 }
 
-// get task info
+// GetConfigInfo get task info
 func (s *Conn) GetConfigInfo() (c *file.Client, err error) {
 	err = s.getInfo(&c)
 	c.NoStore = true
@@ -257,7 +256,7 @@ func (s *Conn) GetConfigInfo() (c *file.Client, err error) {
 	return
 }
 
-// get task info
+// GetTaskInfo get task info
 func (s *Conn) GetTaskInfo() (t *file.Tunnel, err error) {
 	err = s.getInfo(&t)
 	t.Id = int(file.GetDb().JsonDb.GetTaskId())
@@ -266,7 +265,7 @@ func (s *Conn) GetTaskInfo() (t *file.Tunnel, err error) {
 	return
 }
 
-// send  info
+// SendInfo send  info
 func (s *Conn) SendInfo(t interface{}, flag string) (int, error) {
 	/*
 		The task info is formed as follows:
@@ -329,7 +328,7 @@ func (s *Conn) Close() error {
 // write
 func (s *Conn) Write(b []byte) (n int, err error) {
 	if s == nil || s.IsClosed() {
-		return 0, errors.New("write: connection error")
+		return 0, errors.New("connection error")
 	}
 
 	s.mu.Lock()
@@ -350,9 +349,6 @@ func (s *Conn) Write(b []byte) (n int, err error) {
 }
 
 func (s *Conn) BufferWrite(b []byte) (int, error) {
-	if s.IsClosed() {
-		return 0, errors.New("BufferWrite: connection closed")
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.wBuf.Write(b)
@@ -360,7 +356,7 @@ func (s *Conn) BufferWrite(b []byte) (int, error) {
 
 func (s *Conn) FlushBuf() error {
 	if s.IsClosed() {
-		return errors.New("FlushBuf: connection closed")
+		return errors.New("connection closed")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -374,10 +370,6 @@ func (s *Conn) FlushBuf() error {
 
 // read
 func (s *Conn) Read(b []byte) (n int, err error) {
-	if s.IsClosed() {
-		return 0, io.EOF
-	}
-
 	if err = s.FlushBuf(); err != nil {
 		return 0, err
 	}
@@ -394,27 +386,27 @@ func (s *Conn) Read(b []byte) (n int, err error) {
 	return s.Conn.Read(b)
 }
 
-// write sign flag
+// WriteClose write sign flag
 func (s *Conn) WriteClose() (int, error) {
 	return s.Write([]byte(common.RES_CLOSE))
 }
 
-// write main
+// WriteMain write main
 func (s *Conn) WriteMain() (int, error) {
 	return s.Write([]byte(common.WORK_MAIN))
 }
 
-// write main
+// WriteConfig write config
 func (s *Conn) WriteConfig() (int, error) {
 	return s.Write([]byte(common.WORK_CONFIG))
 }
 
-// write chan
+// WriteChan write chan
 func (s *Conn) WriteChan() (int, error) {
 	return s.Write([]byte(common.WORK_CHAN))
 }
 
-// get task or host result of add
+// GetAddStatus get task or host result of add
 func (s *Conn) GetAddStatus() (b bool) {
 	_ = binary.Read(s, binary.LittleEndian, &b)
 	return
@@ -449,7 +441,7 @@ func (s *Conn) SetReadDeadline(t time.Time) error {
 	return s.Conn.SetReadDeadline(t)
 }
 
-// get the assembled amount data(len 4 and content)
+// GetLenBytes get the assembled amount data(len 4 and content)
 func GetLenBytes(buf []byte) (b []byte, err error) {
 	raw := bytes.NewBuffer([]byte{})
 	if err = binary.Write(raw, binary.LittleEndian, int32(len(buf))); err != nil {
@@ -462,7 +454,7 @@ func GetLenBytes(buf []byte) (b []byte, err error) {
 	return
 }
 
-// udp connection setting
+// SetUdpSession udp connection setting
 func SetUdpSession(sess *kcp.UDPSession) {
 	sess.SetStreamMode(true)
 	sess.SetWindowSize(1024, 1024)
@@ -474,7 +466,7 @@ func SetUdpSession(sess *kcp.UDPSession) {
 	sess.SetWriteDelay(false)
 }
 
-// conn1 mux conn
+// CopyWaitGroup conn1 mux conn
 func CopyWaitGroup(conn1, conn2 net.Conn, crypt bool, snappy bool, rate *rate.Rate,
 	flows []*file.Flow, isServer bool, proxyProtocol int, rb []byte, task *file.Tunnel) {
 	connHandle := GetConn(conn1, crypt, snappy, rate, isServer)
@@ -492,13 +484,12 @@ func CopyWaitGroup(conn1, conn2 net.Conn, crypt bool, snappy bool, rate *rate.Ra
 	if err != nil {
 		logs.Error("CopyConnsPool.Invoke failed: %v", err)
 		wg.Done()
-		connHandle.Close()
-		conn2.Close()
+		_ = connHandle.Close()
+		_ = conn2.Close()
 	}
 	wg.Wait()
 }
 
-// 构造 Proxy-Protocol v1 头 (TCP / UDP)
 func BuildProxyProtocolV1Header(clientAddr, targetAddr net.Addr) []byte {
 	var (
 		protocol           = "UNKNOWN"
@@ -538,7 +529,6 @@ func BuildProxyProtocolV1Header(clientAddr, targetAddr net.Addr) []byte {
 	return []byte(header)
 }
 
-// 构造 Proxy-Protocol v2 头 (TCP / UDP)
 func BuildProxyProtocolV2Header(clientAddr, targetAddr net.Addr) []byte {
 	const sig = "\r\n\r\n\000\r\nQUIT\n" // 12-byte v2 signature
 	var (
@@ -590,7 +580,6 @@ func BuildProxyProtocolV2Header(clientAddr, targetAddr net.Addr) []byte {
 	return header
 }
 
-// 构造 Proxy Protocol 头部
 func BuildProxyProtocolHeader(c net.Conn, proxyProtocol int) []byte {
 	if proxyProtocol == 0 {
 		return nil
@@ -679,7 +668,7 @@ func normalizeTarget(src, dst net.Addr) net.Addr {
 	}
 }
 
-// get crypt or snappy conn
+// GetConn get crypt or snappy conn
 func GetConn(conn net.Conn, cpt, snappy bool, rt *rate.Rate, isServer bool) io.ReadWriteCloser {
 	if cpt {
 		if isServer {

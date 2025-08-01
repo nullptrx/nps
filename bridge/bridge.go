@@ -175,7 +175,7 @@ func (s *Bridge) StartTunnel() error {
 	return nil
 }
 
-// get health information form client
+// GetHealthFromClient get health information form client
 func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 	if id <= 0 {
 		return
@@ -631,6 +631,8 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 		signal := client.GetSignal()
 		if signal == nil {
 			s.DelClient(t.Client.Id)
+			_ = c.Close()
+			return
 		}
 		signalIP := net.ParseIP(common.GetIpByAddr(signal.RemoteAddr().String()))
 		if signalIP != nil && (signalIP.IsPrivate() || signalIP.IsLoopback() || signalIP.IsLinkLocalUnicast()) {
@@ -641,6 +643,9 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 		_ = signal.WriteLenContent(b)
 		if err := signal.FlushBuf(); err != nil {
 			logs.Warn("client signal flush error: %v", err)
+			_ = signal.Close()
+			_ = c.Close()
+			return
 		}
 		_ = c.WriteLenContent([]byte(svrAddr))
 		if err := c.FlushBuf(); err != nil {
@@ -749,7 +754,8 @@ func (s *Bridge) ping() {
 				}
 				client, ok := value.(*Client)
 				if !ok || client == nil {
-					s.Client.Delete(key)
+					logs.Trace("Client %d is nil", clientID)
+					closedClients = append(closedClients, clientID)
 					return true
 				}
 				sig := client.signal.Load()
