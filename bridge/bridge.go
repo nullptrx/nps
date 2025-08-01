@@ -627,7 +627,7 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 			svrAddr = common.BuildAddress(common.GetIpByAddr(c.LocalAddr().String()), serverPort)
 		}
 		client := v.(*Client)
-		signal := client.signal
+		signal := client.GetSignal()
 		signalIP := net.ParseIP(common.GetIpByAddr(signal.RemoteAddr().String()))
 		if signalIP != nil && (signalIP.IsPrivate() || signalIP.IsLoopback() || signalIP.IsLinkLocalUnicast()) {
 			signalAddr = common.BuildAddress(common.GetIpByAddr(signal.LocalAddr().String()), serverPort)
@@ -698,9 +698,9 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 
 	var tunnel *nps_mux.Mux
 	if t != nil && t.Mode == "file" {
-		tunnel = client.file
+		tunnel = client.GetFile()
 	} else {
-		tunnel = client.tunnel
+		tunnel = client.GetTunnel()
 	}
 
 	if tunnel == nil {
