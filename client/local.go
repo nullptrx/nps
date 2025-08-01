@@ -458,7 +458,6 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 	localConn, remoteAddr, localAddr, err = handleP2PUdp(mgr.ctx, localAddr, rAddr, crypt.Md5(l.Password), common.WORK_P2P_VISITOR)
 	if err != nil {
 		logs.Error("Handle P2P failed: %v", err)
-		_ = localConn.Close()
 		return
 	}
 	//logs.Debug("handleP2PUdp ok")
