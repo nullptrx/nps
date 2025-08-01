@@ -183,23 +183,24 @@ func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 
 	const maxRetry = 3
 	var retry int
-	firstSuccess := false
+	//firstSuccess := false
 
 	for {
 		info, status, err := c.GetHealthInfo(10 * time.Second)
 		if err != nil {
-			logs.Trace("GetHealthInfo error, id=%d, retry=%d, err=%v", id, retry, err)
+			//logs.Trace("GetHealthInfo error, id=%d, retry=%d, err=%v", id, retry, err)
 			if conn.IsTempOrTimeout(err) && retry < maxRetry {
 				retry++
 				continue
 			}
-			if !firstSuccess {
-				return
-			}
+			//if !firstSuccess {
+			//	return
+			//}
+			logs.Trace("GetHealthInfo error, id=%d, retry=%d, err=%v", id, retry, err)
 			break
 		}
-
-		firstSuccess = true
+		logs.Trace("GetHealthInfo: %v, %v, %v", info, err, status)
+		//firstSuccess = true
 		retry = 0
 
 		if !status { //the status is true , return target to the targetArr
@@ -260,7 +261,7 @@ func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 		}
 	}
 	//s.DelClient(id)
-	_ = c.Close()
+	//_ = c.Close()
 }
 
 func (s *Bridge) verifyError(c *conn.Conn) {
@@ -628,6 +629,9 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 		}
 		client := v.(*Client)
 		signal := client.GetSignal()
+		if signal == nil {
+			s.DelClient(t.Client.Id)
+		}
 		signalIP := net.ParseIP(common.GetIpByAddr(signal.RemoteAddr().String()))
 		if signalIP != nil && (signalIP.IsPrivate() || signalIP.IsLoopback() || signalIP.IsLinkLocalUnicast()) {
 			signalAddr = common.BuildAddress(common.GetIpByAddr(signal.LocalAddr().String()), serverPort)
@@ -704,6 +708,7 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 	}
 
 	if tunnel == nil {
+		s.DelClient(clientId)
 		err = errors.New("the client connect error")
 		return
 	}
@@ -739,23 +744,25 @@ func (s *Bridge) ping() {
 
 			s.Client.Range(func(key, value interface{}) bool {
 				clientID := key.(int)
-				client := value.(*Client)
-
 				if clientID <= 0 {
 					return true
 				}
-
-				if client == nil || (client.signal == nil || client.signal.IsClosed()) || (client.tunnel == nil || client.tunnel.IsClosed()) {
+				client, ok := value.(*Client)
+				if !ok || client == nil {
+					s.Client.Delete(key)
+					return true
+				}
+				sig := client.signal.Load()
+				tun := client.tunnel.Load()
+				if (sig == nil || sig.IsClosed()) || (tun == nil || tun.IsClosed()) {
 					client.retryTime++
 					if client.retryTime >= 3 {
 						logs.Trace("Stop client %d", clientID)
 						closedClients = append(closedClients, clientID)
 					}
-					if client != nil {
-						client.SwitchSignal()
-						client.SwitchTunnel()
-						client.SwitchFile()
-					}
+					client.SwitchSignal()
+					client.SwitchTunnel()
+					client.SwitchFile()
 				} else {
 					client.retryTime = 0 // Reset retry count when the state is normal
 				}

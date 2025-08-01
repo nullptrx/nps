@@ -250,7 +250,7 @@ func run() {
 	}
 	logs.Info("the config path is:" + common.GetRunPath())
 	logs.Info("the version of server is %s ,allow client core version to be %s", version.VERSION, version.GetMinVersion(bridge.ServerSecureMode))
-	_ = bridge.SetClientSelectMode(beego.AppConfig.DefaultString("client_select_mode", ""))
+	_ = bridge.SetClientSelectMode(beego.AppConfig.DefaultString("bridge_select_mode", ""))
 	ntpServer := beego.AppConfig.DefaultString("ntp_server", "")
 	ntpInterval := beego.AppConfig.DefaultInt("ntp_interval", 5)
 	common.SetNtpServer(ntpServer)

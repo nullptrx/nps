@@ -77,7 +77,7 @@ func NewMux(c net.Conn, connType string, pingCheckThreshold int) *Mux {
 		conn:               c,
 		connMap:            NewConnMap(),
 		id:                 0,
-		closeChan:          make(chan struct{}),
+		closeChan:          make(chan struct{}, 1),
 		newConnCh:          make(chan *Conn),
 		bw:                 NewBandwidth(fd),
 		connType:           connType,
