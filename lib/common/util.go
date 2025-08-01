@@ -1057,6 +1057,30 @@ func IsSameIPType(addr1, addr2 string) bool {
 	return false
 }
 
+func GetMatchingLocalAddr(remoteAddr, localAddr string) (string, error) {
+	remoteIsV6 := strings.Contains(remoteAddr, "]:")
+	localIsV6 := strings.Contains(localAddr, "]:")
+	if remoteIsV6 == localIsV6 {
+		return localAddr, nil
+	}
+	port := GetPortStrByAddr(localAddr)
+	if remoteIsV6 {
+		tmpConn, err := GetLocalUdp6Addr()
+		if err != nil {
+			return localAddr, fmt.Errorf("get local ipv6 addr: %w", err)
+		}
+		ip6 := tmpConn.LocalAddr().(*net.UDPAddr).IP.String()
+		return fmt.Sprintf("[%s]:%s", ip6, port), nil
+	} else {
+		tmpConn, err := GetLocalUdp4Addr()
+		if err != nil {
+			return localAddr, fmt.Errorf("get local ipv4 addr: %w", err)
+		}
+		ip4 := tmpConn.LocalAddr().(*net.UDPAddr).IP.String()
+		return fmt.Sprintf("%s:%s", ip4, port), nil
+	}
+}
+
 var externalIp string
 var ipApis = []string{
 	"https://4.ipw.cn",

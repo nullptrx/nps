@@ -449,13 +449,16 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 
 	if !common.IsSameIPType(localAddr, rAddr) {
 		logs.Debug("IP type mismatch local=%s remote=%s", localAddr, rAddr)
-		return
+		//return
 	}
 	//logs.Debug("localAddr is %s, rAddr is %s", localAddr, rAddr)
 
-	remoteAddr, localConn, err := handleP2PUdp(mgr.ctx, localAddr, rAddr, crypt.Md5(l.Password), common.WORK_P2P_VISITOR)
+	var remoteAddr string
+	var localConn net.PacketConn
+	localConn, remoteAddr, localAddr, err = handleP2PUdp(mgr.ctx, localAddr, rAddr, crypt.Md5(l.Password), common.WORK_P2P_VISITOR)
 	if err != nil {
 		logs.Error("Handle P2P failed: %v", err)
+		_ = localConn.Close()
 		return
 	}
 	//logs.Debug("handleP2PUdp ok")

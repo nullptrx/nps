@@ -63,7 +63,7 @@ func GetTaskStatus(path string) {
 		log.Fatalln(err)
 	}
 	var isPub bool
-	binary.Read(c, binary.LittleEndian, &isPub)
+	_ = binary.Read(c, binary.LittleEndian, &isPub)
 	if l, err := c.GetLen(); err != nil {
 		log.Fatalln(err)
 	} else if b, err := c.GetShortContent(l); err != nil {
@@ -100,7 +100,7 @@ func GetTaskStatus(path string) {
 	os.Exit(0)
 }
 
-var errAdd = errors.New("The server returned an error, which port or host may have been occupied or not allowed to open.")
+var errAdd = errors.New("the server returned an error, which port or host may have been occupied or not allowed to open")
 
 func StartFromFile(path string) {
 	cnf, err := config.NewConfig(path)
@@ -141,7 +141,7 @@ func StartFromFile(path string) {
 		}
 
 		var isPub bool
-		binary.Read(c, binary.LittleEndian, &isPub)
+		_ = binary.Read(c, binary.LittleEndian, &isPub)
 
 		// get tmp password
 		var b []byte
@@ -150,18 +150,18 @@ func StartFromFile(path string) {
 			// send global configuration to server and get status of config setting
 			if _, err := c.SendInfo(cnf.CommonConfig.Client, common.NEW_CONF); err != nil {
 				logs.Error("%v", err)
-				c.Close()
+				_ = c.Close()
 				continue
 			}
 			if !c.GetAddStatus() {
 				logs.Error("the web_user may have been occupied!")
-				c.Close()
+				_ = c.Close()
 				continue
 			}
 
 			if b, err = c.GetShortContent(16); err != nil {
 				logs.Error("%v", err)
-				c.Close()
+				_ = c.Close()
 				continue
 			}
 			vkey = string(b)
@@ -210,7 +210,7 @@ func StartFromFile(path string) {
 			go p2pm.StartLocalServer(v, cnf.CommonConfig)
 		}
 
-		c.Close()
+		_ = c.Close()
 		if cnf.CommonConfig.Client.WebUserName == "" || cnf.CommonConfig.Client.WebPassword == "" {
 			logs.Info("web access login username:user password:%s", vkey)
 		} else {
@@ -275,7 +275,7 @@ func EnsurePort(server string, tp string) string {
 	return server
 }
 
-// Create a new connection with the server and verify it
+// NewConn Create a new connection with the server and verify it
 func NewConn(tp string, vkey string, server string, connType string, proxyUrl string) (*conn.Conn, error) {
 	//logs.Debug("NewConn: %s %s %s %s %s", tp, vkey, server, connType, proxyUrl)
 	var err error
@@ -402,7 +402,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 	}
 
 	//logs.Debug("SetDeadline")
-	connection.SetDeadline(time.Now().Add(timeout))
+	_ = connection.SetDeadline(time.Now().Add(timeout))
 	defer connection.SetDeadline(time.Time{})
 
 	c := conn.NewConn(connection)
@@ -515,7 +515,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			}
 			if !SkipTLSVerify && isTls && !tlsVerify && !bytes.Equal(fpDec, tlsFp) {
 				logs.Warn("Certificate verification failed. To skip verification, please set -skip_verify=true")
-				return nil, errors.New("Validation cert incorrect")
+				return nil, errors.New("validation cert incorrect")
 			}
 			crypt.AddTrustedCert(vkey, fpDec)
 			if Ver > 3 {
@@ -548,7 +548,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 	return c, nil
 }
 
-// http proxy connection
+// NewHttpProxyConn http proxy connection
 func NewHttpProxyConn(proxyURL *url.URL, remoteAddr string) (net.Conn, error) {
 	proxyConn, err := net.DialTimeout("tcp", proxyURL.Host, 10*time.Second)
 	if err != nil {
@@ -604,10 +604,12 @@ func getRemoteAddressFromServer(rAddr string, localConn net.PacketConn, md5Passw
 	return nil
 }
 
-func handleP2PUdp(pCtx context.Context, localAddr, rAddr, md5Password, role string) (remoteAddress string, c net.PacketConn, err error) {
+func handleP2PUdp(pCtx context.Context, localAddr, rAddr, md5Password, role string) (c net.PacketConn, remoteAddress, localAddress string, err error) {
+	localAddress = localAddr
 	parentCtx, parentCancel := context.WithCancel(pCtx)
 	defer parentCancel()
-	localConn, err := newUdpConnByAddr(localAddr)
+	localConn, err := conn.NewUdpConnByAddr(localAddr)
+	defer localConn.Close()
 	if err != nil {
 		return
 	}
@@ -673,7 +675,8 @@ Loop:
 	if remoteAddress, err = sendP2PTestMsg(parentCtx, localConn, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal); err != nil {
 		return
 	}
-	c, err = newUdpConnByAddr(localAddr)
+	localAddress, _ = common.GetMatchingLocalAddr(remoteAddress, localAddr)
+	c, err = conn.NewUdpConnByAddr(localAddress)
 	return
 }
 
@@ -783,9 +786,9 @@ Loop:
 			break Loop
 		default:
 		}
-		localConn.SetReadDeadline(time.Now().Add(time.Second * 10))
+		_ = localConn.SetReadDeadline(time.Now().Add(time.Second * 10))
 		n, addr, err := localConn.ReadFrom(buf)
-		localConn.SetReadDeadline(time.Time{})
+		_ = localConn.SetReadDeadline(time.Time{})
 		if err != nil {
 			break
 		}
@@ -817,16 +820,7 @@ Loop:
 	return "", errors.New("connect to the target failed, maybe the nat type is not support p2p")
 }
 
-type udpConnWrapper struct {
-	net.PacketConn
-	fakeLocal *net.UDPAddr
-}
-
-func (u *udpConnWrapper) LocalAddr() net.Addr {
-	return u.fakeLocal
-}
-
-func newUdpConnByAddr(addr string) (net.PacketConn, error) {
+func newUdpConnByAddrOld(addr string) (net.PacketConn, error) {
 	port := common.GetPortStrByAddr(addr)
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
@@ -836,7 +830,7 @@ func newUdpConnByAddr(addr string) (net.PacketConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &udpConnWrapper{PacketConn: pc, fakeLocal: udpAddr}, nil
+	return conn.NewUdpConnWrapper(pc, udpAddr), nil
 }
 
 func getNextAddr(addr string, n int) (string, error) {

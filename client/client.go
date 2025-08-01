@@ -140,7 +140,7 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 	var err error
 	var remoteAddress string
 	//logs.Debug("newUdpConn %s %s", localAddr, rAddr)
-	if remoteAddress, localConn, err = handleP2PUdp(s.ctx, localAddr, rAddr, md5Password, common.WORK_P2P_PROVIDER); err != nil {
+	if localConn, remoteAddress, localAddr, err = handleP2PUdp(s.ctx, localAddr, rAddr, md5Password, common.WORK_P2P_PROVIDER); err != nil {
 		logs.Error("%v", err)
 		return
 	}
