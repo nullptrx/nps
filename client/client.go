@@ -150,7 +150,7 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 		return
 	}
 	defer l.Close()
-	logs.Trace("start local p2p udp listen, local address %v", localConn.LocalAddr())
+	logs.Trace("start local p2p udp listen, local address %v %s", localConn.LocalAddr(), localAddr)
 	for {
 		select {
 		case <-s.ctx.Done():

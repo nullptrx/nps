@@ -82,7 +82,12 @@ Loop:
 		logs.Trace("LocalAddr: %s %s", localAddr, localAddress)
 	}
 	//logs.Error("LocalAddr: %s %s", localAddr, localAddress)
-	c, err = net.ListenPacket("udp", localAddress)
+	port := common.GetPortStrByAddr(localAddress)
+	if strings.Contains(remoteAddress, "[") {
+		c, err = net.ListenPacket("udp6", ":"+port)
+	} else {
+		c, err = net.ListenPacket("udp4", ":"+port)
+	}
 	return
 }
 

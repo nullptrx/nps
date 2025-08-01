@@ -230,7 +230,9 @@ func (s *Mux) ping() {
 						sec := float64(rtt) / 1e9
 						atomic.StoreUint64(&s.latency, math.Float64bits(s.counter.Latency(sec)))
 						// convert float64 to bits, store it atomic
-						//logs.Println("ping", math.Float64frombits(atomic.LoadUint64(&s.latency)))
+						if s.connType == "kcp" {
+							logs.Println("ping", math.Float64frombits(atomic.LoadUint64(&s.latency)))
+						}
 					}
 				}
 				windowBuff.Put(pack.content)
@@ -322,6 +324,7 @@ func (s *Mux) readSession() {
 				case s.pingCh <- pack:
 				}
 				continue
+			default:
 			}
 			if connection, ok := s.connMap.Get(pack.id); ok && !connection.IsClosed() {
 				switch pack.flag {
@@ -354,6 +357,7 @@ func (s *Mux) readSession() {
 					connection.receiveWindow.Stop() // close signal to receive window
 					muxPack.Put(pack)
 					continue
+				default:
 				}
 			} else if pack.flag == muxConnClose {
 				muxPack.Put(pack)
@@ -526,7 +530,7 @@ const counterMask = 1<<counterBits - 1
 
 func newLatencyCounter() *latencyCounter {
 	return &latencyCounter{
-		buf:     make([]float64, 1<<counterBits, 1<<counterBits),
+		buf:     make([]float64, 1<<counterBits),
 		headMin: 0,
 	}
 }
@@ -542,10 +546,10 @@ type latencyCounter struct {
 	// average of effective latency for all current data as a mux latency
 }
 
-func (Self *latencyCounter) unpack(idxs uint8) (head, min uint8) {
-	head = (idxs >> counterBits) & counterMask
+func (Self *latencyCounter) unpack(idx uint8) (head, min uint8) {
+	head = (idx >> counterBits) & counterMask
 	// we Set head is 4 bits
-	min = idxs & counterMask
+	min = idx & counterMask
 	return
 }
 
