@@ -329,19 +329,13 @@ func (s *Conn) Close() error {
 // write
 func (s *Conn) Write(b []byte) (n int, err error) {
 	if s == nil || s.IsClosed() {
-		return 0, errors.New("connection error")
+		return 0, errors.New("write: connection error")
 	}
 
 	s.mu.Lock()
 	if s.wBuf.Len() == 0 {
 		s.mu.Unlock()
-		n, err = s.Conn.Write(b)
-		if err != nil {
-			if IsTempOrTimeout(err) {
-				_ = s.Close()
-			}
-		}
-		return n, err
+		return s.Conn.Write(b)
 	}
 	n, err = s.wBuf.Write(b)
 	toSend := s.wBuf.Bytes()
@@ -349,9 +343,6 @@ func (s *Conn) Write(b []byte) (n int, err error) {
 	defer s.mu.Unlock()
 
 	if _, err := s.Conn.Write(toSend); err != nil {
-		if IsTempOrTimeout(err) {
-			_ = s.Close()
-		}
 		return 0, err
 	}
 
@@ -360,7 +351,7 @@ func (s *Conn) Write(b []byte) (n int, err error) {
 
 func (s *Conn) BufferWrite(b []byte) (int, error) {
 	if s.IsClosed() {
-		return 0, errors.New("connection closed")
+		return 0, errors.New("BufferWrite: connection closed")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -369,21 +360,16 @@ func (s *Conn) BufferWrite(b []byte) (int, error) {
 
 func (s *Conn) FlushBuf() error {
 	if s.IsClosed() {
-		return errors.New("connection closed")
+		return errors.New("FlushBuf: connection closed")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.wBuf.Len() == 0 {
 		return nil
 	}
-	if _, err := s.Conn.Write(s.wBuf.Bytes()); err != nil {
-		if IsTempOrTimeout(err) {
-			_ = s.Close()
-		}
-		return err
-	}
+	_, err := s.Conn.Write(s.wBuf.Bytes())
 	s.wBuf.Reset()
-	return nil
+	return err
 }
 
 // read
@@ -405,13 +391,7 @@ func (s *Conn) Read(b []byte) (n int, err error) {
 		}
 		s.Rb = nil
 	}
-	n, err = s.Conn.Read(b)
-	if err != nil {
-		if IsTempOrTimeout(err) {
-			_ = s.Close()
-		}
-	}
-	return n, err
+	return s.Conn.Read(b)
 }
 
 // write sign flag
