@@ -42,7 +42,9 @@ Loop:
 		default:
 		}
 		buf := make([]byte, 1024)
+		_ = localConn.SetReadDeadline(time.Now().Add(time.Second * 5))
 		n, addr, er := localConn.ReadFrom(buf)
+		_ = localConn.SetReadDeadline(time.Time{})
 		if er != nil {
 			err = er
 			return

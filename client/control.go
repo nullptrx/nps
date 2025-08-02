@@ -50,6 +50,7 @@ var QuicConfig = &quic.Config{
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+	crypt.InitTls(tls.Certificate{})
 }
 
 func GetTaskStatus(server string, vKey string, tp string, proxyUrl string) {

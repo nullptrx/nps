@@ -319,11 +319,13 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 
 	var remoteAddr, role, mode, data string
 	var localConn net.PacketConn
-	mode = common.CONN_KCP
 	localConn, remoteAddr, localAddr, role, mode, data, err = handleP2PUdp(mgr.ctx, localAddr, rAddr, crypt.Md5(l.Password), common.WORK_P2P_VISITOR, common.CONN_QUIC, "")
 	if err != nil {
 		logs.Error("Handle P2P failed: %v", err)
 		return
+	}
+	if mode == "" {
+		mode = common.CONN_KCP
 	}
 	//logs.Debug("handleP2PUdp ok")
 

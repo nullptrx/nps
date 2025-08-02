@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/djylb/nps/lib/common"
@@ -139,7 +140,6 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 	var localConn net.PacketConn
 	var err error
 	var remoteAddress, role, mode, data string
-	mode = common.CONN_KCP
 	sendData := string(crypt.GetHMAC(s.vKey, crypt.GetCert().Certificate[0]))
 	//logs.Debug("newUdpConn %s %s", localAddr, rAddr)
 	if localConn, remoteAddress, localAddr, role, mode, data, err = handleP2PUdp(s.ctx, localAddr, rAddr, md5Password, common.WORK_P2P_PROVIDER, common.CONN_QUIC, sendData); err != nil {
@@ -147,6 +147,9 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 		return
 	}
 	defer localConn.Close()
+	if mode == "" {
+		mode = common.CONN_KCP
+	}
 	var kcpListener *kcp.Listener
 	var quicListener *quic.Listener
 	if mode == common.CONN_QUIC {
@@ -293,7 +296,7 @@ func (s *TRPClient) handleChan(src net.Conn) {
 	}
 	if lk.ConnType == "udp5" {
 		logs.Trace("new %s connection with the goal of %s, remote address:%s", lk.ConnType, lk.Host, lk.RemoteAddr)
-		s.handleUdp(src)
+		s.handleUdp(src, lk.Option.Timeout)
 	}
 	//connect to target if conn type is tcp or udp
 	if targetConn, err := net.DialTimeout(lk.ConnType, lk.Host, lk.Option.Timeout); err != nil {
@@ -305,22 +308,52 @@ func (s *TRPClient) handleChan(src net.Conn) {
 	}
 }
 
-func (s *TRPClient) handleUdp(serverConn net.Conn) {
+func (s *TRPClient) handleUdp(serverConn net.Conn, timeout time.Duration) {
 	// bind a local udp port
-	local, err := net.ListenUDP("udp", nil)
-	defer local.Close()
 	defer serverConn.Close()
+	local, err := net.ListenUDP("udp", nil)
 	if err != nil {
 		logs.Error("bind local udp port error %v", err)
 		return
 	}
+	defer local.Close()
+	relayCtx, cancel := context.WithCancel(s.ctx)
+	defer cancel()
+	var lastActive atomic.Value
+	bump := func() { lastActive.Store(time.Now()) }
+	bump()
 	go func() {
+		t := time.NewTimer(timeout)
+		defer func() {
+			t.Stop()
+			cancel()
+			_ = local.SetReadDeadline(time.Now())
+			_ = local.SetWriteDeadline(time.Now())
+			_ = serverConn.SetReadDeadline(time.Now())
+			_ = serverConn.SetWriteDeadline(time.Now())
+		}()
+		for {
+			select {
+			case <-relayCtx.Done():
+				return
+			case <-t.C:
+				la := lastActive.Load().(time.Time)
+				idle := time.Since(la)
+				if idle >= timeout {
+					return
+				}
+				t.Reset(timeout - idle)
+			}
+		}
+	}()
+	go func() {
+		defer cancel()
 		defer serverConn.Close()
 		b := common.BufPoolUdp.Get().([]byte)
 		defer common.BufPoolUdp.Put(b)
 		for {
 			select {
-			case <-s.ctx.Done():
+			case <-relayCtx.Done():
 				return
 			default:
 			}
@@ -333,12 +366,12 @@ func (s *TRPClient) handleUdp(serverConn net.Conn) {
 				var ne net.Error
 				if errors.As(err, &ne) && (ne.Temporary() || ne.Timeout()) {
 					logs.Warn("temporary UDP read error, retrying: %v", err)
-					time.Sleep(1 * time.Millisecond)
 					continue
 				}
 				logs.Error("read data from remote server error %v", err)
 				return
 			}
+			bump()
 			buf := bytes.Buffer{}
 			dgram := common.NewUDPDatagram(common.NewUDPHeader(0, 0, common.ToSocksAddr(rAddr)), b[:n])
 			_ = dgram.Write(&buf)
@@ -351,6 +384,7 @@ func (s *TRPClient) handleUdp(serverConn net.Conn) {
 				logs.Error("write data to remote error %v", err)
 				return
 			}
+			bump()
 		}
 	}()
 	b := common.BufPoolUdp.Get().([]byte)
@@ -366,6 +400,7 @@ func (s *TRPClient) handleUdp(serverConn net.Conn) {
 			logs.Error("read udp data from server error %v", err)
 			return
 		}
+		bump()
 		udpData, err := common.ReadUDPDatagram(bytes.NewReader(b[:n]))
 		if err != nil {
 			logs.Error("unpack data error %v", err)
@@ -381,6 +416,7 @@ func (s *TRPClient) handleUdp(serverConn net.Conn) {
 			logs.Error("write data to remote %v error %v", rAddr, err)
 			return
 		}
+		bump()
 	}
 }
 
