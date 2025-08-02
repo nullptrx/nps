@@ -112,13 +112,17 @@ func DecryptBytes(enc []byte, keyStr string) ([]byte, error) {
 }
 
 // ComputeHMAC Get HMAC value
-func ComputeHMAC(vkey string, timestamp int64, randomDataPieces ...[]byte) []byte {
-	key := []byte(vkey)
+func ComputeHMAC(passwd string, timestamp int64, randomDataPieces ...[]byte) []byte {
 	tsBuf := make([]byte, 8)
 	binary.BigEndian.PutUint64(tsBuf, uint64(timestamp))
+	allPieces := append([][]byte{tsBuf}, randomDataPieces...)
+	return GetHMAC(passwd, allPieces...) // 32bit
+}
+
+func GetHMAC(passwd string, data ...[]byte) []byte {
+	key := []byte(passwd)
 	mac := hmac.New(sha256.New, key)
-	mac.Write(tsBuf)
-	for _, data := range randomDataPieces {
+	for _, data := range data {
 		mac.Write(data)
 	}
 	return mac.Sum(nil) // 32bit

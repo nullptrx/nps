@@ -16,7 +16,8 @@ import (
 	"github.com/djylb/nps/lib/logs"
 )
 
-func handleP2PUdp(pCtx context.Context, localAddr, rAddr, md5Password, role string) (c net.PacketConn, remoteAddress, localAddress string, err error) {
+func handleP2PUdp(pCtx context.Context, localAddr, rAddr, md5Password, sendRole, sendMode, sendData string,
+) (c net.PacketConn, remoteAddress, localAddress, role, mode, data string, err error) {
 	localAddress = localAddr
 	parentCtx, parentCancel := context.WithTimeout(pCtx, 30*time.Second)
 	defer parentCancel()
@@ -26,7 +27,7 @@ func handleP2PUdp(pCtx context.Context, localAddr, rAddr, md5Password, role stri
 	}
 	defer localConn.Close()
 	for seq := 0; seq < 3; seq++ {
-		if err = getRemoteAddressFromServer(rAddr, localAddr, localConn, md5Password, role, seq); err != nil {
+		if err = getRemoteAddressFromServer(rAddr, localAddr, localConn, md5Password, sendRole, sendMode, sendData, seq); err != nil {
 			logs.Error("%v", err)
 			return
 		}
@@ -50,6 +51,12 @@ Loop:
 		payload := common.ValidateAddr(parts[0])
 		if len(parts) >= 2 {
 			remoteLocal = common.ValidateAddr(parts[1])
+		}
+		if len(parts) >= 3 {
+			mode = parts[2]
+		}
+		if len(parts) >= 4 {
+			data = parts[3]
 		}
 		rPort := common.GetPortByAddr(rAddr)
 		//rAddr2, _ := getNextAddr(rAddr, 1)
@@ -75,7 +82,7 @@ Loop:
 			break
 		}
 	}
-	if remoteAddress, localAddress, err = sendP2PTestMsg(parentCtx, localConn, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal); err != nil {
+	if remoteAddress, localAddress, role, err = sendP2PTestMsg(parentCtx, localConn, sendRole, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal); err != nil {
 		return
 	}
 	if localAddr != localAddress {
@@ -91,7 +98,7 @@ Loop:
 	return
 }
 
-func getRemoteAddressFromServer(rAddr, localAddr string, localConn net.PacketConn, md5Password, role string, add int) error {
+func getRemoteAddressFromServer(rAddr, localAddr string, localConn net.PacketConn, md5Password, role, mode, data string, add int) error {
 	rAddr, err := getNextAddr(rAddr, add)
 	if err != nil {
 		logs.Error("%v", err)
@@ -101,13 +108,13 @@ func getRemoteAddressFromServer(rAddr, localAddr string, localConn net.PacketCon
 	if err != nil {
 		return err
 	}
-	if _, err := localConn.WriteTo(common.GetWriteStr(md5Password, role, localAddr), addr); err != nil {
+	if _, err := localConn.WriteTo(common.GetWriteStr(md5Password, role, localAddr, mode, data), addr); err != nil {
 		return err
 	}
 	return nil
 }
 
-func sendP2PTestMsg(pCtx context.Context, localConn net.PacketConn, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal string) (remoteAddr, localAddr string, err error) {
+func sendP2PTestMsg(pCtx context.Context, localConn net.PacketConn, sendRole, remoteAddr1, remoteAddr2, remoteAddr3, remoteLocal string) (remoteAddr, localAddr, role string, err error) {
 	defer localConn.Close()
 	isClose := false
 	defer func() { isClose = true }()
@@ -121,6 +128,11 @@ func sendP2PTestMsg(pCtx context.Context, localConn net.PacketConn, remoteAddr1,
 				return
 			}
 			for i := 20; i > 0; i-- {
+				select {
+				case <-parentCtx.Done():
+					return
+				default:
+				}
 				if _, err := localConn.WriteTo([]byte(common.WORK_P2P_CONNECT), remoteUdpLocal); err != nil {
 					return
 				}
@@ -131,7 +143,7 @@ func sendP2PTestMsg(pCtx context.Context, localConn net.PacketConn, remoteAddr1,
 	if remoteAddr1 != "" && remoteAddr2 != "" && remoteAddr3 != "" {
 		interval, err := getAddrInterval(remoteAddr1, remoteAddr2, remoteAddr3)
 		if err != nil {
-			return "", localConn.LocalAddr().String(), err
+			return "", localConn.LocalAddr().String(), sendRole, err
 		}
 		go func() {
 			addr, err := getNextAddr(remoteAddr3, interval)
@@ -219,20 +231,48 @@ Loop:
 		if err != nil {
 			break
 		}
+
 		switch string(buf[:n]) {
 		case common.WORK_P2P_SUCCESS:
 			for i := 20; i > 0; i-- {
 				if _, err = localConn.WriteTo([]byte(common.WORK_P2P_END), addr); err != nil {
-					return "", localConn.LocalAddr().String(), err
+					return "", localConn.LocalAddr().String(), sendRole, err
 				}
 			}
-			return addr.String(), localConn.LocalAddr().String(), nil
+			if sendRole == common.WORK_P2P_VISITOR {
+				for {
+					select {
+					case <-parentCtx.Done():
+						break Loop
+					default:
+					}
+					_ = localConn.SetReadDeadline(time.Now().Add(time.Second))
+					n, addr, err := localConn.ReadFrom(buf)
+					_ = localConn.SetReadDeadline(time.Time{})
+					if err != nil {
+						break
+					}
+					switch string(buf[:n]) {
+					case common.WORK_P2P_END:
+						logs.Debug("Remotely Address %v Reply Packet Successfully Received", addr)
+						return addr.String(), localConn.LocalAddr().String(), common.WORK_P2P_VISITOR, nil
+					default:
+						continue
+					}
+				}
+			}
+			return addr.String(), localConn.LocalAddr().String(), common.WORK_P2P_PROVIDER, nil
 		case common.WORK_P2P_END:
 			logs.Debug("Remotely Address %v Reply Packet Successfully Received", addr)
-			return addr.String(), localConn.LocalAddr().String(), nil
+			return addr.String(), localConn.LocalAddr().String(), common.WORK_P2P_VISITOR, nil
 		case common.WORK_P2P_CONNECT:
 			go func() {
 				for i := 20; i > 0; i-- {
+					select {
+					case <-parentCtx.Done():
+						return
+					default:
+					}
 					logs.Debug("try send receive success packet to target %v", addr)
 					if _, err = localConn.WriteTo([]byte(common.WORK_P2P_SUCCESS), addr); err != nil {
 						return
@@ -244,7 +284,7 @@ Loop:
 			continue
 		}
 	}
-	return "", localConn.LocalAddr().String(), errors.New("connect to the target failed, maybe the nat type is not support p2p")
+	return "", localConn.LocalAddr().String(), sendRole, errors.New("connect to the target failed, maybe the nat type is not support p2p")
 }
 
 func getNextAddr(addr string, n int) (string, error) {

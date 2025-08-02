@@ -18,6 +18,7 @@ import (
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/nps_mux"
+	"github.com/quic-go/quic-go"
 	"github.com/xtaci/kcp-go/v5"
 )
 
@@ -137,42 +138,83 @@ func (s *TRPClient) handleMain() {
 func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 	var localConn net.PacketConn
 	var err error
-	var remoteAddress string
+	var remoteAddress, role, mode, data string
+	mode = common.CONN_KCP
+	sendData := string(crypt.GetHMAC(s.vKey, crypt.GetCert().Certificate[0]))
 	//logs.Debug("newUdpConn %s %s", localAddr, rAddr)
-	if localConn, remoteAddress, localAddr, err = handleP2PUdp(s.ctx, localAddr, rAddr, md5Password, common.WORK_P2P_PROVIDER); err != nil {
+	if localConn, remoteAddress, localAddr, role, mode, data, err = handleP2PUdp(s.ctx, localAddr, rAddr, md5Password, common.WORK_P2P_PROVIDER, common.CONN_QUIC, sendData); err != nil {
 		logs.Error("%v", err)
 		return
 	}
 	defer localConn.Close()
-	l, err := kcp.ServeConn(nil, 150, 3, localConn)
-	if err != nil {
-		logs.Error("%v", err)
-		return
+	var kcpListener *kcp.Listener
+	var quicListener *quic.Listener
+	if mode == common.CONN_QUIC {
+		quicListener, err = quic.Listen(localConn, TlsCfg, QuicConfig)
+		if err != nil {
+			logs.Error("quic.Listen err: %v", err)
+			return
+		}
+		defer quicListener.Close()
+	} else {
+		kcpListener, err = kcp.ServeConn(nil, 150, 3, localConn)
+		if err != nil {
+			logs.Error("kcp.ServeConn err: %v", err)
+			return
+		}
+		defer kcpListener.Close()
 	}
-	defer l.Close()
-	logs.Trace("start local p2p udp listen, local address %s %v", localAddr, localConn.LocalAddr())
+
+	logs.Trace("start local p2p udp[%s] listen, role[%s], local address %s %v", mode, role, localAddr, localConn.LocalAddr())
+	if data != "" {
+		logs.Trace("P2P udp data is %s", data)
+	}
 	for {
 		select {
 		case <-s.ctx.Done():
 			return
 		default:
 		}
-		udpTunnel, err := l.AcceptKCP()
-		if err != nil {
-			logs.Error("acceptKCP failed on listener %v waiting for remote %s: %v", localConn.LocalAddr(), remoteAddress, err)
-			return
-		}
-		if udpTunnel.RemoteAddr().String() == remoteAddress {
-			conn.SetUdpSession(udpTunnel)
-			logs.Trace("successful connection with client ,address %v", udpTunnel.RemoteAddr())
-			//read link info from remote
-			tunnel := nps_mux.NewMux(udpTunnel, "kcp", s.disconnectTime)
-			conn.Accept(tunnel, func(c net.Conn) {
-				go s.handleChan(c)
-			})
-			logs.Trace("p2p connection closed, remote %v", udpTunnel.RemoteAddr())
-			_ = tunnel.Close()
-			return
+		switch mode {
+		case common.CONN_QUIC:
+			sess, err := quicListener.Accept(s.ctx)
+			if err != nil {
+				logs.Warn("QUIC accept session error: %v", err)
+				return
+			}
+			if sess.RemoteAddr().String() != remoteAddress {
+				_ = sess.CloseWithError(0, "unexpected peer")
+				continue
+			}
+			go func(sess *quic.Conn) {
+				for {
+					stream, err := sess.AcceptStream(s.ctx)
+					if err != nil {
+						logs.Trace("QUIC accept stream error: %v", err)
+						return
+					}
+					c := conn.NewQuicStreamConn(stream, sess)
+					go s.handleChan(c)
+				}
+			}(sess)
+		default:
+			udpTunnel, err := kcpListener.AcceptKCP()
+			if err != nil {
+				logs.Error("acceptKCP failed on listener %v waiting for remote %s: %v", localConn.LocalAddr(), remoteAddress, err)
+				return
+			}
+			if udpTunnel.RemoteAddr().String() == remoteAddress {
+				conn.SetUdpSession(udpTunnel)
+				logs.Trace("successful connection with client ,address %v", udpTunnel.RemoteAddr())
+				//read link info from remote
+				tunnel := nps_mux.NewMux(udpTunnel, "kcp", s.disconnectTime)
+				conn.Accept(tunnel, func(c net.Conn) {
+					go s.handleChan(c)
+				})
+				logs.Trace("p2p connection closed, remote %v", udpTunnel.RemoteAddr())
+				_ = tunnel.Close()
+				return
+			}
 		}
 	}
 }

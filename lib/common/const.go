@@ -21,14 +21,18 @@ const (
 	RES_MSG           = "msg0"
 	RES_CLOSE         = "clse"
 	NEW_UDP_CONN      = "udpc" // p2p udp conn
-	NEW_TEST          = "test"
 	NEW_TASK          = "task"
 	NEW_CONF          = "conf"
 	NEW_HOST          = "host"
 	CONN_TCP          = "tcp"
 	CONN_UDP          = "udp"
 	CONN_KCP          = "kcp"
+	CONN_TLS          = "tls"
+	CONN_QUIC         = "quic"
 	CONN_TEST         = "TST"
+	PING              = "ping"
+	PONG              = "pong"
+	TEST              = "test"
 
 	TOTP_SEQ = "totp:" // TOTP Separator
 

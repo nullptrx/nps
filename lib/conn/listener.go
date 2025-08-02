@@ -71,7 +71,7 @@ func NewQuicListenerAndProcess(addr string, tlsConfig *tls.Config, f func(c net.
 					logs.Trace("QUIC accept stream error: %v", err)
 					return
 				}
-				conn := NewQuicConn(stream, sess)
+				conn := NewQuicAutoCloseConn(stream, sess)
 				go f(conn)
 			}
 		}(sess)

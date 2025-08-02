@@ -61,6 +61,10 @@ func InitTls(customCert tls.Certificate) {
 	}
 }
 
+func GetFakeDomainName() string {
+	return gofakeit.DomainName()
+}
+
 func GetCert() tls.Certificate {
 	return cert
 }

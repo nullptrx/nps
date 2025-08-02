@@ -16,6 +16,7 @@ import (
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/nps_mux"
 	"github.com/djylb/nps/server/proxy"
+	"github.com/quic-go/quic-go"
 	"github.com/xtaci/kcp-go/v5"
 )
 
@@ -33,6 +34,7 @@ type P2PManager struct {
 	tcpLn        []*net.TCPListener
 	udpConn      net.Conn
 	muxSession   *nps_mux.Mux
+	quicConn     *quic.Conn
 	bridge       *p2pBridge
 	statusOK     bool
 	proxyServers []Closer
@@ -67,32 +69,43 @@ func (b *p2pBridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) 
 			mgr.mu.Lock()
 			mgr.statusOK = false
 			mgr.mu.Unlock()
-			return nil, errors.New("timeout waiting muxSession")
+			return nil, errors.New("timeout waiting P2P tunnel")
 		case <-ticker.C:
 			mgr.mu.Lock()
+			qConn := mgr.quicConn
 			session := mgr.muxSession
 			mgr.mu.Unlock()
-			if session == nil { // session.IsClosed()
-				continue
+			// ---------- QUIC ----------
+			if qConn != nil {
+				stream, err := qConn.OpenStreamSync(mgr.ctx)
+				if err != nil {
+					mgr.resetStatus(false)
+					return nil, err
+				}
+				nc := conn.NewQuicStreamConn(stream, qConn)
+				if _, err = conn.NewConn(nc).SendInfo(link, ""); err != nil {
+					_ = nc.Close()
+					mgr.resetStatus(false)
+					return nil, err
+				}
+				mgr.resetStatus(true)
+				return nc, nil
 			}
-			nowConn, err := session.NewConn()
-			if err != nil {
-				mgr.mu.Lock()
-				mgr.statusOK = false
-				mgr.mu.Unlock()
-				return nil, err
+			// ---------- KCP ----------
+			if session != nil {
+				nowConn, err := session.NewConn()
+				if err != nil {
+					mgr.resetStatus(false)
+					return nil, err
+				}
+				if _, err := conn.NewConn(nowConn).SendInfo(link, ""); err != nil {
+					_ = nowConn.Close()
+					mgr.resetStatus(false)
+					return nil, err
+				}
+				mgr.resetStatus(true)
+				return nowConn, nil
 			}
-			if _, err := conn.NewConn(nowConn).SendInfo(link, ""); err != nil {
-				_ = nowConn.Close()
-				mgr.mu.Lock()
-				mgr.statusOK = false
-				mgr.mu.Unlock()
-				return nil, err
-			}
-			mgr.mu.Lock()
-			mgr.statusOK = true
-			mgr.mu.Unlock()
-			return nowConn, nil
 		}
 	}
 }
@@ -304,23 +317,55 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 	}
 	//logs.Debug("localAddr is %s, rAddr is %s", localAddr, rAddr)
 
-	var remoteAddr string
+	var remoteAddr, role, mode, data string
 	var localConn net.PacketConn
-	localConn, remoteAddr, localAddr, err = handleP2PUdp(mgr.ctx, localAddr, rAddr, crypt.Md5(l.Password), common.WORK_P2P_VISITOR)
+	mode = common.CONN_KCP
+	localConn, remoteAddr, localAddr, role, mode, data, err = handleP2PUdp(mgr.ctx, localAddr, rAddr, crypt.Md5(l.Password), common.WORK_P2P_VISITOR, common.CONN_QUIC, "")
 	if err != nil {
 		logs.Error("Handle P2P failed: %v", err)
 		return
 	}
 	//logs.Debug("handleP2PUdp ok")
 
-	udpTunnel, err := kcp.NewConn(remoteAddr, nil, 150, 3, localConn)
-	if err != nil || udpTunnel == nil {
-		logs.Warn("KCP NewConn failed: %v", err)
-		_ = localConn.Close()
-		return
+	var udpTunnel net.Conn
+	var sess *quic.Conn
+	if mode == common.CONN_QUIC {
+		rUDPAddr, err := net.ResolveUDPAddr("udp", remoteAddr)
+		if err != nil {
+			logs.Error("Failed to resolve remote UDP addr: %v", err)
+			_ = localConn.Close()
+			return
+		}
+		sess, err = quic.Dial(mgr.ctx, localConn, rUDPAddr, TlsCfg, QuicConfig)
+		if err != nil {
+			logs.Error("QUIC dial error: %v", err)
+			_ = localConn.Close()
+			return
+		}
+		state := sess.ConnectionState().TLS
+		if len(state.PeerCertificates) == 0 {
+			logs.Error("Failed to get QUIC certificate")
+			_ = localConn.Close()
+			return
+		}
+		leaf := state.PeerCertificates[0]
+		if data != string(crypt.GetHMAC(cfg.VKey, leaf.Raw)) {
+			logs.Error("Failed to verify QUIC certificate")
+			_ = localConn.Close()
+			return
+		}
+	} else {
+		kcpTunnel, err := kcp.NewConn(remoteAddr, nil, 150, 3, localConn)
+		if err != nil || kcpTunnel == nil {
+			logs.Warn("KCP NewConn failed: %v", err)
+			_ = localConn.Close()
+			return
+		}
+		conn.SetUdpSession(kcpTunnel)
+		udpTunnel = kcpTunnel
 	}
-	conn.SetUdpSession(udpTunnel)
-	logs.Info("P2P UDP tunnel established to %s", remoteAddr)
+
+	logs.Info("P2P UDP[%s] tunnel established to %s, role[%s]", mode, remoteAddr, role)
 
 	mgr.mu.Lock()
 	if mgr.udpConn != nil {
@@ -329,8 +374,17 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 	if mgr.muxSession != nil {
 		_ = mgr.muxSession.Close()
 	}
-	mgr.udpConn = udpTunnel
-	mgr.muxSession = nps_mux.NewMux(udpTunnel, "kcp", cfg.DisconnectTime)
+	if mgr.quicConn != nil {
+		_ = mgr.quicConn.CloseWithError(0, "new connection")
+	}
+	if mode == common.CONN_QUIC {
+		mgr.quicConn = sess
+		mgr.udpConn = nil
+		mgr.muxSession = nil
+	} else {
+		mgr.udpConn = udpTunnel
+		mgr.muxSession = nps_mux.NewMux(udpTunnel, "kcp", cfg.DisconnectTime)
+	}
 	mgr.statusOK = true
 	mgr.mu.Unlock()
 }
@@ -354,10 +408,11 @@ func (mgr *P2PManager) handleSecret(c net.Conn, cfg *config.CommonConfig, l *con
 func (mgr *P2PManager) handleP2PVisitor(c net.Conn, cfg *config.CommonConfig, l *config.LocalServer) {
 	mgr.mu.Lock()
 	tunnel := mgr.udpConn
+	qConn := mgr.quicConn
 	ok := mgr.statusOK
 	mgr.mu.Unlock()
 
-	if tunnel == nil || !ok {
+	if (tunnel == nil && qConn == nil) || !ok {
 		logs.Warn("P2P not ready, fallback to secret")
 		mgr.handleSecret(c, cfg, l)
 		return
@@ -378,6 +433,12 @@ func (mgr *P2PManager) handleP2PVisitor(c net.Conn, cfg *config.CommonConfig, l 
 	conn.CopyWaitGroup(target, c, false, cfg.Client.Cnf.Compress, nil, nil, false, 0, nil, nil)
 }
 
+func (mgr *P2PManager) resetStatus(ok bool) {
+	mgr.mu.Lock()
+	mgr.statusOK = ok
+	mgr.mu.Unlock()
+}
+
 func (mgr *P2PManager) Close() {
 	mgr.cancel()
 	mgr.mu.Lock()
@@ -385,6 +446,7 @@ func (mgr *P2PManager) Close() {
 	psList := mgr.proxyServers
 	udp := mgr.udpConn
 	mux := mgr.muxSession
+	qConn := mgr.quicConn
 	mgr.mu.Unlock()
 
 	for _, ln := range lnList {
@@ -398,6 +460,9 @@ func (mgr *P2PManager) Close() {
 	}
 	if mux != nil {
 		_ = mux.Close()
+	}
+	if qConn != nil {
+		_ = qConn.CloseWithError(0, "close quic")
 	}
 	mgr.wg.Wait()
 }
