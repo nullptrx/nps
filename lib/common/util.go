@@ -160,7 +160,7 @@ func SplitServerAndPath(s string) (server, path string) {
 	return s[:index], s[index:]
 }
 
-// Get the corresponding IP address through domain name
+// GetHostByName Get the corresponding IP address through domain name
 func GetHostByName(hostname string) string {
 	if !DomainCheck(hostname) {
 		return hostname
@@ -180,7 +180,7 @@ func GetHostByName(hostname string) string {
 	return ""
 }
 
-// Check the legality of domain
+// DomainCheck Check the legality of domain
 func DomainCheck(domain string) bool {
 	var match bool
 	IsLine := "^((http://)|(https://))?([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,6}(/)"
@@ -227,8 +227,8 @@ func GetPort(value int) int {
 // accountMap enable multi user auth
 func CheckAuthWithAccountMap(u, p, user, passwd string, accountMap, authMap map[string]string) bool {
 	// Single account check
-	noAccountMap := (accountMap == nil || len(accountMap) == 0)
-	noAuthMap := (authMap == nil || len(authMap) == 0)
+	noAccountMap := accountMap == nil || len(accountMap) == 0
+	noAuthMap := authMap == nil || len(authMap) == 0
 	if noAccountMap && noAuthMap {
 		return u == user && p == passwd
 	}
@@ -257,7 +257,7 @@ func CheckAuthWithAccountMap(u, p, user, passwd string, accountMap, authMap map[
 	return false
 }
 
-// Check if the Request request is validated
+// CheckAuth Check if the Request request is validated
 func CheckAuth(r *http.Request, user, passwd string, accountMap, authMap map[string]string) bool {
 	// Bypass authentication only if user, passwd are empty and multiAccount is nil or empty
 	if user == "" && passwd == "" && (accountMap == nil || len(accountMap) == 0) && (authMap == nil || len(authMap) == 0) {
@@ -308,7 +308,7 @@ func DealMultiUser(s string) map[string]string {
 	return multiUserMap
 }
 
-// get bool by str
+// GetBoolByStr get bool by str
 func GetBoolByStr(s string) bool {
 	switch s {
 	case "1", "true":
@@ -317,7 +317,7 @@ func GetBoolByStr(s string) bool {
 	return false
 }
 
-// get str by bool
+// GetStrByBool get str by bool
 func GetStrByBool(b bool) string {
 	if b {
 		return "1"
@@ -325,13 +325,13 @@ func GetStrByBool(b bool) string {
 	return "0"
 }
 
-// int
+// GetIntNoErrByStr int
 func GetIntNoErrByStr(str string) int {
 	i, _ := strconv.Atoi(strings.TrimSpace(str))
 	return i
 }
 
-// time
+// GetTimeNoErrByStr time
 func GetTimeNoErrByStr(str string) time.Time {
 	// 1. 去除前后空格
 	str = strings.TrimSpace(str)
@@ -363,7 +363,7 @@ func ContainsFold(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
 
-// Change headers and host of request
+// ChangeHostAndHeader Change headers and host of request
 func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly bool) {
 	// 设置 Host 头部信息
 	scheme := "http"
@@ -478,7 +478,7 @@ func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly b
 	}
 }
 
-// Change headers of response
+// ChangeResponseHeader Change headers of response
 func ChangeResponseHeader(resp *http.Response, header string) {
 	if header == "" {
 		return
@@ -576,7 +576,7 @@ func ChangeResponseHeader(resp *http.Response, header string) {
 	}
 }
 
-// Change redirect URL
+// ChangeRedirectURL Change redirect URL
 func ChangeRedirectURL(r *http.Request, url string) string {
 	val := strings.TrimSpace(url)
 	val = html.UnescapeString(val)
@@ -640,7 +640,7 @@ func ChangeRedirectURL(r *http.Request, url string) string {
 	return rep.Replace(val)
 }
 
-// Read file content by file path
+// ReadAllFromFile Read file content by file path
 func ReadAllFromFile(filePath string) ([]byte, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -730,12 +730,12 @@ func FileExists(name string) bool {
 	return true
 }
 
-// Judge whether the TCP port can open normally
+// TestTcpPort Judge whether the TCP port can open normally
 func TestTcpPort(port int) bool {
-	l, err := net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP("0.0.0.0"), port, ""})
+	l, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP("0.0.0.0"), Port: port})
 	defer func() {
 		if l != nil {
-			l.Close()
+			_ = l.Close()
 		}
 	}()
 	if err != nil {
@@ -744,12 +744,12 @@ func TestTcpPort(port int) bool {
 	return true
 }
 
-// Judge whether the UDP port can open normally
+// TestUdpPort Judge whether the UDP port can open normally
 func TestUdpPort(port int) bool {
-	l, err := net.ListenUDP("udp", &net.UDPAddr{net.ParseIP("0.0.0.0"), port, ""})
+	l, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("0.0.0.0"), Port: port})
 	defer func() {
 		if l != nil {
-			l.Close()
+			_ = l.Close()
 		}
 	}()
 	if err != nil {
@@ -758,28 +758,28 @@ func TestUdpPort(port int) bool {
 	return true
 }
 
-// Write length and individual byte data
+// BinaryWrite Write length and individual byte data
 // Length prevents sticking
 // # Characters are used to separate data
 func BinaryWrite(raw *bytes.Buffer, v ...string) {
 	b := GetWriteStr(v...)
-	binary.Write(raw, binary.LittleEndian, int32(len(b)))
-	binary.Write(raw, binary.LittleEndian, b)
+	_ = binary.Write(raw, binary.LittleEndian, int32(len(b)))
+	_ = binary.Write(raw, binary.LittleEndian, b)
 }
 
-// get seq str
+// GetWriteStr get seq str
 func GetWriteStr(v ...string) []byte {
 	buffer := new(bytes.Buffer)
 	var l int32
 	for _, v := range v {
 		l += int32(len([]byte(v))) + int32(len([]byte(CONN_DATA_SEQ)))
-		binary.Write(buffer, binary.LittleEndian, []byte(v))
-		binary.Write(buffer, binary.LittleEndian, []byte(CONN_DATA_SEQ))
+		_ = binary.Write(buffer, binary.LittleEndian, []byte(v))
+		_ = binary.Write(buffer, binary.LittleEndian, []byte(CONN_DATA_SEQ))
 	}
 	return buffer.Bytes()
 }
 
-// inArray str interface
+// InStrArr inArray str interface
 func InStrArr(arr []string, val string) bool {
 	for _, v := range arr {
 		if v == val {
@@ -789,7 +789,7 @@ func InStrArr(arr []string, val string) bool {
 	return false
 }
 
-// inArray int interface
+// InIntArr inArray int interface
 func InIntArr(arr []int, val int) bool {
 	for _, v := range arr {
 		if v == val {
@@ -799,7 +799,7 @@ func InIntArr(arr []int, val int) bool {
 	return false
 }
 
-// format ports str to a int array
+// GetPorts format ports str to a int array
 func GetPorts(p string) []int {
 	var ps []int
 	arr := strings.Split(p, ",")
@@ -823,7 +823,7 @@ func GetPorts(p string) []int {
 	return ps
 }
 
-// is the string a port
+// IsPort is the string a port
 func IsPort(p string) bool {
 	pi, err := strconv.Atoi(p)
 	if err != nil {
@@ -835,7 +835,7 @@ func IsPort(p string) bool {
 	return true
 }
 
-// if the s is just a port,return 127.0.0.1:s
+// FormatAddress if the s is just a port,return 127.0.0.1:s
 func FormatAddress(s string) string {
 	if strings.Contains(s, ":") {
 		return s
@@ -843,10 +843,10 @@ func FormatAddress(s string) string {
 	return "127.0.0.1:" + s
 }
 
-func in(target string, str_array []string) bool {
-	sort.Strings(str_array)
-	index := sort.SearchStrings(str_array, target)
-	if index < len(str_array) && str_array[index] == target {
+func in(target string, strArray []string) bool {
+	sort.Strings(strArray)
+	index := sort.SearchStrings(strArray, target)
+	if index < len(strArray) && strArray[index] == target {
 		return true
 	}
 	return false
@@ -891,7 +891,7 @@ func CopyBuffer(dst io.Writer, src io.Reader, label ...string) (written int64, e
 	return written, err
 }
 
-// send this ip forget to get a local udp port
+// GetLocalUdpAddr send this ip forget to get a local udp port
 func GetLocalUdpAddr() (net.Conn, error) {
 	tmpConn, err := net.Dial("udp", GetCustomDNS())
 	if err != nil {
@@ -916,7 +916,7 @@ func GetLocalUdp6Addr() (net.Conn, error) {
 	return tmpConn, tmpConn.Close()
 }
 
-// parse template
+// ParseStr parse template
 func ParseStr(str string) (string, error) {
 	tmp := template.New("npc")
 	var err error
@@ -930,7 +930,7 @@ func ParseStr(str string) (string, error) {
 	return w.String(), nil
 }
 
-// get env
+// GetEnvMap get env
 func GetEnvMap() map[string]string {
 	m := make(map[string]string)
 	environ := os.Environ()
@@ -943,7 +943,7 @@ func GetEnvMap() map[string]string {
 	return m
 }
 
-// throw the empty element of the string array
+// TrimArr throw the empty element of the string array
 func TrimArr(arr []string) []string {
 	newArr := make([]string, 0)
 	for _, v := range arr {
@@ -967,7 +967,7 @@ func IsArrContains(arr []string, val string) bool {
 	return false
 }
 
-// remove value from string array
+// RemoveArrVal remove value from string array
 func RemoveArrVal(arr []string, val string) []string {
 	for k, v := range arr {
 		if v == val {
@@ -1018,18 +1018,18 @@ func ExtendArrs(arrays ...*[]string) int {
 	return maxLength
 }
 
-// convert bytes to num
+// BytesToNum convert bytes to num
 func BytesToNum(b []byte) int {
 	var str string
 	for i := 0; i < len(b); i++ {
 		str += strconv.Itoa(int(b[i]))
 	}
 	x, _ := strconv.Atoi(str)
-	return int(x)
+	return x
 }
 
-// get the length of the sync map
-func GeSynctMapLen(m sync.Map) int {
+// GetSyncMapLen get the length of the sync map
+func GetSyncMapLen(m *sync.Map) int {
 	var c int
 	m.Range(func(key, value interface{}) bool {
 		c++
@@ -1101,8 +1101,8 @@ func FetchExternalIp() string {
 		if err != nil {
 			continue
 		}
-		defer resp.Body.Close()
 		content, _ := ioutil.ReadAll(resp.Body)
+		_ = resp.Body.Close()
 		ip := string(content)
 		if IsValidIP(ip) {
 			externalIp = ip

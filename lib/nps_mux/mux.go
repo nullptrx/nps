@@ -230,9 +230,9 @@ func (s *Mux) ping() {
 						sec := float64(rtt) / 1e9
 						atomic.StoreUint64(&s.latency, math.Float64bits(s.counter.Latency(sec)))
 						// convert float64 to bits, store it atomic
-						if s.connType == "kcp" {
-							logs.Println("ping", math.Float64frombits(atomic.LoadUint64(&s.latency)))
-						}
+						//if s.connType == "kcp" {
+						//	logs.Println("ping", math.Float64frombits(atomic.LoadUint64(&s.latency)))
+						//}
 					}
 				}
 				windowBuff.Put(pack.content)

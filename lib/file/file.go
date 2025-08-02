@@ -161,7 +161,7 @@ var hostLock sync.Mutex
 
 func (s *JsonDb) StoreHostToJsonFile() {
 	hostLock.Lock()
-	storeSyncMapToFile(s.Hosts, s.HostFilePath)
+	storeSyncMapToFile(&s.Hosts, s.HostFilePath)
 	hostLock.Unlock()
 }
 
@@ -169,7 +169,7 @@ var taskLock sync.Mutex
 
 func (s *JsonDb) StoreTasksToJsonFile() {
 	taskLock.Lock()
-	storeSyncMapToFile(s.Tasks, s.TaskFilePath)
+	storeSyncMapToFile(&s.Tasks, s.TaskFilePath)
 	taskLock.Unlock()
 }
 
@@ -177,7 +177,7 @@ var clientLock sync.Mutex
 
 func (s *JsonDb) StoreClientsToJsonFile() {
 	clientLock.Lock()
-	storeSyncMapToFile(s.Clients, s.ClientFilePath)
+	storeSyncMapToFile(&s.Clients, s.ClientFilePath)
 	clientLock.Unlock()
 }
 
@@ -344,7 +344,7 @@ func createEmptyFile(filePath string) error {
 	return nil
 }
 
-func storeSyncMapToFile(m sync.Map, filePath string) {
+func storeSyncMapToFile(m *sync.Map, filePath string) {
 	tmpFilePath := filePath + ".tmp"
 	file, err := os.Create(tmpFilePath)
 	if err != nil {

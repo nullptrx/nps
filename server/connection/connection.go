@@ -76,7 +76,7 @@ func GetBridgeTcpListener() (net.Listener, error) {
 	if pMux != nil && BridgeTcpPort == BridgePort {
 		return pMux.GetClientListener(), nil
 	}
-	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(BridgeTcpIp), p, ""})
+	return net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(BridgeTcpIp), Port: p})
 }
 
 func GetBridgeTlsListener() (net.Listener, error) {
@@ -89,7 +89,7 @@ func GetBridgeTlsListener() (net.Listener, error) {
 	if pMux != nil && BridgeTlsPort == BridgePort {
 		return pMux.GetClientTlsListener(), nil
 	}
-	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(BridgeTlsIp), p, ""})
+	return net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(BridgeTlsIp), Port: p})
 }
 
 func GetBridgeWsListener() (net.Listener, error) {
@@ -102,7 +102,7 @@ func GetBridgeWsListener() (net.Listener, error) {
 	if pMux != nil && BridgeWsPort == BridgePort {
 		return pMux.GetClientWsListener(), nil
 	}
-	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(BridgeWsIp), p, ""})
+	return net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(BridgeWsIp), Port: p})
 }
 
 func GetBridgeWssListener() (net.Listener, error) {
@@ -115,7 +115,7 @@ func GetBridgeWssListener() (net.Listener, error) {
 	if pMux != nil && BridgeWssPort == BridgePort {
 		return pMux.GetClientWssListener(), nil
 	}
-	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(BridgeWssIp), p, ""})
+	return net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(BridgeWssIp), Port: p})
 }
 
 func GetHttpListener() (net.Listener, error) {
@@ -154,5 +154,5 @@ func getTcpListener(ip, p string) (net.Listener, error) {
 	if ip == "" {
 		ip = "0.0.0.0"
 	}
-	return net.ListenTCP("tcp", &net.TCPAddr{net.ParseIP(ip), port, ""})
+	return net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(ip), Port: port})
 }

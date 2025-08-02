@@ -89,11 +89,14 @@ func start(osArgs []string, f string, pidPath, runPath string) {
 		return
 	}
 	cmd := exec.Command(osArgs[0], osArgs[1:]...)
-	cmd.Start()
+	err := cmd.Start()
+	if err != nil {
+		log.Println("start error", err.Error())
+	}
 	if cmd.Process.Pid > 0 {
 		log.Println("start ok , pid:", cmd.Process.Pid, "config path:", runPath)
 		d1 := []byte(strconv.Itoa(cmd.Process.Pid))
-		ioutil.WriteFile(filepath.Join(pidPath, f+".pid"), d1, 0600)
+		_ = ioutil.WriteFile(filepath.Join(pidPath, f+".pid"), d1, 0600)
 	} else {
 		log.Println("start error")
 	}

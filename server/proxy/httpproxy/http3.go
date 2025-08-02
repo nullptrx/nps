@@ -76,7 +76,7 @@ func (h3 *Http3Server) Start() error {
 }
 
 func (h3 *Http3Server) Close() error {
-	h3.udpConn.Close()
-	h3.http3Server.Close()
+	_ = h3.udpConn.Close()
+	_ = h3.http3Server.Close()
 	return nil
 }

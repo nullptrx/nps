@@ -37,7 +37,7 @@ type TunnelModeServer struct {
 	activeConnections sync.Map
 }
 
-// tcp|host|mixproxy
+// NewTunnelModeServer tcp|host|mixproxy
 func NewTunnelModeServer(process process, bridge NetBridge, task *file.Tunnel) *TunnelModeServer {
 	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
 	s := new(TunnelModeServer)
@@ -55,13 +55,13 @@ func (s *TunnelModeServer) Start() error {
 		defer func() {
 			s.activeConnections.Delete(c)
 			if c != nil {
-				c.Close()
+				_ = c.Close()
 			}
 		}()
 
 		if err := s.CheckFlowAndConnNum(s.Task.Client); err != nil {
 			logs.Warn("client Id %d, task Id %d, error %v, when tcp connection", s.Task.Client.Id, s.Task.Id, err)
-			c.Close()
+			_ = c.Close()
 			return
 		}
 		defer s.Task.Client.CutConn()
@@ -70,14 +70,14 @@ func (s *TunnelModeServer) Start() error {
 
 		logs.Trace("new tcp connection,local port %d,client %d,remote address %v", s.Task.Port, s.Task.Client.Id, c.RemoteAddr())
 
-		s.process(conn.NewConn(c), s)
+		_ = s.process(conn.NewConn(c), s)
 	}, &s.listener)
 }
 
 func (s *TunnelModeServer) Close() error {
 	s.activeConnections.Range(func(key, value interface{}) bool {
 		if c, ok := key.(net.Conn); ok {
-			c.Close()
+			_ = c.Close()
 			s.activeConnections.Delete(key)
 		}
 		return true
@@ -120,7 +120,6 @@ func (s *WebServer) Close() error {
 	return nil
 }
 
-// new
 func NewWebServer(bridge *bridge.Bridge) *WebServer {
 	s := new(WebServer)
 	s.Bridge = bridge
@@ -129,12 +128,12 @@ func NewWebServer(bridge *bridge.Bridge) *WebServer {
 
 type process func(c *conn.Conn, s *TunnelModeServer) error
 
-// tcp proxy
+// ProcessTunnel tcp proxy
 func ProcessTunnel(c *conn.Conn, s *TunnelModeServer) error {
 	targetAddr, err := s.Task.Target.GetRandomTarget()
 	if err != nil {
 		if s.Task.Mode != "file" {
-			c.Close()
+			_ = c.Close()
 			logs.Warn("tcp port %d, client Id %d, task Id %d connect error %v", s.Task.Port, s.Task.Client.Id, s.Task.Id, err)
 			return err
 		}
@@ -144,23 +143,23 @@ func ProcessTunnel(c *conn.Conn, s *TunnelModeServer) error {
 	return s.DealClient(c, s.Task.Client, targetAddr, nil, common.CONN_TCP, nil, []*file.Flow{s.Task.Flow, s.Task.Client.Flow}, s.Task.Target.ProxyProtocol, s.Task.Target.LocalProxy, s.Task)
 }
 
-// http proxy
+// ProcessHttp http proxy
 func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 	_, addr, rb, err, r := c.GetHost()
 	if err != nil {
-		c.Close()
+		_ = c.Close()
 		logs.Info("%v", err)
 		return err
 	}
 	if err := s.Auth(r, nil, s.Task.Client.Cnf.U, s.Task.Client.Cnf.P, s.Task.MultiAccount, s.Task.UserAuth); err != nil {
-		c.Write([]byte(common.ProxyAuthRequiredBytes))
-		c.Close()
+		_, _ = c.Write([]byte(common.ProxyAuthRequiredBytes))
+		_ = c.Close()
 		return err
 	}
 	remoteAddr := c.Conn.RemoteAddr().String()
 	logs.Debug("http proxy request, client=%d method=%s, host=%s, url=%s, remote address=%s, target=%s", s.Task.Client.Id, r.Method, r.Host, r.URL.RequestURI(), remoteAddr, addr)
 	if r.Method == http.MethodConnect {
-		c.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+		_, _ = c.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 		return s.DealClient(c, s.Task.Client, addr, nil, common.CONN_TCP, nil, []*file.Flow{s.Task.Flow, s.Task.Client.Flow}, s.Task.Target.ProxyProtocol, s.Task.Target.LocalProxy, s.Task)
 	}
 	var server *http.Server
@@ -230,7 +229,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 	var shutdownTimerMu sync.Mutex
 	var shutdownTimer *time.Timer
 	defer func() {
-		listener.Close()
+		_ = listener.Close()
 		shutdownTimerMu.Lock()
 		if shutdownTimer != nil {
 			shutdownTimer.Stop()
@@ -247,7 +246,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 			//logs.Error("HTTP Proxy Number: %d, Reset timeout", httpNum)
 			shutdownTimerMu.Lock()
 			shutdownTimer = time.AfterFunc(30*time.Second, func() {
-				server.Close()
+				_ = server.Close()
 			})
 			shutdownTimerMu.Unlock()
 		}()
@@ -262,7 +261,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 	//	httpNum--
 	//	logs.Error("HTTP Proxy Number: %d", httpNum)
 	//}()
-	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+	if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	//logs.Error("HTTP Proxy Close")

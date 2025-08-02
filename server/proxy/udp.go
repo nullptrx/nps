@@ -108,7 +108,7 @@ func (s *UdpModeServer) clientWorker(addr *net.UDPAddr, ent *entry) {
 		ent.cancel()
 		s.entries.Delete(key)
 		if ent.flowConn != nil {
-			ent.flowConn.Close()
+			_ = ent.flowConn.Close()
 		}
 		for {
 			select {
@@ -152,7 +152,7 @@ func (s *UdpModeServer) clientWorker(addr *net.UDPAddr, ent *entry) {
 			default:
 			}
 
-			clientConn.SetReadDeadline(time.Now().Add(s.readTimeout))
+			_ = clientConn.SetReadDeadline(time.Now().Add(s.readTimeout))
 			nr, err := ent.flowConn.Read(buf)
 			if err != nil {
 				logs.Trace("back-channel read error or idle: %v", err)
@@ -201,7 +201,7 @@ func (s *UdpModeServer) clientWorker(addr *net.UDPAddr, ent *entry) {
 
 func (s *UdpModeServer) Close() error {
 	if s.listener != nil {
-		s.listener.Close()
+		_ = s.listener.Close()
 	}
 	s.entries.Range(func(key, value interface{}) bool {
 		ent := value.(*entry)

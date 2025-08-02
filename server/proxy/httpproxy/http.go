@@ -174,16 +174,16 @@ func (s *HttpServer) Start() error {
 
 func (s *HttpServer) Close() error {
 	if s.httpServer != nil {
-		s.httpServer.Close()
+		_ = s.httpServer.Close()
 	}
 	if s.httpsServer != nil {
-		s.httpsServer.Close()
+		_ = s.httpsServer.Close()
 	}
 	if s.httpsListener != nil {
-		s.httpsListener.Close()
+		_ = s.httpsListener.Close()
 	}
 	if s.http3PacketConn != nil {
-		s.http3PacketConn.Close()
+		_ = s.http3PacketConn.Close()
 	}
 	s.httpProxyCache.Clear()
 	return nil
@@ -198,11 +198,11 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Header().Set("Connection", "close")
 			w.WriteHeader(http.StatusNotFound)
-			w.Write(s.ErrorContent)
+			_, _ = w.Write(s.ErrorContent)
 		} else {
 			if hj, ok := w.(http.Hijacker); ok {
 				c, _, _ := hj.Hijack()
-				c.Close()
+				_ = c.Close()
 			}
 		}
 		logs.Debug("Host not found: %s %s %s", r.URL.Scheme, r.Host, r.RequestURI)
@@ -216,7 +216,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 		logs.Warn("Blocked IP: %s", clientIP)
 		if hj, ok := w.(http.Hijacker); ok {
 			c, _, _ := hj.Hijack()
-			c.Close()
+			_ = c.Close()
 		}
 		return
 	}
@@ -228,7 +228,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// HTTP-Only
-	isHttpOnlyRequest := (s.httpOnlyPass != "" && r.Header.Get("X-NPS-Http-Only") == s.httpOnlyPass)
+	isHttpOnlyRequest := s.httpOnlyPass != "" && r.Header.Get("X-NPS-Http-Only") == s.httpOnlyPass
 	if isHttpOnlyRequest {
 		r.Header.Del("X-NPS-Http-Only")
 	}
@@ -366,7 +366,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 				//http.Error(rw, "502 Bad Gateway", http.StatusBadGateway)
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.WriteHeader(http.StatusBadGateway)
-				w.Write(s.ErrorContent)
+				_, _ = w.Write(s.ErrorContent)
 			}
 		},
 	}
@@ -381,7 +381,7 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		//http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusBadGateway)
-		w.Write(s.ErrorContent)
+		_, _ = w.Write(s.ErrorContent)
 		return
 	}
 
@@ -394,7 +394,7 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		//http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusBadGateway)
-		w.Write(s.ErrorContent)
+		_, _ = w.Write(s.ErrorContent)
 		return
 	}
 	rawConn := conn.GetConn(targetConn, link.Crypt, link.Compress, host.Client.Rate, true)
@@ -409,12 +409,12 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		la, _ := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
 		hdr := conn.BuildProxyProtocolHeaderByAddr(ra, la, host.Target.ProxyProtocol)
 		if hdr != nil {
-			netConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			_ = netConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 			if _, err := netConn.Write(hdr); err != nil {
-				netConn.Close()
+				_ = netConn.Close()
 				return
 			}
-			netConn.SetWriteDeadline(time.Time{})
+			_ = netConn.SetWriteDeadline(time.Time{})
 		}
 	}
 
@@ -424,7 +424,7 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		if err != nil {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusBadGateway)
-			w.Write(s.ErrorContent)
+			_, _ = w.Write(s.ErrorContent)
 			return
 		}
 	}
@@ -447,8 +447,8 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 	r.Close = false
 	if err := r.Write(netConn); err != nil {
 		logs.Error("handleWebsocket: failed to write handshake to backend: %v", err)
-		netConn.Close()
-		clientConn.Close()
+		_ = netConn.Close()
+		_ = clientConn.Close()
 		return
 	}
 
@@ -456,8 +456,8 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 	resp, err := http.ReadResponse(backendReader, r)
 	if err != nil {
 		logs.Error("handleWebsocket: failed to read handshake response from backend: %v", err)
-		netConn.Close()
-		clientConn.Close()
+		_ = netConn.Close()
+		_ = clientConn.Close()
 		return
 	}
 
@@ -465,21 +465,21 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		(r.Method != http.MethodConnect && resp.StatusCode == http.StatusSwitchingProtocols)
 	if !good {
 		logs.Error("handleWebsocket: unexpected status code in handshake: %d", resp.StatusCode)
-		netConn.Close()
-		clientConn.Close()
+		_ = netConn.Close()
+		_ = clientConn.Close()
 		return
 	}
 
 	if err := resp.Write(clientBuf); err != nil {
 		logs.Error("handleWebsocket: failed to write handshake response to client: %v", err)
-		netConn.Close()
-		clientConn.Close()
+		_ = netConn.Close()
+		_ = clientConn.Close()
 		return
 	}
 	if err := clientBuf.Flush(); err != nil {
 		logs.Error("handleWebsocket: failed to flush handshake response to client: %v", err)
-		netConn.Close()
-		clientConn.Close()
+		_ = netConn.Close()
+		_ = clientConn.Close()
 		return
 	}
 
@@ -489,8 +489,8 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 			netConn = conn.NewConnWithRb(netConn, pending)
 		} else {
 			logs.Error("handleWebsocket: read backend buffered data failed: %v", err)
-			netConn.Close()
-			clientConn.Close()
+			_ = netConn.Close()
+			_ = clientConn.Close()
 			return
 		}
 	}
@@ -500,8 +500,8 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		pending := make([]byte, bufReader.Buffered())
 		if _, err := bufReader.Read(pending); err != nil {
 			logs.Error("handleWebsocket: failed to read buffered data from client: %v", err)
-			netConn.Close()
-			clientConn.Close()
+			_ = netConn.Close()
+			_ = clientConn.Close()
 			return
 		}
 		clientConn = conn.NewConnWithRb(clientConn, pending)
@@ -547,12 +547,12 @@ func (s *HttpServer) DialContext(ctx context.Context, network, addr string) (net
 		la, _ := ctx.Value(http.LocalAddrContextKey).(*net.TCPAddr)
 		hdr := conn.BuildProxyProtocolHeaderByAddr(ra, la, h.Target.ProxyProtocol)
 		if hdr != nil {
-			flowConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			_ = flowConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 			if _, err := flowConn.Write(hdr); err != nil {
-				flowConn.Close()
+				_ = flowConn.Close()
 				return nil, fmt.Errorf("write PROXY header: %w", err)
 			}
-			flowConn.SetWriteDeadline(time.Time{})
+			_ = flowConn.SetWriteDeadline(time.Time{})
 		}
 	}
 	return flowConn, nil

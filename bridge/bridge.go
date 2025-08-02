@@ -27,13 +27,13 @@ import (
 )
 
 var (
-	ServerTcpEnable  bool = false
-	ServerKcpEnable  bool = false
-	ServerQuicEnable bool = false
-	ServerTlsEnable  bool = false
-	ServerWsEnable   bool = false
-	ServerWssEnable  bool = false
-	ServerSecureMode bool = false
+	ServerTcpEnable  = false
+	ServerKcpEnable  = false
+	ServerQuicEnable = false
+	ServerTlsEnable  = false
+	ServerWsEnable   = false
+	ServerWssEnable  = false
+	ServerSecureMode = false
 )
 
 type Bridge struct {
@@ -806,25 +806,27 @@ loop:
 			}
 
 			var strBuilder strings.Builder
-			file.GetDb().JsonDb.Hosts.Range(func(key, value interface{}) bool {
-				v := value.(*file.Host)
-				if v.Client.Id == id {
-					strBuilder.WriteString(v.Remark + common.CONN_DATA_SEQ)
-				}
-				return true
-			})
+			if client.IsConnect && !isPub {
+				file.GetDb().JsonDb.Hosts.Range(func(key, value interface{}) bool {
+					v := value.(*file.Host)
+					if v.Client.Id == id {
+						strBuilder.WriteString(v.Remark + common.CONN_DATA_SEQ)
+					}
+					return true
+				})
 
-			file.GetDb().JsonDb.Tasks.Range(func(key, value interface{}) bool {
-				v := value.(*file.Tunnel)
-				if _, ok := s.runList.Load(v.Id); ok && v.Client.Id == id {
-					strBuilder.WriteString(v.Remark + common.CONN_DATA_SEQ)
-				}
-				return true
-			})
-
+				file.GetDb().JsonDb.Tasks.Range(func(key, value interface{}) bool {
+					v := value.(*file.Tunnel)
+					if _, ok := s.runList.Load(v.Id); ok && v.Client.Id == id {
+						strBuilder.WriteString(v.Remark + common.CONN_DATA_SEQ)
+					}
+					return true
+				})
+			}
 			str := strBuilder.String()
 			_ = binary.Write(c, binary.LittleEndian, int32(len([]byte(str))))
 			_ = binary.Write(c, binary.LittleEndian, []byte(str))
+			break loop
 
 		case common.NEW_CONF:
 			client, err = c.GetConfigInfo()

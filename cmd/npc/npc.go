@@ -142,10 +142,12 @@ func main() {
 	if len(os.Args) >= 2 {
 		switch os.Args[1] {
 		case "status":
-			if len(os.Args) > 2 {
-				path := strings.Replace(os.Args[2], "-config=", "", -1)
-				client.GetTaskStatus(path)
-			}
+			//	if len(os.Args) > 2 {
+			//		path := strings.Replace(os.Args[2], "-config=", "", -1)
+			//		client.GetTaskStatus(path)
+			//	}
+			_ = flag.CommandLine.Parse(os.Args[2:])
+			client.GetTaskStatus(*serverAddr, *verifyKey, *connType, *proxyUrl)
 		case "register":
 			_ = flag.CommandLine.Parse(os.Args[2:])
 			client.RegisterLocalIp(*serverAddr, *verifyKey, *connType, *proxyUrl, *registerTime)

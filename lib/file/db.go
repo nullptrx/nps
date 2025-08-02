@@ -25,7 +25,7 @@ var (
 	TaskPasswordIndex = index.NewStringIDIndex()
 )
 
-// init csv from file
+// GetDb init csv from file
 func GetDb() *DbUtils {
 	once.Do(func() {
 		jsonDb := NewJsonDb(common.GetRunPath())
@@ -38,7 +38,7 @@ func GetDb() *DbUtils {
 	return Db
 }
 
-func GetMapKeys(m sync.Map, isSort bool, sortKey, order string) (keys []int) {
+func GetMapKeys(m *sync.Map, isSort bool, sortKey, order string) (keys []int) {
 	if (sortKey == "InletFlow" || sortKey == "ExportFlow") && isSort {
 		return sortClientByKey(m, sortKey, order)
 	}
@@ -54,7 +54,7 @@ func (s *DbUtils) GetClientList(start, length int, search, sort, order string, c
 	list := make([]*Client, 0)
 	var cnt int
 	originLength := length
-	keys := GetMapKeys(s.JsonDb.Clients, true, sort, order)
+	keys := GetMapKeys(&s.JsonDb.Clients, true, sort, order)
 	for _, key := range keys {
 		if value, ok := s.JsonDb.Clients.Load(key); ok {
 			v := value.(*Client)
@@ -216,7 +216,7 @@ func (s *DbUtils) DelTask(id int) error {
 	return nil
 }
 
-// md5 password
+// GetTaskByMd5Password md5 password
 func (s *DbUtils) GetTaskByMd5Password(p string) (t *Tunnel) {
 	id, ok := TaskPasswordIndex.Get(p)
 	if ok {
@@ -320,7 +320,7 @@ func (s *DbUtils) GetHost(start, length int, id int, search string) ([]*Host, in
 	list := make([]*Host, 0)
 	var cnt int
 	originLength := length
-	keys := GetMapKeys(s.JsonDb.Hosts, false, "", "")
+	keys := GetMapKeys(&s.JsonDb.Hosts, false, "", "")
 	for _, key := range keys {
 		if value, ok := s.JsonDb.Hosts.Load(key); ok {
 			v := value.(*Host)
@@ -467,7 +467,7 @@ func (s *DbUtils) GetHostById(id int) (h *Host, err error) {
 	return
 }
 
-// get key by host from x
+// GetInfoByHost get key by host from x
 func (s *DbUtils) GetInfoByHost(host string, r *http.Request) (h *Host, err error) {
 	host = common.GetIpByAddr(host)
 	hostLength := len(host)

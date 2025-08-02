@@ -11,15 +11,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -43,59 +40,55 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func GetTaskStatus(path string) {
-	cnf, err := config.NewConfig(path)
+func GetTaskStatus(server string, vKey string, tp string, proxyUrl string) {
+	c, err := NewConn(tp, vKey, server, common.WORK_CONFIG, proxyUrl)
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatalf("Failed to connect: %v", err)
 	}
-	c, err := NewConn(cnf.CommonConfig.Tp, cnf.CommonConfig.VKey, cnf.CommonConfig.Server, common.WORK_CONFIG, cnf.CommonConfig.ProxyUrl)
-	if err != nil {
-		log.Fatalln(err)
+	defer c.Close()
+	if _, err := c.BufferWrite([]byte(common.WORK_STATUS)); err != nil {
+		log.Fatalf("Failed to write WORK_STATUS: %v", err)
 	}
-	if _, err := c.Write([]byte(common.WORK_STATUS)); err != nil {
-		log.Fatalln(err)
-	}
-	//read now vKey and write to server
-	if f, err := common.ReadAllFromFile(filepath.Join(common.GetTmpPath(), "npc_vkey.txt")); err != nil {
-		log.Fatalln(err)
-	} else if _, err := c.Write([]byte(crypt.Blake2b(string(f)))); err != nil {
-		log.Fatalln(err)
+	if _, err := c.Write([]byte(crypt.Blake2b(vKey))); err != nil {
+		log.Fatalf("Failed to write auth key: %v", err)
 	}
 	var isPub bool
 	_ = binary.Read(c, binary.LittleEndian, &isPub)
-	if l, err := c.GetLen(); err != nil {
-		log.Fatalln(err)
-	} else if b, err := c.GetShortContent(l); err != nil {
-		log.Fatalln(err)
-	} else {
-		arr := strings.Split(string(b), common.CONN_DATA_SEQ)
-		for _, v := range cnf.Hosts {
-			if common.InStrArr(arr, v.Remark) {
-				log.Println(v.Remark, "ok")
-			} else {
-				log.Println(v.Remark, "not running")
-			}
-		}
-		for _, v := range cnf.Tasks {
-			ports := common.GetPorts(v.Ports)
-			if v.Mode == "secret" {
-				ports = append(ports, 0)
-			}
-			for _, vv := range ports {
-				var remark string
-				if len(ports) > 1 {
-					remark = v.Remark + "_" + strconv.Itoa(vv)
-				} else {
-					remark = v.Remark
-				}
-				if common.InStrArr(arr, remark) {
-					log.Println(remark, "ok")
-				} else {
-					log.Println(remark, "not running")
-				}
-			}
-		}
+	length, err := c.GetLen()
+	//log.Println(length)
+	if err != nil {
+		log.Fatalf("Failed to read length: %v", err)
 	}
+	data, err := c.GetShortContent(length)
+	//log.Println(string(data))
+	if err != nil {
+		log.Fatalf("Failed to read content: %v", err)
+	}
+	parts := strings.Split(string(data), common.CONN_DATA_SEQ)
+	if len(parts) > 0 && parts[len(parts)-1] == "" {
+		parts = parts[:len(parts)-1]
+	}
+	fmt.Println("===== Active Tunnels/Hosts =====")
+	fmt.Printf("Total active: %d\n", len(parts))
+	for i, name := range parts {
+		display := name
+		if display == "" {
+			display = "(no remark)"
+		}
+		fmt.Printf("  %d. %s\n", i+1, display)
+	}
+	os.Exit(0)
+}
+
+func RegisterLocalIp(server string, vKey string, tp string, proxyUrl string, hour int) {
+	c, err := NewConn(tp, vKey, server, common.WORK_REGISTER, proxyUrl)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	if err := binary.Write(c, binary.LittleEndian, int32(hour)); err != nil {
+		log.Fatalln(err)
+	}
+	log.Printf("Successful ip registration for local public network, the validity period is %d hours.", hour)
 	os.Exit(0)
 }
 
@@ -166,11 +159,11 @@ func StartFromFile(path string) {
 			vkey = string(b)
 		}
 
-		if err := ioutil.WriteFile(filepath.Join(common.GetTmpPath(), "npc_vkey.txt"), []byte(vkey), 0600); err != nil {
-			logs.Debug("Failed to write vkey file: %v", err)
-			//c.Close()
-			//continue
-		}
+		//if err := ioutil.WriteFile(filepath.Join(common.GetTmpPath(), "npc_vkey.txt"), []byte(vkey), 0600); err != nil {
+		//	logs.Debug("Failed to write vkey file: %v", err)
+		//	c.Close()
+		//	continue
+		//}
 
 		//send hosts to server
 		for _, v := range cnf.Hosts {

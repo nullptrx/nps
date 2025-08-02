@@ -178,10 +178,10 @@ func (hc *HealthChecker) doCheck(h *file.Health) {
 			if getErr != nil {
 				err = getErr
 			} else {
-				defer resp.Body.Close()
 				if resp.StatusCode != http.StatusOK {
 					err = fmt.Errorf("unexpected status %d", resp.StatusCode)
 				}
+				_ = resp.Body.Close()
 			}
 		default:
 			err = fmt.Errorf("unsupported health check type: %s", h.HealthCheckType)

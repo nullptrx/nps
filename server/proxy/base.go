@@ -45,7 +45,7 @@ func NewBaseServer(bridge NetBridge, task *file.Tunnel) *BaseServer {
 	}
 }
 
-// add the flow
+// FlowAdd add the flow
 func (s *BaseServer) FlowAdd(in, out int64) {
 	s.Lock()
 	defer s.Unlock()
@@ -53,7 +53,7 @@ func (s *BaseServer) FlowAdd(in, out int64) {
 	s.Task.Flow.InletFlow += in
 }
 
-// change the flow
+// FlowAddHost change the flow
 func (s *BaseServer) FlowAddHost(host *file.Host, in, out int64) {
 	s.Lock()
 	defer s.Unlock()
@@ -63,40 +63,40 @@ func (s *BaseServer) FlowAddHost(host *file.Host, in, out int64) {
 
 // write fail bytes to the connection
 func (s *BaseServer) writeConnFail(c net.Conn) {
-	c.Write([]byte(common.ConnectionFailBytes))
-	c.Write(s.ErrorContent)
+	_, _ = c.Write([]byte(common.ConnectionFailBytes))
+	_, _ = c.Write(s.ErrorContent)
 }
 
 // Auth check
 func (s *BaseServer) Auth(r *http.Request, c *conn.Conn, u, p string, multiAccount, userAuth *file.MultiAccount) error {
 	if !common.CheckAuth(r, u, p, file.GetAccountMap(multiAccount), file.GetAccountMap(userAuth)) {
 		if c != nil {
-			c.Write([]byte(common.UnauthorizedBytes))
-			c.Close()
+			_, _ = c.Write([]byte(common.UnauthorizedBytes))
+			_ = c.Close()
 		}
 		return errors.New("401 Unauthorized")
 	}
 	return nil
 }
 
-// check flow limit of the client ,and decrease the allow num of client
+// CheckFlowAndConnNum check flow limit of the client ,and decrease the allow num of client
 func (s *BaseServer) CheckFlowAndConnNum(client *file.Client) error {
 	if !client.Flow.TimeLimit.IsZero() && client.Flow.TimeLimit.Before(time.Now()) {
-		return errors.New("Service access expired.")
+		return errors.New("service access expired")
 	}
 	if client.Flow.FlowLimit > 0 && (client.Flow.FlowLimit<<20) < (client.Flow.ExportFlow+client.Flow.InletFlow) {
-		return errors.New("Traffic limit exceeded.")
+		return errors.New("traffic limit exceeded")
 	}
 	if !client.GetConn() {
-		return errors.New("Connection limit exceeded.")
+		return errors.New("connection limit exceeded")
 	}
 	return nil
 }
 
-func in(target string, str_array []string) bool {
-	sort.Strings(str_array)
-	index := sort.SearchStrings(str_array, target)
-	if index < len(str_array) && str_array[index] == target {
+func in(target string, strArray []string) bool {
+	sort.Strings(strArray)
+	index := sort.SearchStrings(strArray, target)
+	if index < len(strArray) && strArray[index] == target {
 		return true
 	}
 	return false
@@ -106,7 +106,7 @@ func (s *BaseServer) DealClient(c *conn.Conn, client *file.Client, addr string,
 	rb []byte, tp string, f func(), flows []*file.Flow, proxyProtocol int, localProxy bool, task *file.Tunnel) error {
 
 	if IsGlobalBlackIp(c.RemoteAddr().String()) || common.IsBlackIp(c.RemoteAddr().String(), client.VerifyKey, client.BlackIpList) {
-		c.Close()
+		_ = c.Close()
 		return nil
 	}
 
@@ -114,7 +114,7 @@ func (s *BaseServer) DealClient(c *conn.Conn, client *file.Client, addr string,
 	target, err := s.Bridge.SendLinkInfo(client.Id, link, s.Task)
 	if err != nil {
 		logs.Warn("get connection from client Id %d  error %v", client.Id, err)
-		c.Close()
+		_ = c.Close()
 		return err
 	}
 

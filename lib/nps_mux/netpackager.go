@@ -142,13 +142,14 @@ func (Self *muxPackager) Set(flag uint8, id int32, content interface{}) (err err
 	case muxMsgSendOk:
 		// MUX_MSG_SEND_OK contains one data
 		Self.window = content.(uint64)
+	default:
 	}
 	return
 }
 
 func (Self *muxPackager) Pack(writer io.Writer) (err error) {
 	//Self.buf = Self.buf[0:13]
-	Self.buf[0] = byte(Self.flag)
+	Self.buf[0] = Self.flag
 	binary.LittleEndian.PutUint32(Self.buf[1:5], uint32(Self.id))
 	switch Self.flag {
 	case muxNewMsg, muxNewMsgPart, muxPingFlag, muxPingReturn:
@@ -178,7 +179,7 @@ func (Self *muxPackager) UnPack(reader io.Reader) (n uint16, err error) {
 		return
 	}
 	n += uint16(l)
-	Self.flag = uint8(Self.buf[0])
+	Self.flag = Self.buf[0]
 	Self.id = int32(binary.LittleEndian.Uint32(Self.buf[1:5]))
 	switch Self.flag {
 	case muxNewMsg, muxNewMsgPart, muxPingFlag, muxPingReturn:
@@ -192,6 +193,7 @@ func (Self *muxPackager) UnPack(reader io.Reader) (n uint16, err error) {
 			Self.window = binary.LittleEndian.Uint64(Self.buf[5:13])
 			n += uint16(l) // uint64
 		}
+	default:
 	}
 	windowBuff.Put(Self.buf)
 	Self.buf = nil

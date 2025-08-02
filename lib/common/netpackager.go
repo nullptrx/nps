@@ -82,7 +82,7 @@ func (addr *Addr) Encode(b []byte) (int, error) {
 	case domainName:
 		b[pos] = byte(len(addr.Host))
 		pos++
-		pos += copy(b[pos:], []byte(addr.Host))
+		pos += copy(b[pos:], addr.Host)
 	case ipV6:
 		ip16 := net.ParseIP(addr.Host).To16()
 		if ip16 == nil {

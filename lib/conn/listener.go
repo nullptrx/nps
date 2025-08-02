@@ -40,7 +40,7 @@ func NewKcpListenerAndProcess(addr string, f func(c net.Conn)) error {
 		}
 		go f(c)
 	}
-	return nil
+	//return nil
 }
 
 func NewQuicListenerAndProcess(addr string, tlsConfig *tls.Config, f func(c net.Conn)) error {

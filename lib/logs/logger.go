@@ -192,6 +192,7 @@ func Init(
 }
 
 // Simple convenience methods
+
 func Trace(msg string, v ...interface{})  { Logger.Trace().Msgf(msg, v...) }
 func Debug(msg string, v ...interface{})  { Logger.Debug().Msgf(msg, v...) }
 func Info(msg string, v ...interface{})   { Logger.Info().Msgf(msg, v...) }

@@ -77,7 +77,7 @@ func NewHttpsServer(l net.Listener, bridge proxy.NetBridge, task *file.Tunnel, s
 	if _, err := io.ReadFull(rand.Reader, key[:]); err != nil {
 		logs.Error("failed to generate session ticket key: %v", err)
 		s := crypt.GetRandomString(len(key))
-		copy(key[:], []byte(s))
+		copy(key[:], s)
 	}
 	https.ticketKeys = append(https.ticketKeys, key)
 
@@ -87,7 +87,7 @@ func NewHttpsServer(l net.Listener, bridge proxy.NetBridge, task *file.Tunnel, s
 	https.certMagicTls.SetSessionTicketKeys(https.ticketKeys)
 
 	go func() {
-		if err := https.srv.Serve(https.httpsListener); err != nil && err != http.ErrServerClosed {
+		if err := https.srv.Serve(https.httpsListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logs.Error("HTTPS server exit: %v", err)
 		}
 	}()
@@ -108,13 +108,13 @@ func (https *HttpsServer) Start() error {
 		serverName := helloInfo.ServerName
 		if serverName == "" {
 			logs.Debug("IP access to HTTPS port is not allowed. Remote address: %v", c.RemoteAddr())
-			c.Close()
+			_ = c.Close()
 			return
 		}
 
 		host, err := file.GetDb().FindCertByHost(serverName)
 		if err != nil || host.IsClose {
-			c.Close()
+			_ = c.Close()
 			logs.Debug("The URL %s cannot be parsed! Remote address: %v", serverName, c.RemoteAddr())
 			return
 		}
@@ -154,7 +154,7 @@ func (https *HttpsServer) Start() error {
 		acceptConn := conn.NewConnWithRb(c, rb)
 		tlsConn := tls.Server(acceptConn, tlsConfig)
 		if err := tlsConn.Handshake(); err != nil {
-			tlsConn.Close()
+			_ = tlsConn.Close()
 			return
 		}
 		https.httpsListener.acceptConn <- tlsConn
@@ -163,7 +163,7 @@ func (https *HttpsServer) Start() error {
 }
 
 func checkHTTPAndRedirect(c net.Conn, rb []byte) {
-	c.SetDeadline(time.Now().Add(10 * time.Second))
+	_ = c.SetDeadline(time.Now().Add(10 * time.Second))
 	defer c.Close()
 
 	logs.Debug("Pre-read rb content: %q", string(rb))
@@ -176,7 +176,7 @@ func checkHTTPAndRedirect(c net.Conn, rb []byte) {
 	}
 	logs.Debug("HTTP Request Sent to HTTPS Port")
 	req.URL.Scheme = "https"
-	c.SetDeadline(time.Time{})
+	_ = c.SetDeadline(time.Time{})
 
 	_, err = file.GetDb().GetInfoByHost(req.Host, req)
 	if err != nil {
@@ -201,7 +201,7 @@ func checkHTTPAndRedirect(c net.Conn, rb []byte) {
 func (https *HttpsServer) handleHttpsProxy(host *file.Host, c net.Conn, rb []byte, sni string) {
 	if err := https.CheckFlowAndConnNum(host.Client); err != nil {
 		logs.Debug("Client id %d, host id %d, error %v during https connection", host.Client.Id, host.Id, err)
-		c.Close()
+		_ = c.Close()
 		return
 	}
 	defer host.Client.CutConn()
@@ -211,15 +211,15 @@ func (https *HttpsServer) handleHttpsProxy(host *file.Host, c net.Conn, rb []byt
 	targetAddr, err := host.Target.GetRandomTarget()
 	if err != nil {
 		logs.Warn("%v", err)
-		c.Close()
+		_ = c.Close()
 		return
 	}
 	logs.Info("New HTTPS connection, clientId %d, host %s, remote address %v", host.Client.Id, sni, c.RemoteAddr())
-	https.DealClient(conn.NewConn(c), host.Client, targetAddr, rb, common.CONN_TCP, nil, []*file.Flow{host.Flow, host.Client.Flow}, host.Target.ProxyProtocol, host.Target.LocalProxy, nil)
+	_ = https.DealClient(conn.NewConn(c), host.Client, targetAddr, rb, common.CONN_TCP, nil, []*file.Flow{host.Flow, host.Client.Flow}, host.Target.ProxyProtocol, host.Target.LocalProxy, nil)
 }
 
 func (https *HttpsServer) Close() error {
-	https.srv.Close()
+	_ = https.srv.Close()
 	close(https.httpsListener.acceptConn)
 	https.cert.Stop()
 	return https.listener.Close()

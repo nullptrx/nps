@@ -20,7 +20,6 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-// en
 func AesEncrypt(origData, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -34,7 +33,6 @@ func AesEncrypt(origData, key []byte) ([]byte, error) {
 	return crypted, nil
 }
 
-// de
 func AesDecrypt(crypted, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -48,14 +46,14 @@ func AesDecrypt(crypted, key []byte) ([]byte, error) {
 	return origData, err
 }
 
-// Completion when the length is insufficient
+// PKCS5Padding Completion when the length is insufficient
 func PKCS5Padding(ciphertext []byte, blockSize int) []byte {
 	padding := blockSize - len(ciphertext)%blockSize
 	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
 	return append(ciphertext, padtext...)
 }
 
-// Remove excess
+// PKCS5UnPadding Remove excess
 func PKCS5UnPadding(origData []byte) (error, []byte) {
 	length := len(origData)
 	unpadding := int(origData[length-1])
@@ -113,7 +111,7 @@ func DecryptBytes(enc []byte, keyStr string) ([]byte, error) {
 	return pt, nil
 }
 
-// Get HMAC value
+// ComputeHMAC Get HMAC value
 func ComputeHMAC(vkey string, timestamp int64, randomDataPieces ...[]byte) []byte {
 	key := []byte(vkey)
 	tsBuf := make([]byte, 8)
@@ -126,14 +124,14 @@ func ComputeHMAC(vkey string, timestamp int64, randomDataPieces ...[]byte) []byt
 	return mac.Sum(nil) // 32bit
 }
 
-// Generate 32-bit MD5 strings
+// Md5 Generate 32-bit MD5 strings
 func Md5(s string) string {
 	h := md5.New()
 	h.Write([]byte(s))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// Generate 64-bit BLAKE2b-256 strings
+// Blake2b Generate 64-bit BLAKE2b-256 strings
 func Blake2b(s string) string {
 	hash := blake2b.Sum256([]byte(s))
 	return hex.EncodeToString(hash[:])
@@ -142,8 +140,8 @@ func Blake2b(s string) string {
 func FNV1a64(parts ...string) string {
 	h := fnv.New64a()
 	for _, s := range parts {
-		h.Write([]byte(s))
-		h.Write([]byte{0})
+		_, _ = h.Write([]byte(s))
+		_, _ = h.Write([]byte{0})
 	}
 	sum := h.Sum(nil) // 8 bytes
 	return hex.EncodeToString(sum)

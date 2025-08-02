@@ -240,9 +240,9 @@ func (s *IndexController) Edit() {
 			}
 			t.Target.ProxyProtocol = s.GetIntNoErr("proxy_protocol")
 			t.Target.LocalProxy = (clientId > 0 && s.GetBoolNoErr("local_proxy")) || clientId <= 0
-			file.GetDb().UpdateTask(t)
-			server.StopServer(t.Id)
-			server.StartTask(t.Id)
+			_ = file.GetDb().UpdateTask(t)
+			_ = server.StopServer(t.Id)
+			_ = server.StartTask(t.Id)
 		}
 		s.AjaxOk("modified success")
 	}
@@ -331,7 +331,7 @@ func changeStatus(id int, name, action string) (err error) {
 		if name == "time_limit" && action == "clear" {
 			t.Flow.TimeLimit = common.GetTimeNoErrByStr("")
 		}
-		file.GetDb().UpdateTask(t)
+		_ = file.GetDb().UpdateTask(t)
 		//server.StopServer(t.Id)
 		//server.StartTask(t.Id)
 	}

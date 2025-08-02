@@ -19,7 +19,7 @@ func newWindowBufferPool() *windowBufferPool {
 	return &windowBufferPool{
 		pool: sync.Pool{
 			New: func() interface{} {
-				return make([]byte, poolSizeWindowBuffer, poolSizeWindowBuffer)
+				return make([]byte, poolSizeWindowBuffer)
 			},
 		},
 	}
