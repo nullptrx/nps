@@ -38,7 +38,7 @@ func (s *SecretServer) HandleSecret(src net.Conn) error {
 		lk = &conn.Link{ConnType: common.CONN_TCP}
 		_, rb = tee.Release()
 	}
-	tee.StopAndCleanBuffer()
+	tee.StopAndClean()
 
 	link := conn.NewLink(lk.ConnType, s.Task.Target.TargetStr, s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, c.Conn.RemoteAddr().String(), false)
 	target, err := s.Bridge.SendLinkInfo(s.Task.Client.Id, link, s.Task)

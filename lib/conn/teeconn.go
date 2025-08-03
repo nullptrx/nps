@@ -93,13 +93,13 @@ func (t *TeeConn) Release() (net.Conn, []byte) {
 	defer t.mu.Unlock()
 	t.detached = true
 	data := append([]byte(nil), t.buf.Bytes()...)
-	t.buf.Reset()
+	t.buf = new(bytes.Buffer)
 	return t.underlying, data
 }
 
-func (t *TeeConn) StopAndCleanBuffer() {
+func (t *TeeConn) StopAndClean() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.detached = true
-	t.buf.Reset()
+	t.buf = new(bytes.Buffer)
 }

@@ -190,6 +190,16 @@
             {{ end }}
             {{ if or (not .type) (eq .type "secret") (eq .type "p2p") }}
             {
+                field: 'TargetType', //域值
+                title: '<span langtag="word-targettype"></span>', //标题
+                halign: 'center',
+                visible: true, //false表示不显示
+                sortable: true, //启用排序
+                formatter: function (value, row, index) {
+                    return '<span onclick="oCopy(this)">' + String(value).toUpperCase() + '</span>'
+                }
+            },
+            {
                 field: 'Password', //域值
                 title: '<span langtag="word-identificationkey"></span>', //标题
                 halign: 'center',
