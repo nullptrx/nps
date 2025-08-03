@@ -143,7 +143,7 @@ npc update && npc restart
   - P2P 支持双栈连接
   - 整理优化代码
   - 修正拼写错误
-  - P2P 在双方支持是自动使用 QUIC 建立连接
+  - P2P 在双方支持时自动使用 QUIC 建立连接
   - P2P 支持原生 QUIC 特性
   - 修复 NPC 的 status 查询功能
   - 优化超时释放逻辑
