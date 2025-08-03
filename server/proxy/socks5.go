@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
@@ -221,6 +222,7 @@ func (s *TunnelModeServer) handleUDP(c net.Conn) {
 	defer reply.Close()
 	// new a tunnel to client
 	link := conn.NewLink("udp5", "", s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, c.RemoteAddr().String(), s.AllowLocalProxy && s.Task.Target.LocalProxy)
+	link.Option.Timeout = time.Second * 180
 	target, err := s.Bridge.SendLinkInfo(s.Task.Client.Id, link, s.Task)
 	if err != nil {
 		logs.Warn("get connection from client Id %d  error %v", s.Task.Client.Id, err)
