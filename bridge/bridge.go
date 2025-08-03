@@ -609,6 +609,11 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 			_ = c.Close()
 			return
 		}
+		if t.Mode != "p2p" {
+			logs.Error("p2p is not supported in %s mode", t.Mode)
+			_ = c.Close()
+			return
+		}
 		v, ok := s.Client.Load(t.Client.Id)
 		if !ok {
 			_ = c.Close()
