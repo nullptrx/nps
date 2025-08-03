@@ -61,7 +61,7 @@ func GetLenBytes(buf []byte) (b []byte, err error) {
 
 // SetUdpSession udp connection setting
 func SetUdpSession(sess *kcp.UDPSession) {
-	sess.SetStreamMode(true)
+	//sess.SetStreamMode(true)
 	sess.SetWindowSize(1024, 1024)
 	_ = sess.SetReadBuffer(64 * 1024)
 	_ = sess.SetWriteBuffer(64 * 1024)

@@ -57,8 +57,8 @@ func (c *WsConn) Write(p []byte) (int, error) {
 }
 
 func (c *WsConn) Close() error         { return c.Conn.Close() }
-func (c *WsConn) LocalAddr() net.Addr  { return c.Conn.UnderlyingConn().LocalAddr() }
-func (c *WsConn) RemoteAddr() net.Addr { return c.Conn.UnderlyingConn().RemoteAddr() }
+func (c *WsConn) LocalAddr() net.Addr  { return c.Conn.NetConn().LocalAddr() }
+func (c *WsConn) RemoteAddr() net.Addr { return c.Conn.NetConn().RemoteAddr() }
 func (c *WsConn) SetDeadline(t time.Time) error {
 	_ = c.Conn.SetReadDeadline(t)
 	return c.Conn.SetWriteDeadline(t)

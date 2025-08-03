@@ -268,12 +268,12 @@ func NewNpc(pCtx context.Context) *Npc {
 	}
 }
 
-func (p *Npc) Start(s service.Service) error {
+func (p *Npc) Start(_ service.Service) error {
 	go p.run()
 	return nil
 }
 
-func (p *Npc) Stop(s service.Service) error {
+func (p *Npc) Stop(_ service.Service) error {
 	close(p.exit)
 	p.cancel()
 	if service.Interactive() {

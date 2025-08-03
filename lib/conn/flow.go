@@ -38,9 +38,9 @@ func NewRWConn(conn io.ReadWriteCloser) *RWConn {
 
 func (c *RWConn) LocalAddr() net.Addr                { return c.FakeAddr }
 func (c *RWConn) RemoteAddr() net.Addr               { return c.FakeAddr }
-func (c *RWConn) SetDeadline(t time.Time) error      { return nil }
-func (c *RWConn) SetReadDeadline(t time.Time) error  { return nil }
-func (c *RWConn) SetWriteDeadline(t time.Time) error { return nil }
+func (c *RWConn) SetDeadline(_ time.Time) error      { return nil }
+func (c *RWConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (c *RWConn) SetWriteDeadline(_ time.Time) error { return nil }
 
 type FlowConn struct {
 	*RWConn

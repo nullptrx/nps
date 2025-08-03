@@ -163,7 +163,7 @@ func (hc *HealthChecker) doCheck(h *file.Health) {
 		case "tcp":
 			c, errDial := net.DialTimeout("tcp", target, timeout)
 			if errDial == nil {
-				c.Close()
+				_ = c.Close()
 			} else {
 				err = errDial
 			}
@@ -190,11 +190,11 @@ func (hc *HealthChecker) doCheck(h *file.Health) {
 		if err != nil {
 			h.HealthMap[target]++
 			if h.HealthMap[target]%h.HealthMaxFail == 0 {
-				hc.serverConn.SendHealthInfo(target, "0")
+				_, _ = hc.serverConn.SendHealthInfo(target, "0")
 			}
 		} else {
 			if h.HealthMap[target] >= h.HealthMaxFail {
-				hc.serverConn.SendHealthInfo(target, "1")
+				_, _ = hc.serverConn.SendHealthInfo(target, "1")
 			}
 			h.HealthMap[target] = 0
 		}

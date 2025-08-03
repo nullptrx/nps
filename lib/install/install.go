@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -27,7 +26,7 @@ import (
 
 var BuildTarget string
 
-// Keep it in sync with the template from service_sysv_linux.go file
+// SysvScript Keep it in sync with the template from service_sysv_linux.go file
 // Use "ps | grep -v grep | grep $(get_pid)" because "ps PID" may not work on OpenWrt
 const SysvScript = `#!/bin/sh
 # For RedHat and cousins:
@@ -210,7 +209,7 @@ func downloadLatest(bin string) string {
 	}
 	defer data.Body.Close()
 
-	b, err := ioutil.ReadAll(data.Body)
+	b, err := io.ReadAll(data.Body)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -286,7 +285,7 @@ func downloadLatest(bin string) string {
 		reader = io.TeeReader(resp.Body, hasher)
 	}
 
-	destPath, err := ioutil.TempDir(os.TempDir(), "nps-")
+	destPath, err := os.MkdirTemp(os.TempDir(), "nps-")
 	if err != nil {
 		log.Fatal("Failed to create temp directory:", err)
 	}

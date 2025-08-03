@@ -67,7 +67,7 @@ func NewP2PManager(parentCtx context.Context) *P2PManager {
 	return mgr
 }
 
-func (b *p2pBridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (net.Conn, error) {
+func (b *p2pBridge) SendLinkInfo(_ int, link *conn.Link, _ *file.Tunnel) (net.Conn, error) {
 	mgr := b.mgr
 	ctx, cancel := context.WithTimeout(mgr.ctx, 200*time.Millisecond)
 	defer cancel()
@@ -485,7 +485,7 @@ func (mgr *P2PManager) Close() {
 	mgr.mu.Lock()
 	psList := mgr.proxyServers
 	udp := mgr.udpConn
-	mux := mgr.muxSession
+	muxSess := mgr.muxSession
 	qConn := mgr.quicConn
 	mgr.mu.Unlock()
 
@@ -495,8 +495,8 @@ func (mgr *P2PManager) Close() {
 	if udp != nil {
 		_ = udp.Close()
 	}
-	if mux != nil {
-		_ = mux.Close()
+	if muxSess != nil {
+		_ = muxSess.Close()
 	}
 	if qConn != nil {
 		_ = qConn.CloseWithError(0, "close quic")

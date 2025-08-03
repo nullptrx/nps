@@ -352,7 +352,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			_ = rawConn.Close()
 			return nil, err
 		}
-		if underlying := wsConn.UnderlyingConn(); underlying != nil {
+		if underlying := wsConn.NetConn(); underlying != nil {
 			tlsFp, tlsVerify = VerifyTLS(underlying, host)
 		}
 		connection = conn.NewWsConn(wsConn)

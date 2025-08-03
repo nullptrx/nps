@@ -11,7 +11,6 @@ import (
 	"html"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/big"
 	"net"
@@ -647,7 +646,7 @@ func ReadAllFromFile(filePath string) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return ioutil.ReadAll(f)
+	return io.ReadAll(f)
 }
 
 func GetPath(filePath string) string {
@@ -1101,7 +1100,7 @@ func FetchExternalIp() string {
 		if err != nil {
 			continue
 		}
-		content, _ := ioutil.ReadAll(resp.Body)
+		content, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		ip := string(content)
 		if IsValidIP(ip) {
