@@ -14,7 +14,7 @@ import (
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/logs"
-	"github.com/djylb/nps/lib/nps_mux"
+	"github.com/djylb/nps/lib/mux"
 	"github.com/djylb/nps/server/proxy"
 	"github.com/quic-go/quic-go"
 	"github.com/xtaci/kcp-go/v5"
@@ -36,7 +36,7 @@ type P2PManager struct {
 	cfg          *config.CommonConfig
 	local        *config.LocalServer
 	udpConn      net.Conn
-	muxSession   *nps_mux.Mux
+	muxSession   *mux.Mux
 	quicConn     *quic.Conn
 	bridge       *p2pBridge
 	statusOK     bool
@@ -461,7 +461,7 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 		mgr.muxSession = nil
 	} else {
 		mgr.udpConn = udpTunnel
-		mgr.muxSession = nps_mux.NewMux(udpTunnel, "kcp", cfg.DisconnectTime)
+		mgr.muxSession = mux.NewMux(udpTunnel, "kcp", cfg.DisconnectTime)
 	}
 	mgr.statusOK = true
 	mgr.mu.Unlock()

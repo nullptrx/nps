@@ -1,4 +1,4 @@
-package nps_mux
+package mux
 
 import (
 	"encoding/binary"

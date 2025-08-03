@@ -8,7 +8,7 @@ type Secret struct {
 	//Type     string // tcp/udp
 	Password string
 	Conn     *Conn
-	//Tunnel   *nps_mux.Mux
+	//Tunnel   *mux.Mux
 }
 
 func NewSecret(p string, conn *Conn) *Secret {

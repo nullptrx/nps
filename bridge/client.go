@@ -8,7 +8,7 @@ import (
 
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/logs"
-	"github.com/djylb/nps/lib/nps_mux"
+	"github.com/djylb/nps/lib/mux"
 	"github.com/djylb/nps/lib/pool"
 )
 
@@ -90,24 +90,24 @@ func SetClientSelectMode(v any) error {
 
 type Client struct {
 	Id        int
-	signal    atomic.Pointer[conn.Conn]   // WORK_MAIN
-	tunnel    atomic.Pointer[nps_mux.Mux] // WORK_CHAN
-	file      atomic.Pointer[nps_mux.Mux] // WORK_FILE
+	signal    atomic.Pointer[conn.Conn] // WORK_MAIN
+	tunnel    atomic.Pointer[mux.Mux]   // WORK_CHAN
+	file      atomic.Pointer[mux.Mux]   // WORK_FILE
 	signals   *pool.Pool[*conn.Conn]
-	tunnels   *pool.Pool[*nps_mux.Mux]
-	files     *pool.Pool[*nps_mux.Mux]
+	tunnels   *pool.Pool[*mux.Mux]
+	files     *pool.Pool[*mux.Mux]
 	Version   string
 	retryTime int // it will add 1 when ping not ok until to 3 will close the client
 	closed    uint32
 }
 
-func NewClient(id int, t, f *nps_mux.Mux, s *conn.Conn, vs string) *Client {
+func NewClient(id int, t, f *mux.Mux, s *conn.Conn, vs string) *Client {
 	cli := &Client{
 		Id:      id,
 		Version: vs,
 		signals: pool.New[*conn.Conn](),
-		tunnels: pool.New[*nps_mux.Mux](),
-		files:   pool.New[*nps_mux.Mux](),
+		tunnels: pool.New[*mux.Mux](),
+		files:   pool.New[*mux.Mux](),
 	}
 	if s != nil {
 		cli.signal.Store(s)
@@ -133,7 +133,7 @@ func (c *Client) AddSignal(s *conn.Conn) {
 	c.signal.Store(s)
 }
 
-func (c *Client) AddTunnel(t *nps_mux.Mux) {
+func (c *Client) AddTunnel(t *mux.Mux) {
 	if c.IsClosed() {
 		_ = t.Close()
 		return
@@ -142,7 +142,7 @@ func (c *Client) AddTunnel(t *nps_mux.Mux) {
 	c.tunnel.Store(t)
 }
 
-func (c *Client) AddFile(f *nps_mux.Mux) {
+func (c *Client) AddFile(f *mux.Mux) {
 	if c.IsClosed() {
 		_ = f.Close()
 		return
@@ -234,7 +234,7 @@ func (c *Client) GetSignal() *conn.Conn {
 	return c.signal.Load()
 }
 
-func (c *Client) GetTunnel() *nps_mux.Mux {
+func (c *Client) GetTunnel() *mux.Mux {
 	switch ClientSelectMode {
 	case Primary:
 		c.SwitchTunnel()
@@ -252,7 +252,7 @@ func (c *Client) GetTunnel() *nps_mux.Mux {
 	return c.tunnel.Load()
 }
 
-func (c *Client) GetFile() *nps_mux.Mux {
+func (c *Client) GetFile() *mux.Mux {
 	switch ClientSelectMode {
 	case Primary:
 		c.SwitchFile()
@@ -292,8 +292,8 @@ func (c *Client) Close() error {
 	}
 
 	c.signals.Clear(func(s *conn.Conn) { _ = s.Close() })
-	c.tunnels.Clear(func(m *nps_mux.Mux) { _ = m.Close() })
-	c.files.Clear(func(m *nps_mux.Mux) { _ = m.Close() })
+	c.tunnels.Clear(func(m *mux.Mux) { _ = m.Close() })
+	c.files.Clear(func(m *mux.Mux) { _ = m.Close() })
 	return nil
 }
 

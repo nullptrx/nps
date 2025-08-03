@@ -15,7 +15,7 @@ import (
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/logs"
-	"github.com/djylb/nps/lib/nps_mux"
+	"github.com/djylb/nps/lib/mux"
 	"golang.org/x/net/webdav"
 )
 
@@ -30,7 +30,7 @@ type FileServerManager struct {
 	wg      sync.WaitGroup
 	servers []struct {
 		srv        *http.Server
-		listener   *nps_mux.Mux
+		listener   *mux.Mux
 		remoteConn *conn.Conn
 	}
 }
@@ -101,11 +101,11 @@ func (fsm *FileServerManager) StartFileServer(cfg *config.CommonConfig, t *file.
 		Handler:     handler,
 	}
 	logs.Info("start WebDAV server, local path %s, strip prefix %s, remote port %s", t.LocalPath, t.StripPre, t.Ports)
-	listener := nps_mux.NewMux(remoteConn.Conn, common.CONN_TCP, cfg.DisconnectTime)
+	listener := mux.NewMux(remoteConn.Conn, common.CONN_TCP, cfg.DisconnectTime)
 	fsm.mu.Lock()
 	fsm.servers = append(fsm.servers, struct {
 		srv        *http.Server
-		listener   *nps_mux.Mux
+		listener   *mux.Mux
 		remoteConn *conn.Conn
 	}{srv, listener, remoteConn})
 	fsm.mu.Unlock()

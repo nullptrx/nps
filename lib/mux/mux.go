@@ -1,4 +1,4 @@
-package nps_mux
+package mux
 
 import (
 	"encoding/binary"
@@ -149,12 +149,21 @@ func (s *Mux) sendInfo(flag uint8, id int32, data interface{}) {
 }
 
 func (s *Mux) writeSession() {
+	fw := NewFlushWriter(s.conn)
 	go func() {
+		defer func() {
+			_ = fw.Flush()
+			_ = fw.Close()
+		}()
 		for {
 			if s.IsClosed() {
 				break
 			}
-			pack := s.writeQueue.Pop()
+			pack := s.writeQueue.TryPop()
+			if pack == nil {
+				_ = fw.Flush()
+				pack = s.writeQueue.Pop()
+			}
 			if pack == nil {
 				break
 			}
@@ -165,7 +174,7 @@ func (s *Mux) writeSession() {
 			//		logs.Println("write session id", pack.id, "\n", string(pack.content[:pack.length]))
 			//	}
 			//}
-			err := pack.Pack(s.conn)
+			err := pack.Pack(fw)
 			muxPack.Put(pack)
 			if err != nil {
 				logs.Println("mux: Pack err", err)

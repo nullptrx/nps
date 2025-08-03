@@ -20,7 +20,7 @@ import (
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/logs"
-	"github.com/djylb/nps/lib/nps_mux"
+	"github.com/djylb/nps/lib/mux"
 	"github.com/djylb/nps/lib/version"
 	"github.com/djylb/nps/server/connection"
 	"github.com/djylb/nps/server/tool"
@@ -554,7 +554,7 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 		logs.Info("clientId %d connection succeeded, address:%v ", id, c.Conn.RemoteAddr())
 
 	case common.WORK_CHAN:
-		muxConn := nps_mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime)
+		muxConn := mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime)
 		if v, loaded := s.Client.LoadOrStore(id, NewClient(id, muxConn, nil, nil, vs)); loaded {
 			client := v.(*Client)
 			//if client.tunnel != nil {
@@ -586,7 +586,7 @@ func (s *Bridge) typeDeal(typeVal string, c *conn.Conn, id int, vs string) {
 		s.SecretChan <- conn.NewSecret(string(b), c)
 
 	case common.WORK_FILE:
-		muxConn := nps_mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime)
+		muxConn := mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime)
 		if v, loaded := s.Client.LoadOrStore(id, NewClient(id, nil, muxConn, nil, vs)); loaded {
 			client := v.(*Client)
 			//if client.file != nil {
@@ -710,7 +710,7 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 		}
 	}
 
-	var tunnel *nps_mux.Mux
+	var tunnel *mux.Mux
 	if t != nil && t.Mode == "file" {
 		tunnel = client.GetFile()
 	} else {

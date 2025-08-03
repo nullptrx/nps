@@ -18,7 +18,7 @@ import (
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/logs"
-	"github.com/djylb/nps/lib/nps_mux"
+	"github.com/djylb/nps/lib/mux"
 	"github.com/quic-go/quic-go"
 	"github.com/xtaci/kcp-go/v5"
 )
@@ -29,7 +29,7 @@ type TRPClient struct {
 	proxyUrl       string
 	vKey           string
 	p2pAddr        map[string]string
-	tunnel         *nps_mux.Mux
+	tunnel         *mux.Mux
 	signal         *conn.Conn
 	ticker         *time.Ticker
 	cnf            *config.Config
@@ -210,7 +210,7 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 				conn.SetUdpSession(udpTunnel)
 				logs.Trace("successful connection with client ,address %v", udpTunnel.RemoteAddr())
 				//read link info from remote
-				tunnel := nps_mux.NewMux(udpTunnel, "kcp", s.disconnectTime)
+				tunnel := mux.NewMux(udpTunnel, "kcp", s.disconnectTime)
 				conn.Accept(tunnel, func(c net.Conn) {
 					go s.handleChan(c)
 				})
@@ -229,7 +229,7 @@ func (s *TRPClient) newChan() {
 		logs.Error("failed to connect to server %s error: %v", s.svrAddr, err)
 		return
 	}
-	s.tunnel = nps_mux.NewMux(tunnel.Conn, s.bridgeConnType, s.disconnectTime)
+	s.tunnel = mux.NewMux(tunnel.Conn, s.bridgeConnType, s.disconnectTime)
 	go func() {
 		for {
 			select {
