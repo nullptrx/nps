@@ -73,14 +73,24 @@ func (b *p2pBridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) 
 	defer cancel()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
+	first := true
 	for {
+		var tick <-chan time.Time
+		if first {
+			first = false
+			ch := make(chan time.Time, 1)
+			ch <- time.Time{}
+			tick = ch
+		} else {
+			tick = ticker.C
+		}
 		select {
 		case <-ctx.Done():
 			mgr.mu.Lock()
 			mgr.statusOK = false
 			mgr.mu.Unlock()
 			return nil, errors.New("timeout waiting P2P tunnel")
-		case <-ticker.C:
+		case <-tick:
 			if mgr.p2p {
 				mgr.mu.Lock()
 				qConn := mgr.quicConn
