@@ -22,6 +22,7 @@ type Service interface {
 
 type NetBridge interface {
 	SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (target net.Conn, err error)
+	IsServer() bool
 }
 
 // BaseServer struct
@@ -79,7 +80,7 @@ func (s *BaseServer) Auth(r *http.Request, c *conn.Conn, u, p string, multiAccou
 	return nil
 }
 
-// CheckFlowAndConnNum check flow limit of the client ,and decrease the allow num of client
+// CheckFlowAndConnNum check flow limit of the client ,and decrease the allowed num of client
 func (s *BaseServer) CheckFlowAndConnNum(client *file.Client) error {
 	if !client.Flow.TimeLimit.IsZero() && client.Flow.TimeLimit.Before(time.Now()) {
 		return errors.New("service access expired")

@@ -29,6 +29,7 @@ var (
 	trustedSet sync.Map // key:string -> struct{}
 	vkeyToFp   sync.Map // key:vkey(string) -> fpHex(string)
 	SkipVerify = false
+	tlsCfg     *tls.Config
 )
 
 func InitTls(customCert tls.Certificate) {
@@ -46,7 +47,10 @@ func InitTls(customCert tls.Certificate) {
 			logs.Error("Error initializing crypto certs %v", err)
 		}
 	}
-
+	tlsCfg = &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		NextProtos:   []string{"h3", "h2", "http/1.1"},
+	}
 	if key, ok := cert.PrivateKey.(*rsa.PrivateKey); ok {
 		rsaKey = key
 		logs.Info("Using RSA private key from TLS certificate.")
@@ -67,6 +71,10 @@ func GetFakeDomainName() string {
 
 func GetCert() tls.Certificate {
 	return cert
+}
+
+func GetCertCfg() *tls.Config {
+	return tlsCfg
 }
 
 func GetPublicKeyPEM() (string, error) {

@@ -25,11 +25,12 @@ type CommonConfig struct {
 }
 
 type LocalServer struct {
-	Type     string
-	Port     int
-	Ip       string
-	Password string
-	Target   string
+	Type       string
+	Port       int
+	Ip         string
+	Password   string
+	Target     string
+	TargetType string
 }
 
 type Config struct {

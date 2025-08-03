@@ -37,6 +37,7 @@ var (
 	localPort      = flag.Int("local_port", 2000, "P2P local port")
 	password       = flag.String("password", "", "P2P password flag")
 	target         = flag.String("target", "", "P2P target")
+	targetType     = flag.String("target_type", "all", "P2P target connection type (all|tcp|udp)")
 	localType      = flag.String("local_type", "p2p", "P2P target type")
 	logPath        = flag.String("log_path", "", "NPC log path (empty to use default, 'off' to disable)")
 	logMaxSize     = flag.Int("log_max_size", 5, "Maximum log file size in MB before rotation (0 to disable)")
@@ -311,11 +312,12 @@ func run(ctx context.Context) {
 		commonConfig := new(config.CommonConfig)
 		commonConfig.Server = *serverAddr
 		commonConfig.VKey = *verifyKey
-		commonConfig.Tp = *connType
+		commonConfig.Tp = strings.ToLower(*connType)
 		localServer := new(config.LocalServer)
-		localServer.Type = *localType
+		localServer.Type = strings.ToLower(*localType)
 		localServer.Password = *password
 		localServer.Target = *target
+		localServer.TargetType = strings.ToLower(*targetType)
 		localServer.Port = *localPort
 		commonConfig.Client = new(file.Client)
 		commonConfig.Client.Cnf = new(file.Config)

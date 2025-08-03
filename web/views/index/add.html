@@ -113,6 +113,16 @@
                             <span class="help-block m-b-none" langtag="info-targetauth"></span>
                         </div>
                     </div>
+                    <div class="form-group" id="target_type">
+                        <label class="control-label font-bold" langtag="word-targettype"></label>
+                        <div class="col-sm-12">
+                            <select class="form-control selectpicker" name="target_type">
+                                <option value="all">ALL</option>
+                                <option value="tcp">TCP</option>
+                                <option value="udp">UDP</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="form-group" id="target">
                         <label class="control-label font-bold" langtag="word-target"></label>
                         <div class="col-sm-12">
@@ -164,8 +174,8 @@
     arr["mixProxy"] = ["auth", "port", "client_id", "server_ip", "mix_proxy", "flow_reset", "flow_limit", "time_limit"]
     //arr["socks5"] = ["auth", "port", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
     //arr["httpProxy"] = ["auth", "port", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
-    arr["secret"] = ["target", "password", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
-    arr["p2p"] = ["target", "password", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
+    arr["secret"] = ["target_type", "target", "password", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
+    arr["p2p"] = ["target_type", "target", "password", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
     arr["file"] = ["port", "local_path", "strip_pre", "client_id", "server_ip", "flow_reset", "flow_limit", "time_limit"]
 
     function resetForm() {

@@ -67,6 +67,9 @@ func (s *JsonDb) LoadTaskFromJsonFile() {
 			post.HttpProxy = true
 			post.Socks5Proxy = false
 		}
+		if post.TargetType != common.CONN_TCP && post.TargetType != common.CONN_UDP {
+			post.TargetType = common.CONN_ALL
+		}
 		s.Tasks.Store(post.Id, post)
 		if post.Id > int(s.TaskIncreaseId) {
 			s.TaskIncreaseId = int32(post.Id)

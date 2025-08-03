@@ -69,7 +69,7 @@ func (s *UdpModeServer) Start() error {
 		}
 
 		// IP blacklist check
-		if IsGlobalBlackIp(addr.String()) || common.IsBlackIp(addr.String(), s.Task.Client.VerifyKey, s.Task.Client.BlackIpList) {
+		if s.Bridge.IsServer() && (IsGlobalBlackIp(addr.String()) || common.IsBlackIp(addr.String(), s.Task.Client.VerifyKey, s.Task.Client.BlackIpList)) {
 			common.PutBufPoolUdp(buf)
 			continue
 		}
@@ -120,17 +120,19 @@ func (s *UdpModeServer) clientWorker(addr *net.UDPAddr, ent *entry) {
 		}
 	}()
 
-	if err := s.CheckFlowAndConnNum(s.Task.Client); err != nil {
-		logs.Warn("client Id %d, task Id %d flow/conn limit: %v", s.Task.Client.Id, s.Task.Id, err)
-		return
+	if s.Bridge.IsServer() {
+		if err := s.CheckFlowAndConnNum(s.Task.Client); err != nil {
+			logs.Warn("client Id %d, task Id %d flow/conn limit: %v", s.Task.Client.Id, s.Task.Id, err)
+			return
+		}
+		if err := conn.CheckFlowLimits(s.Task.Flow, "Task", time.Now()); err != nil {
+			logs.Warn("client Id %d, task Id %d flow/conn limit: %v", s.Task.Client.Id, s.Task.Id, err)
+			return
+		}
+		defer s.Task.Client.CutConn()
+		s.Task.AddConn()
+		defer s.Task.CutConn()
 	}
-	if err := conn.CheckFlowLimits(s.Task.Flow, "Task", time.Now()); err != nil {
-		logs.Warn("client Id %d, task Id %d flow/conn limit: %v", s.Task.Client.Id, s.Task.Id, err)
-		return
-	}
-	defer s.Task.Client.CutConn()
-	s.Task.AddConn()
-	defer s.Task.CutConn()
 
 	link := conn.NewLink(common.CONN_UDP, s.Task.Target.TargetStr, s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, key, s.AllowLocalProxy && s.Task.Target.LocalProxy)
 	clientConn, err := s.Bridge.SendLinkInfo(s.Task.Client.Id, link, s.Task)

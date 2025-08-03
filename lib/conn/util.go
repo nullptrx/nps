@@ -8,6 +8,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/crypt"
@@ -68,6 +69,27 @@ func SetUdpSession(sess *kcp.UDPSession) {
 	sess.SetMtu(1600)
 	sess.SetACKNoDelay(true)
 	sess.SetWriteDelay(false)
+}
+
+func WriteACK(c net.Conn, timeout time.Duration) error {
+	_ = c.SetWriteDeadline(time.Now().Add(timeout))
+	_, err := c.Write([]byte(common.CONN_ACK))
+	_ = c.SetWriteDeadline(time.Time{})
+	return err
+}
+
+func ReadACK(c net.Conn, timeout time.Duration) error {
+	_ = c.SetReadDeadline(time.Now().Add(timeout))
+	buf := make([]byte, len(common.CONN_ACK))
+	_, err := io.ReadFull(c, buf)
+	_ = c.SetReadDeadline(time.Time{})
+	if err != nil {
+		return err
+	}
+	if string(buf) != common.CONN_ACK {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
 
 // CopyWaitGroup conn1 mux conn

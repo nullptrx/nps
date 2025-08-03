@@ -119,9 +119,10 @@ func (s *IndexController) Add() {
 		id := int(file.GetDb().JsonDb.GetTaskId())
 		clientId := s.GetIntNoErr("client_id")
 		t := &file.Tunnel{
-			Port:     s.GetIntNoErr("port"),
-			ServerIp: s.getEscapeString("server_ip"),
-			Mode:     s.getEscapeString("type"),
+			Port:       s.GetIntNoErr("port"),
+			ServerIp:   s.getEscapeString("server_ip"),
+			Mode:       s.getEscapeString("type"),
+			TargetType: s.getEscapeString("target_type"),
 			Target: &file.Target{
 				TargetStr:     strings.ReplaceAll(s.getEscapeString("target"), "\r\n", "\n"),
 				ProxyProtocol: s.GetIntNoErr("proxy_protocol"),
@@ -223,6 +224,7 @@ func (s *IndexController) Edit() {
 			}
 			t.ServerIp = s.getEscapeString("server_ip")
 			t.Mode = s.getEscapeString("type")
+			t.TargetType = s.getEscapeString("target_type")
 			t.Target = &file.Target{TargetStr: strings.ReplaceAll(s.getEscapeString("target"), "\r\n", "\n")}
 			t.UserAuth = &file.MultiAccount{Content: s.getEscapeString("auth"), AccountMap: common.DealMultiUser(s.getEscapeString("auth"))}
 			t.Id = id

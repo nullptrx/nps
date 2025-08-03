@@ -50,6 +50,9 @@ func NewTunnelModeServer(process process, bridge NetBridge, task *file.Tunnel) *
 }
 
 func (s *TunnelModeServer) Start() error {
+	if s.Task.ServerIp == "" {
+		s.Task.ServerIp = "0.0.0.0"
+	}
 	return conn.NewTcpListenerAndProcess(common.BuildAddress(s.Task.ServerIp, strconv.Itoa(s.Task.Port)), func(c net.Conn) {
 		s.activeConnections.Store(c, struct{}{})
 		defer func() {
@@ -59,15 +62,16 @@ func (s *TunnelModeServer) Start() error {
 			}
 		}()
 
-		if err := s.CheckFlowAndConnNum(s.Task.Client); err != nil {
-			logs.Warn("client Id %d, task Id %d, error %v, when tcp connection", s.Task.Client.Id, s.Task.Id, err)
-			_ = c.Close()
-			return
+		if s.Bridge.IsServer() {
+			if err := s.CheckFlowAndConnNum(s.Task.Client); err != nil {
+				logs.Warn("client Id %d, task Id %d, error %v, when tcp connection", s.Task.Client.Id, s.Task.Id, err)
+				_ = c.Close()
+				return
+			}
+			defer s.Task.Client.CutConn()
+			s.Task.AddConn()
+			defer s.Task.CutConn()
 		}
-		defer s.Task.Client.CutConn()
-		s.Task.AddConn()
-		defer s.Task.CutConn()
-
 		logs.Trace("new tcp connection,local port %d,client %d,remote address %v", s.Task.Port, s.Task.Client.Id, c.RemoteAddr())
 
 		_ = s.process(conn.NewConn(c), s)
@@ -132,7 +136,7 @@ type process func(c *conn.Conn, s *TunnelModeServer) error
 func ProcessTunnel(c *conn.Conn, s *TunnelModeServer) error {
 	targetAddr, err := s.Task.Target.GetRandomTarget()
 	if err != nil {
-		if s.Task.Mode != "file" {
+		if s.Task.Mode != "file" && s.Bridge.IsServer() {
 			_ = c.Close()
 			logs.Warn("tcp port %d, client Id %d, task Id %d connect error %v", s.Task.Port, s.Task.Client.Id, s.Task.Id, err)
 			return err

@@ -56,5 +56,5 @@ func NewQuicAutoCloseConn(stream *quic.Stream, sess *quic.Conn) net.Conn {
 
 func (q *QuicAutoCloseConn) Close() error {
 	_ = q.QuicStreamConn.Close()
-	return q.sess.CloseWithError(0, "")
+	return q.sess.CloseWithError(0, "close")
 }

@@ -76,11 +76,7 @@ func DealBridgeTask() {
 			logs.Trace("New secret connection, addr %v", s.Conn.Conn.RemoteAddr())
 			if t := file.GetDb().GetTaskByMd5Password(s.Password); t != nil {
 				if t.Status {
-					go func() {
-						t.AddConn()
-						_ = proxy.NewBaseServer(Bridge, t).DealClient(s.Conn, t.Client, t.Target.TargetStr, nil, common.CONN_TCP, nil, []*file.Flow{t.Flow, t.Client.Flow}, t.Target.ProxyProtocol, t.Target.LocalProxy, t)
-						t.CutConn()
-					}()
+					go proxy.NewSecretServer(Bridge, t).HandleSecret(s.Conn)
 				} else {
 					_ = s.Conn.Close()
 					logs.Trace("This key %s cannot be processed,status is close", s.Password)
@@ -319,6 +315,12 @@ func GetTunnel(start, length int, typeVal string, clientId int, search string, s
 			sort.SliceStable(allList, func(i, j int) bool { return allList[i].Mode < allList[j].Mode })
 		} else {
 			sort.SliceStable(allList, func(i, j int) bool { return allList[i].Mode > allList[j].Mode })
+		}
+	} else if sortField == "TargetType" {
+		if order == "asc" {
+			sort.SliceStable(allList, func(i, j int) bool { return allList[i].TargetType < allList[j].TargetType })
+		} else {
+			sort.SliceStable(allList, func(i, j int) bool { return allList[i].TargetType > allList[j].TargetType })
 		}
 	} else if sortField == "Password" {
 		if order == "asc" {

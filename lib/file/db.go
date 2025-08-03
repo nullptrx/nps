@@ -166,6 +166,9 @@ func (s *DbUtils) NewTask(t *Tunnel) (err error) {
 		t.HttpProxy = true
 		t.Socks5Proxy = false
 	}
+	if t.TargetType != common.CONN_TCP && t.TargetType != common.CONN_UDP {
+		t.TargetType = common.CONN_ALL
+	}
 	s.JsonDb.Tasks.Store(t.Id, t)
 	s.JsonDb.StoreTasksToJsonFile()
 	return
@@ -194,7 +197,19 @@ func (s *DbUtils) UpdateTask(t *Tunnel) error {
 			t.Password = crypt.GetRandomString(16, t.Id)
 		}
 	}
-
+	switch t.Mode {
+	case "socks5":
+		t.Mode = "mixProxy"
+		t.HttpProxy = false
+		t.Socks5Proxy = true
+	case "httpProxy":
+		t.Mode = "mixProxy"
+		t.HttpProxy = true
+		t.Socks5Proxy = false
+	}
+	if t.TargetType != common.CONN_TCP && t.TargetType != common.CONN_UDP {
+		t.TargetType = common.CONN_ALL
+	}
 	s.JsonDb.Tasks.Store(t.Id, t)
 	s.JsonDb.StoreTasksToJsonFile()
 	return nil

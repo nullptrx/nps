@@ -153,7 +153,7 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 	var kcpListener *kcp.Listener
 	var quicListener *quic.Listener
 	if mode == common.CONN_QUIC {
-		quicListener, err = quic.Listen(localConn, TlsCfg, QuicConfig)
+		quicListener, err = quic.Listen(localConn, crypt.GetCertCfg(), QuicConfig)
 		if err != nil {
 			logs.Error("quic.Listen err: %v", err)
 			return
@@ -254,6 +254,15 @@ func (s *TRPClient) handleChan(src net.Conn) {
 		_ = src.Close()
 		logs.Error("get connection info from server error %v", err)
 		return
+	}
+	//ack
+	if lk.Option.NeedAck {
+		if err := conn.WriteACK(src, lk.Option.Timeout); err != nil {
+			logs.Warn("write ACK failed: %v", err)
+			_ = src.Close()
+			return
+		}
+		logs.Trace("sent ACK before proceeding")
 	}
 	//host for target processing
 	lk.Host = common.FormatAddress(lk.Host)

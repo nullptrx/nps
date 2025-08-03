@@ -189,6 +189,7 @@ type Tunnel struct {
 	Password     string
 	Remark       string
 	TargetAddr   string
+	TargetType   string
 	NoStore      bool
 	IsHttp       bool
 	HttpProxy    bool
