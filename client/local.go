@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"strconv"
 	"sync"
@@ -69,6 +70,7 @@ func NewP2PManager(parentCtx context.Context) *P2PManager {
 
 func (b *p2pBridge) SendLinkInfo(_ int, link *conn.Link, _ *file.Tunnel) (net.Conn, error) {
 	mgr := b.mgr
+	var lastErr error
 	ctx, cancel := context.WithTimeout(mgr.ctx, 200*time.Millisecond)
 	defer cancel()
 	ticker := time.NewTicker(10 * time.Millisecond)
@@ -89,6 +91,9 @@ func (b *p2pBridge) SendLinkInfo(_ int, link *conn.Link, _ *file.Tunnel) (net.Co
 			mgr.mu.Lock()
 			mgr.statusOK = false
 			mgr.mu.Unlock()
+			if lastErr != nil {
+				return nil, fmt.Errorf("timeout waiting P2P tunnel; last error: %w", lastErr)
+			}
 			return nil, errors.New("timeout waiting P2P tunnel")
 		case <-tick:
 			if mgr.p2p {
@@ -100,51 +105,20 @@ func (b *p2pBridge) SendLinkInfo(_ int, link *conn.Link, _ *file.Tunnel) (net.Co
 				// ---------- QUIC ----------
 				if qConn != nil {
 					logs.Trace("using P2P[QUIC] for connection")
-					if idle > 5*time.Second {
-						logs.Trace("sent ACK before proceeding")
-						link.Option.NeedAck = true
+					viaQUIC, err := b.sendViaQUIC(link, qConn, idle)
+					if err == nil {
+						return viaQUIC, nil
 					}
-					stream, err := qConn.OpenStreamSync(mgr.ctx)
-					if err != nil {
-						mgr.resetStatus(false)
-						return nil, err
-					}
-					nc := conn.NewQuicStreamConn(stream, qConn)
-					if _, err = conn.NewConn(nc).SendInfo(link, ""); err != nil {
-						_ = nc.Close()
-						mgr.resetStatus(false)
-						return nil, err
-					}
-					if link.Option.NeedAck {
-						err = conn.ReadACK(nc, 3*time.Second)
-						if err != nil {
-							_ = nc.Close()
-							mgr.resetStatus(false)
-							logs.Warn("can not read ACK %v", err)
-							return nil, err
-						}
-						mgr.mu.Lock()
-						mgr.lastActive = time.Now()
-						mgr.mu.Unlock()
-					}
-					mgr.resetStatus(true)
-					return nc, nil
+					lastErr = err
 				}
 				// ---------- KCP ----------
 				if session != nil {
 					logs.Trace("using P2P[KCP] for connection")
-					nowConn, err := session.NewConn()
-					if err != nil {
-						mgr.resetStatus(false)
-						return nil, err
+					viaKCP, err := b.sendViaKCP(link, session)
+					if err == nil {
+						return viaKCP, nil
 					}
-					if _, err := conn.NewConn(nowConn).SendInfo(link, ""); err != nil {
-						_ = nowConn.Close()
-						mgr.resetStatus(false)
-						return nil, err
-					}
-					mgr.resetStatus(true)
-					return nowConn, nil
+					lastErr = err
 				}
 			}
 			if mgr.secret {
@@ -153,16 +127,83 @@ func (b *p2pBridge) SendLinkInfo(_ int, link *conn.Link, _ *file.Tunnel) (net.Co
 				} else {
 					logs.Trace("using Secret for connection")
 				}
-				sc, err := mgr.getSecretConn()
-				if _, err = conn.NewConn(sc).SendInfo(link, ""); err != nil {
-					_ = sc.Close()
-					mgr.resetStatus(false)
-					return nil, err
+				viaSecret, err := b.sendViaSecret(link)
+				if err == nil {
+					return viaSecret, nil
 				}
-				return sc, nil
+				lastErr = err
 			}
 		}
 	}
+}
+
+func (b *p2pBridge) sendViaQUIC(link *conn.Link, qConn *quic.Conn, idle time.Duration) (net.Conn, error) {
+	mgr := b.mgr
+	if idle > 5*time.Second {
+		logs.Trace("sent ACK before proceeding")
+		link.Option.NeedAck = true
+	}
+	stream, err := qConn.OpenStreamSync(mgr.ctx)
+	if err != nil {
+		logs.Trace("QUIC OpenStreamSync failed, retrying: %v", err)
+		mgr.resetStatus(false)
+		return nil, err
+	}
+	nc := conn.NewQuicStreamConn(stream, qConn)
+	if _, err := conn.NewConn(nc).SendInfo(link, ""); err != nil {
+		_ = nc.Close()
+		logs.Trace("QUIC SendInfo failed, retrying: %v", err)
+		mgr.resetStatus(false)
+		return nil, err
+	}
+	if link.Option.NeedAck {
+		if err := conn.ReadACK(nc, 3*time.Second); err != nil {
+			_ = nc.Close()
+			logs.Trace("QUIC ReadACK failed, retrying: %v", err)
+			mgr.resetStatus(false)
+			return nil, err
+		}
+		mgr.mu.Lock()
+		mgr.lastActive = time.Now()
+		mgr.mu.Unlock()
+	}
+	mgr.resetStatus(true)
+	return nc, nil
+}
+
+func (b *p2pBridge) sendViaKCP(link *conn.Link, session *mux.Mux) (net.Conn, error) {
+	mgr := b.mgr
+	nowConn, err := session.NewConn()
+	if err != nil {
+		logs.Trace("KCP NewConn failed, retrying: %v", err)
+		mgr.resetStatus(false)
+		return nil, err
+	}
+	if _, err := conn.NewConn(nowConn).SendInfo(link, ""); err != nil {
+		_ = nowConn.Close()
+		logs.Trace("KCP SendInfo failed, retrying: %v", err)
+		mgr.resetStatus(false)
+		return nil, err
+	}
+	mgr.resetStatus(true)
+	return nowConn, nil
+}
+
+func (b *p2pBridge) sendViaSecret(link *conn.Link) (net.Conn, error) {
+	mgr := b.mgr
+	sc, err := mgr.getSecretConn()
+	if err != nil {
+		logs.Trace("getSecretConn failed, retrying: %v", err)
+		mgr.resetStatus(false)
+		return nil, err
+	}
+	if _, err := conn.NewConn(sc).SendInfo(link, ""); err != nil {
+		_ = sc.Close()
+		logs.Trace("Secret SendInfo failed, retrying: %v", err)
+		mgr.resetStatus(false)
+		return nil, err
+	}
+	return sc, nil
 }
 
 func (b *p2pBridge) IsServer() bool {
