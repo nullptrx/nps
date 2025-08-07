@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"os"
 	"sort"
@@ -774,7 +775,17 @@ func dealClientData() {
 		if vv, ok := Bridge.Client.Load(v.Id); ok {
 			v.IsConnect = true
 			v.LastOnlineTime = time.Now().Format("2006-01-02 15:04:05")
-			v.Version = vv.(*bridge.Client).Version
+			cli := vv.(*bridge.Client)
+			node := cli.CheckNode()
+			var ver string
+			if node != nil {
+				ver = node.Version
+			}
+			count := cli.NodeCount()
+			if count > 1 {
+				ver = fmt.Sprintf("%s(%d)", ver, cli.NodeCount())
+			}
+			v.Version = ver
 		} else if v.Id <= 0 {
 			if allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy"); allowLocalProxy {
 				v.IsConnect = v.Status
@@ -783,7 +794,7 @@ func dealClientData() {
 				v.LocalAddr = common.GetOutboundIP().String()
 				// Add Local Client
 				if _, exists := Bridge.Client.Load(v.Id); !exists && v.Status {
-					Bridge.Client.Store(v.Id, bridge.NewClient(v.Id, nil, nil, nil, version.VERSION))
+					Bridge.Client.Store(v.Id, bridge.NewClient(v.Id, bridge.NewNode("127.0.0.1", version.VERSION, version.GetLatestIndex())))
 					logs.Debug("Inserted virtual client for ID %d", v.Id)
 				}
 			} else {

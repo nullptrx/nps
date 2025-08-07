@@ -354,6 +354,12 @@ func (c *Client) GetNodeByAddr(addr string) (*Node, bool) {
 	return node, ok
 }
 
+func (c *Client) NodeCount() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.nodeList.Size()
+}
+
 func (c *Client) removeNode(addr string) {
 	c.nodes.Delete(addr)
 	c.nodeList.Remove(addr)
