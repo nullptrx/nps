@@ -25,6 +25,7 @@ import (
 	"github.com/djylb/nps/lib/version"
 	"github.com/djylb/nps/server/connection"
 	"github.com/djylb/nps/server/tool"
+	"github.com/quic-go/quic-go"
 )
 
 var (
@@ -69,13 +70,6 @@ func NewTunnel(tunnelPort int, tunnelType string, ipVerify bool, runList *sync.M
 
 func (s *Bridge) StartTunnel() error {
 	go s.ping()
-	//if s.tunnelType == "kcp" {
-	//	logs.Info("server start, the bridge type is %s, the bridge port is %d", s.tunnelType, s.TunnelPort)
-	//	return conn.NewKcpListenerAndProcess(common.BuildAddress(beego.AppConfig.String("bridge_ip"), beego.AppConfig.String("bridge_port")), func(c net.RateConn) {
-	//		s.cliProcess(conn.NewConn(c), "kcp")
-	//	})
-	//}
-
 	// tcp
 	if ServerTcpEnable {
 		go func() {
@@ -558,7 +552,11 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 			_ = c.Close()
 			return
 		}
-		muxConn := mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime, false)
+		var muxConn *mux.Mux
+		qc, qcOk := c.Conn.(*conn.QuicAutoCloseConn)
+		if !qcOk || ver < 5 {
+			muxConn = mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime, false)
+		}
 		addr := c.RemoteAddr().String()
 		if ver < 5 {
 			addr = common.GetIpByAddr(addr)
@@ -568,24 +566,48 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 			client := v.(*Client)
 			node, ok := client.GetNodeByAddr(c.RemoteAddr().String())
 			if ok {
-				node.AddTunnel(muxConn)
+				if qcOk && ver > 4 {
+					node.AddTunnel(qc)
+				} else {
+					node.AddTunnel(muxConn)
+				}
 			} else {
-				newNode.AddTunnel(muxConn)
+				if qcOk && ver > 4 {
+					newNode.AddTunnel(qc)
+				} else {
+					newNode.AddTunnel(muxConn)
+				}
 				client.AddNode(newNode)
 			}
 		}
 		if ver > 4 {
 			go func() {
-				conn.Accept(muxConn, func(c net.Conn) {
-					muxConn, ok := c.(*mux.Conn)
-					if ok {
-						muxConn.SetPriority()
+				defer func() {
+					logs.Trace("tunnel connection closed, remote %v", c.RemoteAddr())
+					_ = c.Close()
+				}()
+
+				if !qcOk {
+					conn.Accept(muxConn, func(c net.Conn) {
+						mc, ok := c.(*mux.Conn)
+						if ok {
+							mc.SetPriority()
+						}
+						go s.typeDeal(conn.NewConn(c), id, ver, vs, false)
+					})
+					return
+				} else {
+					sess := qc.GetSession()
+					for {
+						stream, err := sess.AcceptStream(context.Background())
+						if err != nil {
+							logs.Trace("QUIC accept stream error: %v", err)
+							return
+						}
+						sc := conn.NewQuicStreamConn(stream, sess)
+						go s.typeDeal(conn.NewConn(sc), id, ver, vs, false)
 					}
-					go s.typeDeal(conn.NewConn(c), id, ver, vs, false)
-				})
-				logs.Trace("tunnel connection closed, remote %v", c.RemoteAddr())
-				_ = c.Close()
-				return
+				}
 			}()
 		}
 
@@ -754,7 +776,7 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 		}
 	}
 
-	var tunnel *mux.Mux
+	var tunnel any
 	if t != nil && t.Mode == "file" {
 		multiAccount := ""
 		if t.MultiAccount != nil {
@@ -788,8 +810,21 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 		err = errors.New("the client connect error")
 		return
 	}
+	switch t := tunnel.(type) {
+	case *mux.Mux:
+		target, err = t.NewConn()
+	case *quic.Conn:
+		stream, er := t.OpenStreamSync(context.Background())
+		if er != nil {
+			err = er
+		} else {
+			target = conn.NewQuicStreamConn(stream, t)
+		}
+	default:
+		err = errors.New("the tunnel type error")
+		return
+	}
 
-	target, err = tunnel.NewConn()
 	if err != nil {
 		return
 	}

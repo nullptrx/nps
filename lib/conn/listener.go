@@ -65,17 +65,13 @@ func NewQuicListenerAndProcess(addr string, tlsConfig *tls.Config, f func(c net.
 			logs.Warn("QUIC accept session error: %v", err)
 			continue
 		}
-		go func(sess *quic.Conn) {
-			for {
-				stream, err := sess.AcceptStream(context.Background())
-				if err != nil {
-					logs.Trace("QUIC accept stream error: %v", err)
-					return
-				}
-				conn := NewQuicAutoCloseConn(stream, sess)
-				go f(conn)
-			}
-		}(sess)
+		stream, err := sess.AcceptStream(context.Background())
+		if err != nil {
+			logs.Trace("QUIC accept stream error: %v", err)
+			continue
+		}
+		conn := NewQuicAutoCloseConn(stream, sess)
+		go f(conn)
 	}
 }
 

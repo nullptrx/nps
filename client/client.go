@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strconv"
 	"strings"
@@ -24,7 +25,7 @@ type TRPClient struct {
 	proxyUrl       string
 	vKey           string
 	p2pAddr        map[string]string
-	tunnel         *mux.Mux
+	tunnel         any
 	signal         *conn.Conn
 	fsm            *FileServerManager
 	ticker         *time.Ticker
@@ -76,20 +77,40 @@ func (s *TRPClient) Start() {
 			logs.Error("The tunnel is not connected")
 			return
 		}
-		muxConn, err := s.tunnel.NewConn()
-		if err != nil {
-			logs.Error("Failed to get new connection, possible version mismatch: %v", err)
-			return
-		}
-		muxConn.SetPriority()
-		c, err := SendType(conn.NewConn(muxConn), common.WORK_MAIN)
-		if err != nil {
-			logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
-			_ = muxConn.Close()
+		switch t := s.tunnel.(type) {
+		case *mux.Mux:
+			mc, err := t.NewConn()
+			if err != nil {
+				logs.Error("Failed to get new connection, possible version mismatch: %v", err)
+				return
+			}
+			mc.SetPriority()
+			c, err := SendType(conn.NewConn(mc), common.WORK_MAIN)
+			if err != nil {
+				logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
+				_ = mc.Close()
+				return
+			}
+			s.signal = c
+		case *quic.Conn:
+			stream, err := t.OpenStreamSync(s.ctx)
+			if err != nil {
+				logs.Error("Quic OpenStreamSync failed, retrying: %v", err)
+				return
+			}
+			sc := conn.NewQuicStreamConn(stream, t)
+			c, err := SendType(conn.NewConn(sc), common.WORK_MAIN)
+			if err != nil {
+				logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
+				_ = sc.Close()
+				return
+			}
+			s.signal = c
+		default:
+			logs.Error("Unsupported tunnel type: %v", t)
 			return
 		}
 		logs.Info("Successful connection with server %s", s.svrAddr)
-		s.signal = c
 	}
 	//monitor the connection
 	go s.ping()
@@ -251,15 +272,44 @@ func (s *TRPClient) newChan() {
 		logs.Warn("The connection server failed and will be reconnected in five seconds.")
 		return
 	}
-	s.tunnel = mux.NewMux(tunnel.Conn, s.bridgeConnType, s.disconnectTime, true)
+	if Ver > 4 && s.bridgeConnType == common.CONN_QUIC {
+		qc, ok := tunnel.Conn.(*conn.QuicAutoCloseConn)
+		if !ok {
+			logs.Error("failed to get quic session")
+			_ = tunnel.Close()
+			return
+		}
+		sess := qc.GetSession()
+		s.tunnel = sess
+	} else {
+		s.tunnel = mux.NewMux(tunnel.Conn, s.bridgeConnType, s.disconnectTime, true)
+	}
+
 	go func() {
+		defer tunnel.Close()
 		for {
 			select {
 			case <-s.ctx.Done():
 				return
 			default:
 			}
-			src, err := s.tunnel.Accept()
+			var err error
+			var src net.Conn
+			switch t := s.tunnel.(type) {
+			case *mux.Mux:
+				src, err = t.Accept()
+			case *quic.Conn:
+				stream, er := t.AcceptStream(s.ctx)
+				if er != nil {
+					logs.Trace("QUIC accept stream error: %v", err)
+					err = er
+				} else {
+					src = conn.NewQuicStreamConn(stream, t)
+				}
+			default:
+				err = errors.New("unknown tunnel type")
+			}
+
 			if err != nil {
 				logs.Warn("Accept error on mux: %v", err)
 				s.Close()
@@ -324,13 +374,27 @@ func (s *TRPClient) ping() {
 	for {
 		select {
 		case <-s.ticker.C:
-			if s.tunnel == nil || s.tunnel.IsClosed() {
+			if s.isTunnelClosed() {
 				s.Close()
 				return
 			}
 		case <-s.ctx.Done():
 			return
 		}
+	}
+}
+
+func (s *TRPClient) isTunnelClosed() bool {
+	if s.tunnel == nil {
+		return true
+	}
+	switch t := s.tunnel.(type) {
+	case *mux.Mux:
+		return t.IsClosed()
+	case *quic.Conn:
+		return t.Context().Err() != nil
+	default:
+		return true
 	}
 }
 
@@ -344,13 +408,24 @@ func (s *TRPClient) closing() {
 		s.healthChecker.Stop()
 	}
 	s.cancel()
-	if s.tunnel != nil {
-		_ = s.tunnel.Close()
-	}
+	s.closeTunnel("close")
 	if s.signal != nil {
 		_ = s.signal.Close()
 	}
 	if s.ticker != nil {
 		s.ticker.Stop()
+	}
+}
+
+func (s *TRPClient) closeTunnel(err string) {
+	if s.tunnel != nil {
+		switch t := s.tunnel.(type) {
+		case *mux.Mux:
+			_ = t.IsClosed()
+		case *quic.Conn:
+			_ = t.CloseWithError(0, err)
+		default:
+		}
+		s.tunnel = nil
 	}
 }

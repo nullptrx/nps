@@ -16,6 +16,10 @@ func NewQuicStreamConn(stream *quic.Stream, sess *quic.Conn) *QuicStreamConn {
 	return &QuicStreamConn{stream: stream, sess: sess}
 }
 
+func (q *QuicStreamConn) GetSession() *quic.Conn {
+	return q.sess
+}
+
 func (q *QuicStreamConn) Read(p []byte) (int, error) {
 	return q.stream.Read(p)
 }

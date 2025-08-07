@@ -11,6 +11,7 @@ import (
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/mux"
 	"github.com/djylb/nps/lib/pool"
+	"github.com/quic-go/quic-go"
 )
 
 type SelectMode int32
@@ -96,7 +97,7 @@ type Node struct {
 	Version string
 	BaseVer int
 	signal  *conn.Conn
-	tunnel  *mux.Mux
+	tunnel  any //*mux.Mux or *quic.Conn
 }
 
 func NewNode(addr, vs string, bv int) *Node {
@@ -137,16 +138,14 @@ func (n *Node) addSignal(signal *conn.Conn) {
 	n.signal = signal
 }
 
-func (n *Node) AddTunnel(tunnel *mux.Mux) {
+func (n *Node) AddTunnel(tunnel any) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.addTunnel(tunnel)
 }
 
-func (n *Node) addTunnel(tunnel *mux.Mux) {
-	if n.tunnel != nil {
-		_ = n.tunnel.Close()
-	}
+func (n *Node) addTunnel(tunnel any) {
+	_ = n.closeTunnel("override")
 	n.tunnel = tunnel
 }
 
@@ -156,7 +155,7 @@ func (n *Node) GetSignal() *conn.Conn {
 	return n.signal
 }
 
-func (n *Node) GetTunnel() *mux.Mux {
+func (n *Node) GetTunnel() any {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	return n.tunnel
@@ -169,14 +168,28 @@ func (n *Node) IsOnline() bool {
 }
 
 func (n *Node) isOnline() bool {
-	return (n.tunnel != nil && !n.tunnel.IsClosed()) && (n.signal != nil && !n.signal.IsClosed()) || n.Client.Id < 0
+	return !n.isTunnelClosed() && (n.signal != nil && !n.signal.IsClosed()) || n.Client.Id < 0
+}
+
+func (n *Node) isTunnelClosed() bool {
+	if n.tunnel == nil {
+		return true
+	}
+	switch t := n.tunnel.(type) {
+	case *mux.Mux:
+		return t.IsClosed()
+	case *quic.Conn:
+		return t.Context().Err() != nil
+	default:
+		return true
+	}
 }
 
 func (n *Node) IsOffline() bool {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	if n.BaseVer < 5 {
-		return (n.tunnel == nil || n.tunnel.IsClosed()) && (n.signal == nil || n.signal.IsClosed()) && n.Client.Id > 0
+		return n.isTunnelClosed() && (n.signal == nil || n.signal.IsClosed()) && n.Client.Id > 0
 	}
 	return n.isOnline()
 }
@@ -184,13 +197,24 @@ func (n *Node) IsOffline() bool {
 func (n *Node) Close() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if n.tunnel != nil {
-		_ = n.tunnel.Close()
-		n.tunnel = nil
-	}
+	_ = n.closeTunnel("close")
 	if n.signal != nil {
 		_ = n.signal.Close()
 		n.signal = nil
+	}
+	return nil
+}
+
+func (n *Node) closeTunnel(err string) error {
+	if n.tunnel != nil {
+		switch t := n.tunnel.(type) {
+		case *mux.Mux:
+			_ = t.IsClosed()
+		case *quic.Conn:
+			_ = t.CloseWithError(0, err)
+		default:
+		}
+		n.tunnel = nil
 	}
 	return nil
 }
