@@ -1031,6 +1031,7 @@ loop:
 								}
 								key := crypt.GenerateUUID(client.VerifyKey, tl.Mode, tl.ServerIp, strconv.Itoa(tl.Port), tl.LocalPath, tl.StripPre, strconv.FormatBool(tl.ReadOnly), tl.MultiAccount.Content)
 								_ = cli.AddFile(key.String(), c.RemoteAddr().String())
+								tl.Target.TargetStr = fmt.Sprintf("file://%s", key.String())
 							}
 						}
 					}
