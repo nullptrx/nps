@@ -4,6 +4,7 @@
 package proxy
 
 import (
+	"github.com/djylb/nps/lib/conn"
 	"golang.org/x/sys/windows"
 )
 

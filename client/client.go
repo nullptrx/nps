@@ -70,9 +70,6 @@ func (s *TRPClient) Start() {
 	}
 	//start a channel connection
 	s.newChan()
-	if Ver > 4 {
-
-	}
 	//monitor the connection
 	go s.ping()
 	//start health check if it's open
