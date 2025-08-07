@@ -165,7 +165,20 @@ func (n *Node) GetTunnel() *mux.Mux {
 func (n *Node) IsOnline() bool {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	return (n.tunnel != nil && !n.tunnel.IsClosed()) && (n.signal != nil && !n.signal.IsClosed())
+	return n.isOnline()
+}
+
+func (n *Node) isOnline() bool {
+	return (n.tunnel != nil && !n.tunnel.IsClosed()) && (n.signal != nil && !n.signal.IsClosed()) || n.Client.Id < 0
+}
+
+func (n *Node) IsOffline() bool {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	if n.BaseVer < 5 {
+		return (n.tunnel == nil || n.tunnel.IsClosed()) && (n.signal == nil || n.signal.IsClosed()) && n.Client.Id > 0
+	}
+	return n.isOnline()
 }
 
 func (n *Node) Close() error {
@@ -210,6 +223,10 @@ func (c *Client) AddNode(n *Node) {
 	defer c.mu.Unlock()
 	if v, ok := c.nodes.Load(n.Addr); ok {
 		existing := v.(*Node)
+		if existing.IsOnline() {
+			_ = n.Close()
+			return
+		}
 		existing.AddNode(n)
 		c.LastAddr = n.Addr
 		return
@@ -305,7 +322,7 @@ func (c *Client) CheckNode() *Node {
 		if ok {
 			node, ok := raw.(*Node)
 			if ok {
-				if node.IsOnline() {
+				if !node.IsOffline() {
 					if !first {
 						logs.Info("Client %d switched to backup node %s", c.Id, addr)
 					}

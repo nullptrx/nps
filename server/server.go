@@ -776,9 +776,9 @@ func dealClientData() {
 			v.IsConnect = true
 			v.LastOnlineTime = time.Now().Format("2006-01-02 15:04:05")
 			cli := vv.(*bridge.Client)
-			node := cli.CheckNode()
+			node, ok := cli.GetNodeByAddr(cli.LastAddr)
 			var ver string
-			if node != nil {
+			if ok {
 				ver = node.Version
 			}
 			count := cli.NodeCount()

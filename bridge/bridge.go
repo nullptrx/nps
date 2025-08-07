@@ -533,14 +533,20 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 		}
 
 		//the vKey connect by another, close the client of before
-		if v, loaded := s.Client.LoadOrStore(id, NewClient(id, NewNode(c.RemoteAddr().String(), vs, ver))); loaded {
+		addr := c.RemoteAddr().String()
+		if ver < 5 {
+			addr = common.GetIpByAddr(addr)
+		}
+		newNode := NewNode(addr, vs, ver)
+		if v, loaded := s.Client.LoadOrStore(id, NewClient(id, newNode)); loaded {
 			client := v.(*Client)
 			node, ok := client.GetNodeByAddr(c.RemoteAddr().String())
-			if !ok {
-				_ = c.Close()
-				return
+			if ok {
+				node.AddSignal(c)
+			} else {
+				newNode.AddSignal(c)
+				client.AddNode(newNode)
 			}
-			node.AddSignal(c)
 		}
 
 		go s.GetHealthFromClient(id, c)
@@ -553,15 +559,20 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 			return
 		}
 		muxConn := mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime, false)
-		if v, loaded := s.Client.LoadOrStore(id, NewClient(id, NewNode(c.RemoteAddr().String(), vs, ver))); loaded {
+		addr := c.RemoteAddr().String()
+		if ver < 5 {
+			addr = common.GetIpByAddr(addr)
+		}
+		newNode := NewNode(addr, vs, ver)
+		if v, loaded := s.Client.LoadOrStore(id, NewClient(id, newNode)); loaded {
 			client := v.(*Client)
 			node, ok := client.GetNodeByAddr(c.RemoteAddr().String())
-			if !ok {
-				_ = muxConn.Close()
-				_ = c.Close()
-				return
+			if ok {
+				node.AddTunnel(muxConn)
+			} else {
+				newNode.AddTunnel(muxConn)
+				client.AddNode(newNode)
 			}
-			node.AddTunnel(muxConn)
 		}
 		if ver > 4 {
 			go func() {
@@ -819,17 +830,15 @@ func (s *Bridge) ping() {
 					closedClients = append(closedClients, clientID)
 					return true
 				}
-				node := client.CheckNode()
-				if node == nil {
-					logs.Trace("Client %d is nil", clientID)
-					closedClients = append(closedClients, clientID)
-					return true
-				}
-				if !node.IsOnline() {
+				node, ok := client.GetNodeByAddr(client.LastAddr)
+				if !ok || node.IsOffline() {
 					client.retryTime++
 					if client.retryTime >= 3 {
 						logs.Trace("Stop client %d", clientID)
 						closedClients = append(closedClients, clientID)
+					}
+					if client.NodeCount() > 1 {
+						_ = client.CheckNode()
 					}
 				} else {
 					client.retryTime = 0 // Reset retry count when the state is normal
@@ -906,7 +915,11 @@ loop:
 
 			_ = c.WriteAddOk()
 			_, _ = c.Write([]byte(client.VerifyKey))
-			s.Client.Store(client.Id, NewClient(client.Id, NewNode(c.RemoteAddr().String(), vs, ver)))
+			addr := c.RemoteAddr().String()
+			if ver < 5 {
+				addr = common.GetIpByAddr(addr)
+			}
+			s.Client.Store(client.Id, NewClient(client.Id, NewNode(addr, vs, ver)))
 
 		case common.NEW_HOST:
 			h, err := c.GetHostInfo()

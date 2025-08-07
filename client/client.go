@@ -70,6 +70,27 @@ func (s *TRPClient) Start() {
 	}
 	//start a channel connection
 	s.newChan()
+	if Ver > 4 {
+		//c, err = NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_MAIN, s.proxyUrl)
+		if s.tunnel == nil {
+			logs.Error("The tunnel is not connected")
+			return
+		}
+		muxConn, err := s.tunnel.NewConn()
+		if err != nil {
+			logs.Error("Failed to get new connection, possible version mismatch: %v", err)
+			return
+		}
+		muxConn.SetPriority()
+		c, err := SendType(conn.NewConn(muxConn), common.WORK_MAIN)
+		if err != nil {
+			logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
+			_ = muxConn.Close()
+			return
+		}
+		logs.Info("Successful connection with server %s", s.svrAddr)
+		s.signal = c
+	}
 	//monitor the connection
 	go s.ping()
 	//start health check if it's open
@@ -231,25 +252,6 @@ func (s *TRPClient) newChan() {
 		return
 	}
 	s.tunnel = mux.NewMux(tunnel.Conn, s.bridgeConnType, s.disconnectTime, true)
-	if Ver > 4 {
-		//c, err = NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_MAIN, s.proxyUrl)
-		muxConn, err := s.tunnel.NewConn()
-		if err != nil {
-			logs.Error("Failed to get new connection, possible version mismatch: %v", err)
-			_ = s.tunnel.Close()
-			return
-		}
-		muxConn.SetPriority()
-		c, err := SendType(conn.NewConn(muxConn), common.WORK_MAIN)
-		if err != nil {
-			logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
-			_ = s.tunnel.Close()
-			_ = muxConn.Close()
-			return
-		}
-		logs.Info("Successful connection with server %s", s.svrAddr)
-		s.signal = c
-	}
 	go func() {
 		for {
 			select {
