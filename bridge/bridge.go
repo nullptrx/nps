@@ -532,17 +532,15 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 			addr = common.GetIpByAddr(addr)
 		}
 		newNode := NewNode(addr, vs, ver)
-		if v, loaded := s.Client.LoadOrStore(id, NewClient(id, newNode)); loaded {
+		newNode.AddSignal(c)
+		newClient := NewClient(id, newNode)
+		if v, loaded := s.Client.LoadOrStore(id, newClient); loaded {
 			client := v.(*Client)
 			node, ok := client.GetNodeByAddr(c.RemoteAddr().String())
 			if ok {
 				node.AddSignal(c)
-			} else {
-				newNode.AddSignal(c)
-				client.AddNode(newNode)
 			}
 		}
-
 		go s.GetHealthFromClient(id, c)
 		logs.Info("clientId %d connection succeeded, address:%v ", id, c.Conn.RemoteAddr())
 
@@ -552,43 +550,41 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 			_ = c.Close()
 			return
 		}
-		var muxConn *mux.Mux
-		qc, qcOk := c.Conn.(*conn.QuicAutoCloseConn)
-		if !qcOk || ver < 5 {
-			muxConn = mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime, false)
+		var anyConn any
+		qc, ok := c.Conn.(*conn.QuicAutoCloseConn)
+		if ok && ver > 4 {
+			anyConn = qc.GetSession()
+		} else {
+			anyConn = mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime, false)
+		}
+		if anyConn == nil {
+			logs.Warn("Failed to create Mux for client %v", c.Conn.RemoteAddr())
+			_ = c.Close()
+			return
 		}
 		addr := c.RemoteAddr().String()
 		if ver < 5 {
 			addr = common.GetIpByAddr(addr)
 		}
 		newNode := NewNode(addr, vs, ver)
-		if v, loaded := s.Client.LoadOrStore(id, NewClient(id, newNode)); loaded {
+		newNode.AddTunnel(anyConn)
+		newClient := NewClient(id, newNode)
+		if v, loaded := s.Client.LoadOrStore(id, newClient); loaded {
 			client := v.(*Client)
 			node, ok := client.GetNodeByAddr(c.RemoteAddr().String())
 			if ok {
-				if qcOk && ver > 4 {
-					node.AddTunnel(qc)
-				} else {
-					node.AddTunnel(muxConn)
-				}
-			} else {
-				if qcOk && ver > 4 {
-					newNode.AddTunnel(qc)
-				} else {
-					newNode.AddTunnel(muxConn)
-				}
-				client.AddNode(newNode)
+				node.AddTunnel(anyConn)
 			}
 		}
 		if ver > 4 {
 			go func() {
 				defer func() {
-					logs.Trace("tunnel connection closed, remote %v", c.RemoteAddr())
+					logs.Trace("tunnel connection closed, client %d, remote %v", id, c.RemoteAddr())
 					_ = c.Close()
 				}()
-
-				if !qcOk {
-					conn.Accept(muxConn, func(c net.Conn) {
+				switch t := anyConn.(type) {
+				case *mux.Mux:
+					conn.Accept(t, func(c net.Conn) {
 						mc, ok := c.(*mux.Conn)
 						if ok {
 							mc.SetPriority()
@@ -596,17 +592,18 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 						go s.typeDeal(conn.NewConn(c), id, ver, vs, false)
 					})
 					return
-				} else {
-					sess := qc.GetSession()
+				case *quic.Conn:
 					for {
-						stream, err := sess.AcceptStream(context.Background())
+						stream, err := t.AcceptStream(context.Background())
 						if err != nil {
 							logs.Trace("QUIC accept stream error: %v", err)
 							return
 						}
-						sc := conn.NewQuicStreamConn(stream, sess)
+						sc := conn.NewQuicStreamConn(stream, t)
 						go s.typeDeal(conn.NewConn(sc), id, ver, vs, false)
 					}
+				default:
+					logs.Error("unknown tunnel type")
 				}
 			}()
 		}
@@ -810,15 +807,14 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 		err = errors.New("the client connect error")
 		return
 	}
-	switch t := tunnel.(type) {
+	switch tun := tunnel.(type) {
 	case *mux.Mux:
-		target, err = t.NewConn()
+		target, err = tun.NewConn()
 	case *quic.Conn:
-		stream, er := t.OpenStreamSync(context.Background())
-		if er != nil {
-			err = er
-		} else {
-			target = conn.NewQuicStreamConn(stream, t)
+		var stream *quic.Stream
+		stream, err = tun.OpenStreamSync(context.Background())
+		if err == nil {
+			target = conn.NewQuicStreamConn(stream, tun)
 		}
 	default:
 		err = errors.New("the tunnel type error")

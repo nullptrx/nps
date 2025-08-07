@@ -54,7 +54,7 @@ func (q *QuicStreamConn) SetWriteDeadline(t time.Time) error {
 
 type QuicAutoCloseConn struct{ *QuicStreamConn }
 
-func NewQuicAutoCloseConn(stream *quic.Stream, sess *quic.Conn) net.Conn {
+func NewQuicAutoCloseConn(stream *quic.Stream, sess *quic.Conn) *QuicAutoCloseConn {
 	return &QuicAutoCloseConn{NewQuicStreamConn(stream, sess)}
 }
 

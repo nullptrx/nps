@@ -299,11 +299,9 @@ func (s *TRPClient) newChan() {
 			case *mux.Mux:
 				src, err = t.Accept()
 			case *quic.Conn:
-				stream, er := t.AcceptStream(s.ctx)
-				if er != nil {
-					logs.Trace("QUIC accept stream error: %v", err)
-					err = er
-				} else {
+				var stream *quic.Stream
+				stream, err = t.AcceptStream(s.ctx)
+				if err == nil {
 					src = conn.NewQuicStreamConn(stream, t)
 				}
 			default:

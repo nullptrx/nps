@@ -132,7 +132,7 @@ func (n *Node) AddSignal(signal *conn.Conn) {
 }
 
 func (n *Node) addSignal(signal *conn.Conn) {
-	if n.signal != nil {
+	if n.signal != nil && n.signal != signal {
 		_ = n.signal.Close()
 	}
 	n.signal = signal
@@ -145,8 +145,10 @@ func (n *Node) AddTunnel(tunnel any) {
 }
 
 func (n *Node) addTunnel(tunnel any) {
-	_ = n.closeTunnel("override")
-	n.tunnel = tunnel
+	if n.tunnel != tunnel {
+		_ = n.closeTunnel("override")
+		n.tunnel = tunnel
+	}
 }
 
 func (n *Node) GetSignal() *conn.Conn {
@@ -191,13 +193,13 @@ func (n *Node) IsOffline() bool {
 	if n.BaseVer < 5 {
 		return n.isTunnelClosed() && (n.signal == nil || n.signal.IsClosed()) && n.Client.Id > 0
 	}
-	return n.isOnline()
+	return !n.isOnline()
 }
 
 func (n *Node) Close() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	_ = n.closeTunnel("close")
+	_ = n.closeTunnel("node close")
 	if n.signal != nil {
 		_ = n.signal.Close()
 		n.signal = nil
