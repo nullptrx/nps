@@ -94,7 +94,8 @@
             if (row.Mode == "file") {
                 return tmp + "<br/><br>"
                     + '<b langtag="word-localpath"></b>: ' + row.LocalPath + '&emsp;'
-                    + '<b langtag="word-stripprefix"></b>: ' + row.StripPre + '&emsp;'
+                    + '<b langtag="word-stripprefix"></b>: ' + row.StripPre + '&emsp;<br/><br>'
+                    + '<b langtag="word-target"></b>: ' + row.Target.TargetStr + '&emsp;'
             }
             if (row.Mode == "p2p") {
                 return tmp + "<br/><br>"

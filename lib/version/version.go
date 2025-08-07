@@ -9,6 +9,7 @@ var MinVersions = []string{
 	"0.28.0", // 2
 	"0.29.0", // 3
 	"0.30.0", // 4
+	//"0.31.0", // 5
 }
 
 func GetVersion(index int) string {

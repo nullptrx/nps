@@ -13,6 +13,7 @@ import (
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/logs"
+	"github.com/djylb/nps/lib/transport"
 )
 
 const (
@@ -183,7 +184,7 @@ func (s *TunnelModeServer) handleUDP(c net.Conn) {
 	if tcpConn, ok := c.(*net.TCPConn); ok {
 		_ = tcpConn.SetKeepAlive(true)
 		_ = tcpConn.SetKeepAlivePeriod(15 * time.Second)
-		_ = SetTcpKeepAliveParams(tcpConn, 15, 15, 3)
+		_ = transport.SetTcpKeepAliveParams(tcpConn, 15, 15, 3)
 	}
 	defer c.Close()
 	addrType := make([]byte, 1)
