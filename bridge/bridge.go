@@ -536,9 +536,11 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 		newClient := NewClient(id, newNode)
 		if v, loaded := s.Client.LoadOrStore(id, newClient); loaded {
 			client := v.(*Client)
-			node, ok := client.GetNodeByAddr(c.RemoteAddr().String())
+			node, ok := client.GetNodeByAddr(addr)
 			if ok {
 				node.AddSignal(c)
+			} else {
+				client.AddNode(newNode)
 			}
 		}
 		go s.GetHealthFromClient(id, c)
@@ -571,9 +573,11 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 		newClient := NewClient(id, newNode)
 		if v, loaded := s.Client.LoadOrStore(id, newClient); loaded {
 			client := v.(*Client)
-			node, ok := client.GetNodeByAddr(c.RemoteAddr().String())
+			node, ok := client.GetNodeByAddr(addr)
 			if ok {
 				node.AddTunnel(anyConn)
+			} else {
+				client.AddNode(newNode)
 			}
 		}
 		if ver > 4 {
