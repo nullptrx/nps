@@ -725,7 +725,6 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 
 // register ip
 func (s *Bridge) register(c *conn.Conn) {
-	defer c.Close()
 	_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
 	var hour int32
 	if err := binary.Read(c, binary.LittleEndian, &hour); err == nil {
@@ -735,6 +734,7 @@ func (s *Bridge) register(c *conn.Conn) {
 	} else {
 		logs.Warn("Failed to register IP: %v", err)
 	}
+	_ = c.Close()
 }
 
 func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (target net.Conn, err error) {
