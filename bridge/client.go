@@ -211,7 +211,7 @@ func (n *Node) closeTunnel(err string) error {
 	if n.tunnel != nil {
 		switch t := n.tunnel.(type) {
 		case *mux.Mux:
-			_ = t.IsClosed()
+			_ = t.Close()
 		case *quic.Conn:
 			_ = t.CloseWithError(0, err)
 		default:
