@@ -386,8 +386,8 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 	}
 
 	logs.Info("%s websocket request, method %s, host %s, url %s, remote address %s, target %s", r.URL.Scheme, r.Method, r.Host, r.URL.Path, r.RemoteAddr, targetAddr)
-
-	link := conn.NewLink("tcp", targetAddr, host.Client.Cnf.Crypt, host.Client.Cnf.Compress, r.RemoteAddr, host.Target.LocalProxy)
+	isLocal := s.AllowLocalProxy && host.Target.LocalProxy || host.Client.Id < 0
+	link := conn.NewLink("tcp", targetAddr, host.Client.Cnf.Crypt, host.Client.Cnf.Compress, r.RemoteAddr, isLocal)
 	targetConn, err := s.Bridge.SendLinkInfo(host.Client.Id, link, nil)
 	if err != nil {
 		logs.Info("handleWebsocket: connection to target %s failed: %v", link.Host, err)
@@ -397,7 +397,7 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		_, _ = w.Write(s.ErrorContent)
 		return
 	}
-	rawConn := conn.GetConn(targetConn, link.Crypt, link.Compress, host.Client.Rate, true)
+	rawConn := conn.GetConn(targetConn, link.Crypt, link.Compress, host.Client.Rate, true, isLocal)
 	wsConn := conn.NewRWConn(rawConn)
 	var netConn net.Conn = wsConn
 
@@ -531,13 +531,14 @@ func (s *HttpServer) DialContext(ctx context.Context, network, addr string) (net
 		logs.Warn("No backend found for h: %s Err: %v", h.Id, err)
 		return nil, err
 	}
-	link := conn.NewLink("tcp", targetAddr, h.Client.Cnf.Crypt, h.Client.Cnf.Compress, remote, s.AllowLocalProxy && h.Target.LocalProxy)
+	isLocal := s.AllowLocalProxy && h.Target.LocalProxy || h.Client.Id < 0
+	link := conn.NewLink("tcp", targetAddr, h.Client.Cnf.Crypt, h.Client.Cnf.Compress, remote, isLocal)
 	target, err := s.Bridge.SendLinkInfo(h.Client.Id, link, nil)
 	if err != nil {
 		logs.Info("DialContext: connection to host %d (target %s) failed: %v", h.Id, targetAddr, err)
 		return nil, err
 	}
-	rawConn := conn.GetConn(target, link.Crypt, link.Compress, h.Client.Rate, true)
+	rawConn := conn.GetConn(target, link.Crypt, link.Compress, h.Client.Rate, true, isLocal)
 	flowConn := conn.NewFlowConn(rawConn, h.Flow, h.Client.Flow)
 	if h.Target.ProxyProtocol != 0 {
 		ra, _ := net.ResolveTCPAddr("tcp", remote)

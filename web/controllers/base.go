@@ -67,6 +67,7 @@ func (s *BaseController) Prepare() {
 	s.Data["system_info_display"], _ = beego.AppConfig.Bool("system_info_display")
 	s.Data["allow_tunnel_num_limit"], _ = beego.AppConfig.Bool("allow_tunnel_num_limit")
 	s.Data["allow_local_proxy"], _ = beego.AppConfig.Bool("allow_local_proxy")
+	s.Data["allow_secret_link"], _ = beego.AppConfig.Bool("allow_secret_link")
 	s.Data["allow_user_change_username"], _ = beego.AppConfig.Bool("allow_user_change_username")
 }
 

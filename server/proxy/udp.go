@@ -133,14 +133,14 @@ func (s *UdpModeServer) clientWorker(addr *net.UDPAddr, ent *entry) {
 		s.Task.AddConn()
 		defer s.Task.CutConn()
 	}
-
-	link := conn.NewLink(common.CONN_UDP, s.Task.Target.TargetStr, s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, key, s.AllowLocalProxy && s.Task.Target.LocalProxy)
+	isLocal := s.AllowLocalProxy && s.Task.Target.LocalProxy || s.Task.Client.Id < 0
+	link := conn.NewLink(common.CONN_UDP, s.Task.Target.TargetStr, s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, key, isLocal)
 	clientConn, err := s.Bridge.SendLinkInfo(s.Task.Client.Id, link, s.Task)
 	if err != nil {
 		logs.Trace("SendLinkInfo error: %v", err)
 		return
 	}
-	target := conn.GetConn(clientConn, s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, nil, true)
+	target := conn.GetConn(clientConn, s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, nil, true, isLocal)
 	ent.flowConn = conn.NewFlowConn(target, s.Task.Flow, s.Task.Client.Flow)
 
 	go func() {

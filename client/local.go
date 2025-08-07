@@ -47,7 +47,8 @@ type P2PManager struct {
 }
 
 type p2pBridge struct {
-	mgr *P2PManager
+	mgr     *P2PManager
+	timeout time.Duration
 }
 
 func NewP2PManager(parentCtx context.Context) *P2PManager {
@@ -59,7 +60,8 @@ func NewP2PManager(parentCtx context.Context) *P2PManager {
 		proxyServers: make([]Closer, 0),
 	}
 	mgr.bridge = &p2pBridge{
-		mgr: mgr,
+		mgr:     mgr,
+		timeout: time.Second * 5,
 	}
 	go func() {
 		<-parentCtx.Done()
@@ -69,6 +71,9 @@ func NewP2PManager(parentCtx context.Context) *P2PManager {
 }
 
 func (b *p2pBridge) SendLinkInfo(_ int, link *conn.Link, _ *file.Tunnel) (net.Conn, error) {
+	if link == nil {
+		return nil, errors.New("link is nil")
+	}
 	mgr := b.mgr
 	var lastErr error
 	ctx, cancel := context.WithTimeout(mgr.ctx, 200*time.Millisecond)
@@ -139,7 +144,7 @@ func (b *p2pBridge) SendLinkInfo(_ int, link *conn.Link, _ *file.Tunnel) (net.Co
 
 func (b *p2pBridge) sendViaQUIC(link *conn.Link, qConn *quic.Conn, idle time.Duration) (net.Conn, error) {
 	mgr := b.mgr
-	if idle > 5*time.Second {
+	if idle > b.timeout {
 		logs.Trace("sent ACK before proceeding")
 		link.Option.NeedAck = true
 	}
@@ -157,7 +162,7 @@ func (b *p2pBridge) sendViaQUIC(link *conn.Link, qConn *quic.Conn, idle time.Dur
 		return nil, err
 	}
 	if link.Option.NeedAck {
-		if err := conn.ReadACK(nc, 3*time.Second); err != nil {
+		if err := conn.ReadACK(nc, b.timeout); err != nil {
 			_ = nc.Close()
 			logs.Trace("QUIC ReadACK failed, retrying: %v", err)
 			mgr.resetStatus(false)
@@ -179,6 +184,7 @@ func (b *p2pBridge) sendViaKCP(link *conn.Link, session *mux.Mux) (net.Conn, err
 		mgr.resetStatus(false)
 		return nil, err
 	}
+	link.Option.NeedAck = false
 	if _, err := conn.NewConn(nowConn).SendInfo(link, ""); err != nil {
 		_ = nowConn.Close()
 		logs.Trace("KCP SendInfo failed, retrying: %v", err)
@@ -194,14 +200,19 @@ func (b *p2pBridge) sendViaSecret(link *conn.Link) (net.Conn, error) {
 	sc, err := mgr.getSecretConn()
 	if err != nil {
 		logs.Trace("getSecretConn failed, retrying: %v", err)
-		mgr.resetStatus(false)
 		return nil, err
 	}
 	if _, err := conn.NewConn(sc).SendInfo(link, ""); err != nil {
 		_ = sc.Close()
 		logs.Trace("Secret SendInfo failed, retrying: %v", err)
-		mgr.resetStatus(false)
 		return nil, err
+	}
+	if link.Option.NeedAck {
+		if err := conn.ReadACK(sc, b.timeout); err != nil {
+			_ = sc.Close()
+			logs.Trace("Secret ReadACK failed, retrying: %v", err)
+			return nil, err
+		}
 	}
 	return sc, nil
 }
@@ -216,16 +227,19 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 	}
 	if l.Type != "secret" {
 		mgr.p2p = true
-		mgr.secret = false
+		mgr.secret = l.Fallback
 		mgr.wg.Add(1)
 		go func() {
 			defer mgr.wg.Done()
 			mgr.handleUdpMonitor(cfg, l)
 		}()
-	}
-	if l.Type == "p2p" || l.Type == "secret" {
+	} else {
 		mgr.secret = true
 	}
+	if mgr.secret && mgr.p2p {
+		mgr.bridge.timeout = 3 * time.Second
+	}
+
 	task := &file.Tunnel{
 		Port:     l.Port,
 		ServerIp: "0.0.0.0",
@@ -244,7 +258,8 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 		Socks5Proxy: true,
 		Flow:        &file.Flow{},
 		Target: &file.Target{
-			TargetStr: l.Target,
+			TargetStr:  l.Target,
+			LocalProxy: l.LocalProxy,
 		},
 	}
 	mgr.local = l
@@ -502,7 +517,7 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 		mgr.muxSession = nil
 	} else {
 		mgr.udpConn = udpTunnel
-		mgr.muxSession = mux.NewMux(udpTunnel, "kcp", cfg.DisconnectTime)
+		mgr.muxSession = mux.NewMux(udpTunnel, "kcp", cfg.DisconnectTime, false)
 	}
 	mgr.statusOK = true
 	mgr.mu.Unlock()

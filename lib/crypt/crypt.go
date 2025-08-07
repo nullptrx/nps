@@ -15,8 +15,10 @@ import (
 	"hash/fnv"
 	"io"
 	"math/big"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -149,6 +151,11 @@ func FNV1a64(parts ...string) string {
 	}
 	sum := h.Sum(nil) // 8 bytes
 	return hex.EncodeToString(sum)
+}
+
+func GenerateUUID(nameParts ...string) uuid.UUID {
+	name := strings.Join(nameParts, "/")
+	return uuid.NewSHA1(uuid.NameSpaceURL, []byte(name))
 }
 
 // GetRandomString 生成指定长度的随机密钥，支持可选传入id

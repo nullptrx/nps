@@ -222,7 +222,7 @@ func StartFromFile(path string) {
 			logs.Info("web access login username:%s password:%s", cnf.CommonConfig.Client.WebUserName, cnf.CommonConfig.Client.WebPassword)
 		}
 
-		NewRPClient(cnf.CommonConfig.Server, vkey, cnf.CommonConfig.Tp, cnf.CommonConfig.ProxyUrl, cnf, cnf.CommonConfig.DisconnectTime).Start()
+		NewRPClient(cnf.CommonConfig.Server, vkey, cnf.CommonConfig.Tp, cnf.CommonConfig.ProxyUrl, cnf, cnf.CommonConfig.DisconnectTime, fsm).Start()
 		//CloseLocalServer()
 		fsm.CloseAll()
 		p2pm.Close()
@@ -441,10 +441,6 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			_ = c.Close()
 			return nil, fmt.Errorf("validation key %s incorrect", vkey)
 		}
-		if _, err := c.Write([]byte(connType)); err != nil {
-			_ = c.Close()
-			return nil, err
-		}
 	} else {
 		// 0.27.0
 		ts := common.TimeNow().Unix() - int64(rand.Intn(6))
@@ -541,30 +537,33 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 				}
 			}
 		}
-		if _, err := c.BufferWrite([]byte(connType)); err != nil {
+	}
+
+	return SendType(c, connType)
+}
+
+func SendType(c *conn.Conn, connType string) (*conn.Conn, error) {
+	if _, err := c.BufferWrite([]byte(connType)); err != nil {
+		_ = c.Close()
+		return nil, err
+	}
+	if Ver > 3 {
+		// v0.30.0
+		randByte, err := common.RandomBytes(1000)
+		if err != nil {
 			_ = c.Close()
 			return nil, err
 		}
-		if Ver > 3 {
-			// v0.30.0
-			randByte, err := common.RandomBytes(1000)
-			if err != nil {
-				_ = c.Close()
-				return nil, err
-			}
-			if err := c.WriteLenContent(randByte); err != nil {
-				_ = c.Close()
-				return nil, err
-			}
-		}
-		if err := c.FlushBuf(); err != nil {
+		if err := c.WriteLenContent(randByte); err != nil {
 			_ = c.Close()
 			return nil, err
 		}
 	}
-
+	if err := c.FlushBuf(); err != nil {
+		_ = c.Close()
+		return nil, err
+	}
 	c.SetAlive()
-
 	return c, nil
 }
 

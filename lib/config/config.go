@@ -31,6 +31,8 @@ type LocalServer struct {
 	Password   string
 	Target     string
 	TargetType string
+	Fallback   bool
+	LocalProxy bool
 }
 
 type Config struct {
@@ -110,7 +112,7 @@ func getTitleContent(s string) string {
 }
 
 func dealCommon(s string) *CommonConfig {
-	c := &CommonConfig{}
+	c := new(CommonConfig)
 	c.Client = file.NewClient("", true, true)
 	c.Client.Cnf = new(file.Config)
 	for _, v := range splitStr(s) {
@@ -171,9 +173,10 @@ func dealCommon(s string) *CommonConfig {
 }
 
 func dealHost(s string) *file.Host {
-	h := &file.Host{}
+	h := new(file.Host)
 	h.Target = new(file.Target)
 	h.Scheme = "all"
+	h.MultiAccount = new(file.MultiAccount)
 	var headerChange, respHeaderChange string
 	for _, v := range splitStr(s) {
 		item := strings.Split(v, "=")
@@ -214,7 +217,6 @@ func dealHost(s string) *file.Host {
 		case "target_is_https":
 			h.TargetIsHttps = common.GetBoolByStr(item[1])
 		case "multi_account":
-			h.MultiAccount = &file.MultiAccount{}
 			if common.FileExists(item[1]) {
 				if b, err := common.ReadAllFromFile(item[1]); err != nil {
 					panic(err)
@@ -269,8 +271,9 @@ func dealHealth(s string) *file.Health {
 }
 
 func dealTunnel(s string) *file.Tunnel {
-	t := &file.Tunnel{}
+	t := new(file.Tunnel)
 	t.Target = new(file.Target)
+	t.MultiAccount = new(file.MultiAccount)
 	for _, v := range splitStr(s) {
 		item := strings.Split(v, "=")
 		if len(item) == 0 {
@@ -293,12 +296,17 @@ func dealTunnel(s string) *file.Tunnel {
 			t.TargetAddr = item[1]
 		case "password":
 			t.Password = item[1]
+		case "socks5_proxy":
+			t.Socks5Proxy = common.GetBoolByStr(item[1])
+		case "http_proxy":
+			t.HttpProxy = common.GetBoolByStr(item[1])
 		case "local_path":
 			t.LocalPath = item[1]
 		case "strip_pre":
 			t.StripPre = item[1]
+		case "read_only":
+			t.ReadOnly = common.GetBoolByStr(item[1])
 		case "multi_account":
-			t.MultiAccount = &file.MultiAccount{}
 			if common.FileExists(item[1]) {
 				if b, err := common.ReadAllFromFile(item[1]); err != nil {
 					panic(err)
@@ -352,12 +360,20 @@ func delLocalService(s string) *LocalServer {
 		switch item[0] {
 		case "local_port":
 			l.Port = common.GetIntNoErrByStr(item[1])
+		case "local_type":
+			l.Type = item[1]
 		case "local_ip":
 			l.Ip = item[1]
 		case "password":
 			l.Password = item[1]
 		case "target_addr":
 			l.Target = item[1]
+		case "target_type":
+			l.TargetType = item[1]
+		case "local_proxy":
+			l.LocalProxy = common.GetBoolByStr(item[1])
+		case "fallback_secret":
+			l.Fallback = common.GetBoolByStr(item[1])
 		}
 	}
 	return l

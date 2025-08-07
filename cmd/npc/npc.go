@@ -38,7 +38,9 @@ var (
 	password       = flag.String("password", "", "P2P password flag")
 	target         = flag.String("target", "", "P2P target")
 	targetType     = flag.String("target_type", "all", "P2P target connection type (all|tcp|udp)")
+	localProxy     = flag.Bool("local_proxy", false, "Secret enable proxy local (true or false)")
 	localType      = flag.String("local_type", "p2p", "P2P target type")
+	fallbackSecret = flag.Bool("fallback_secret", true, "P2P fallback secret (true or false)")
 	logPath        = flag.String("log_path", "", "NPC log path (empty to use default, 'off' to disable)")
 	logMaxSize     = flag.Int("log_max_size", 5, "Maximum log file size in MB before rotation (0 to disable)")
 	logMaxDays     = flag.Int("log_max_days", 7, "Number of days to retain old log files (0 to disable)")
@@ -319,6 +321,8 @@ func run(ctx context.Context) {
 		localServer.Target = *target
 		localServer.TargetType = strings.ToLower(*targetType)
 		localServer.Port = *localPort
+		localServer.Fallback = *fallbackSecret
+		localServer.LocalProxy = *localProxy
 		commonConfig.Client = new(file.Client)
 		commonConfig.Client.Cnf = new(file.Config)
 		commonConfig.DisconnectTime = *p2pTime
@@ -333,10 +337,15 @@ func run(ctx context.Context) {
 	if *verifyKey == "" {
 		*verifyKey, _ = env["NPC_SERVER_VKEY"]
 	}
-	if *verifyKey != "" && *serverAddr != "" && *configPath == "" {
+	if *configPath == "" {
+		*configPath, _ = env["NPC_CONFIG_PATH"]
+	}
+	hasCommand := *verifyKey != "" && *serverAddr != ""
+	if hasCommand {
 		logs.Info("the version of client is %s, the core version of client is %s", version.VERSION, version.GetVersion(*protoVer))
 		common.SyncTime()
 		*serverAddr = strings.ReplaceAll(*serverAddr, "，", ",")
+		*serverAddr = strings.ReplaceAll(*serverAddr, "：", ":")
 		*verifyKey = strings.ReplaceAll(*verifyKey, "，", ",")
 		*connType = strings.ReplaceAll(*connType, "，", ",")
 
@@ -371,13 +380,14 @@ func run(ctx context.Context) {
 			go func() {
 				for {
 					logs.Info("Start server: " + serverAddr + " vkey: " + verifyKey + " type: " + connType)
-					client.NewRPClient(serverAddr, verifyKey, connType, *proxyUrl, nil, *disconnectTime).Start()
+					client.NewRPClient(serverAddr, verifyKey, connType, *proxyUrl, nil, *disconnectTime, nil).Start()
 					logs.Info("Client closed! It will be reconnected in five seconds")
 					time.Sleep(time.Second * 5)
 				}
 			}()
 		}
-	} else {
+	}
+	if *configPath != "" || !hasCommand {
 		if *configPath == "" {
 			*configPath = common.GetConfigPath()
 		}

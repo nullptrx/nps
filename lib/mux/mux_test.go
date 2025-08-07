@@ -118,7 +118,7 @@ func TestServer(t *testing.T) {
 	}
 	defer clientBridgeConn.Close()
 	// new mux
-	mux := NewMux(clientBridgeConn, "tcp", 60)
+	mux := NewMux(clientBridgeConn, "tcp", 60, true)
 	// start server port
 	serverListener, err := net.Listen("tcp", serverIp+":"+serverPort)
 	if err != nil {
@@ -135,7 +135,8 @@ func TestServer(t *testing.T) {
 			// create a conn from mux
 			clientConn, err := mux.NewConn()
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
+				return
 			}
 			go io.Copy(userConn, clientConn)
 			go func() {
@@ -174,7 +175,7 @@ func TestClient(t *testing.T) {
 		t.Fatal(err)
 	}
 	// crete mux by serverConn
-	mux := NewMux(serverConn, "tcp", 60)
+	mux := NewMux(serverConn, "tcp", 60, true)
 	// start accept user connection
 	for {
 		userConn, err := mux.Accept()
@@ -185,7 +186,8 @@ func TestClient(t *testing.T) {
 			// connect to app
 			appConn, err := net.Dial("tcp", appIp+":"+appPort)
 			if err != nil {
-				t.Fatal()
+				t.Error()
+				return
 			}
 			defer appConn.Close()
 			defer userConn.Close()
@@ -236,10 +238,12 @@ func TestApp(t *testing.T) {
 			for i := 0; i < dataSize/1024; i++ {
 				n, err := userConn.Write(b)
 				if err != nil {
-					t.Fatal(err)
+					t.Error(err)
+					return
 				}
 				if n != 1024 {
-					t.Fatal("the write len is not right")
+					t.Error("the write len is not right")
+					return
 				}
 			}
 			// send bandwidth
@@ -260,7 +264,8 @@ func TestApp(t *testing.T) {
 				}
 			}
 			if readLen != dataSize {
-				t.Fatal("the read len is not right")
+				t.Error("the read len is not right")
+				return
 			}
 			_, _ = userConn.Write([]byte{0})
 			// read bandwidth
@@ -268,7 +273,8 @@ func TestApp(t *testing.T) {
 			// save result
 			err := writeResult([]float64{writeBw, readBw}, appResultFileName)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
+				return
 			}
 			os.Exit(0)
 		}(userConn)
@@ -344,7 +350,7 @@ func TestNewMux2(t *testing.T) {
 		rate.Start()
 		conn2 = NewRateConn(rate, conn2)
 		go func() {
-			m2 := NewMux(conn2, "tcp", 60)
+			m2 := NewMux(conn2, "tcp", 60, true)
 			for {
 				c, err := m2.Accept()
 				if err != nil {
@@ -358,7 +364,7 @@ func TestNewMux2(t *testing.T) {
 			}
 		}()
 
-		m1 := NewMux(conn1, "tcp", 60)
+		m1 := NewMux(conn1, "tcp", 60, true)
 		tmpCpnn, err := m1.NewConn()
 		if err != nil {
 			log.Println("nps new conn err ", err)
@@ -380,7 +386,7 @@ func TestNewMux2(t *testing.T) {
 		}
 		log.Println("now rate", count/time.Now().Sub(start).Seconds()/1024/1024)
 	})
-	log.Println(err.Error())
+	log.Println(err)
 }
 func TestNewMux(t *testing.T) {
 	go func() {
@@ -390,7 +396,7 @@ func TestNewMux(t *testing.T) {
 	client("")
 	time.Sleep(time.Second * 3)
 	go func() {
-		m2 := NewMux(conn2, "tcp", 60)
+		m2 := NewMux(conn2, "tcp", 60, true)
 		for {
 			//log.Println("npc starting accept")
 			c, err := m2.Accept()
@@ -429,7 +435,7 @@ func TestNewMux(t *testing.T) {
 	}()
 
 	go func() {
-		m1 := NewMux(conn1, "tcp", 60)
+		m1 := NewMux(conn1, "tcp", 60, true)
 		l, err := net.Listen("tcp", "127.0.0.1:7777")
 		if err != nil {
 			log.Println(err)

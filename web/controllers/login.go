@@ -205,13 +205,14 @@ func (s *LoginController) doLogin(username, password, totp string, explicit bool
 	}
 	b, err := beego.AppConfig.Bool("allow_user_login")
 	if err == nil && b && !auth && username != "" && password != "" {
+		allowVkey := beego.AppConfig.DefaultBool("allow_user_vkey_login", b)
 		file.GetDb().JsonDb.Clients.Range(func(key, value interface{}) bool {
 			v := value.(*file.Client)
 			if !v.Status || v.NoDisplay {
 				return true
 			}
 			if v.WebUserName == "" && v.WebPassword == "" {
-				if v.Id <= 0 || username != "user" || v.VerifyKey != password {
+				if v.Id <= 0 || username != "user" || !allowVkey || v.VerifyKey != password {
 					return true
 				} else {
 					auth = true

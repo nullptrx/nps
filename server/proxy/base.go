@@ -110,8 +110,8 @@ func (s *BaseServer) DealClient(c *conn.Conn, client *file.Client, addr string,
 		_ = c.Close()
 		return nil
 	}
-
-	link := conn.NewLink(tp, addr, client.Cnf.Crypt, client.Cnf.Compress, c.Conn.RemoteAddr().String(), s.AllowLocalProxy && localProxy)
+	isLocal := s.AllowLocalProxy && localProxy || client.Id < 0
+	link := conn.NewLink(tp, addr, client.Cnf.Crypt, client.Cnf.Compress, c.Conn.RemoteAddr().String(), isLocal)
 	target, err := s.Bridge.SendLinkInfo(client.Id, link, s.Task)
 	if err != nil {
 		logs.Warn("get connection from client Id %d  error %v", client.Id, err)
@@ -123,7 +123,7 @@ func (s *BaseServer) DealClient(c *conn.Conn, client *file.Client, addr string,
 		f()
 	}
 
-	conn.CopyWaitGroup(target, c.Conn, link.Crypt, link.Compress, client.Rate, flows, true, proxyProtocol, rb, task)
+	conn.CopyWaitGroup(target, c.Conn, link.Crypt, link.Compress, client.Rate, flows, true, proxyProtocol, rb, task, isLocal)
 	return nil
 }
 

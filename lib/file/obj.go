@@ -196,6 +196,7 @@ type Tunnel struct {
 	Socks5Proxy  bool
 	LocalPath    string
 	StripPre     string
+	ReadOnly     bool
 	Target       *Target
 	UserAuth     *MultiAccount
 	MultiAccount *MultiAccount
@@ -292,7 +293,9 @@ func GetAccountMap(multiAccount *MultiAccount) map[string]string {
 func (s *Target) GetRandomTarget() (string, error) {
 	// 初始化 TargetArr 并过滤空行
 	if s.TargetArr == nil {
-		lines := strings.Split(strings.ReplaceAll(s.TargetStr, "\r\n", "\n"), "\n")
+		normalized := strings.ReplaceAll(s.TargetStr, "：", ":")
+		normalized = strings.ReplaceAll(normalized, "\r\n", "\n")
+		lines := strings.Split(normalized, "\n")
 		for _, v := range lines {
 			trimmed := strings.TrimSpace(v) // 去除前后空白
 			if trimmed != "" {

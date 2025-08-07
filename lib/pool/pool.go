@@ -19,6 +19,13 @@ func New[T comparable]() *Pool[T] {
 	return &Pool[T]{idx: make(map[T]int)}
 }
 
+func (p *Pool[T]) Has(v T) bool {
+	p.mu.RLock()
+	_, ok := p.idx[v]
+	p.mu.RUnlock()
+	return ok
+}
+
 func (p *Pool[T]) Push(v T) { p.add(v) }
 func (p *Pool[T]) Add(v T)  { p.add(v) }
 

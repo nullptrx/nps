@@ -3,6 +3,7 @@ package conn
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"net"
 	"strings"
@@ -138,4 +139,56 @@ func (l *OneConnListener) Close() error {
 
 func (l *OneConnListener) Addr() net.Addr {
 	return l.conn.LocalAddr()
+}
+
+type VirtualListener struct {
+	conns  chan net.Conn
+	closed chan struct{}
+	addr   net.Addr
+}
+
+func NewVirtualListener(addr net.Addr) *VirtualListener {
+	return &VirtualListener{
+		conns:  make(chan net.Conn, 1024),
+		closed: make(chan struct{}),
+		addr:   addr,
+	}
+}
+
+func (l *VirtualListener) Addr() net.Addr {
+	return l.addr
+}
+
+func (l *VirtualListener) Accept() (net.Conn, error) {
+	select {
+	case c := <-l.conns:
+		return c, nil
+	case <-l.closed:
+		return nil, errors.New("listener closed")
+	}
+}
+
+func (l *VirtualListener) Close() error {
+	select {
+	case <-l.closed:
+		return nil
+	default:
+		close(l.closed)
+	}
+	for {
+		select {
+		case c := <-l.conns:
+			_ = c.Close()
+		default:
+			return nil
+		}
+	}
+}
+
+func (l *VirtualListener) Deliver(c net.Conn) {
+	select {
+	case <-l.closed:
+		_ = c.Close()
+	case l.conns <- c:
+	}
 }

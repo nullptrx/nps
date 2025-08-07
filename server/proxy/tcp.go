@@ -191,13 +191,14 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 			ResponseHeaderTimeout: 60 * time.Second,
 			//DisableKeepAlives:     true,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				link := conn.NewLink("tcp", addr, s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, remoteAddr, s.Task.Target.LocalProxy)
+				isLocal := s.AllowLocalProxy && s.Task.Target.LocalProxy || s.Task.Client.Id < 0
+				link := conn.NewLink("tcp", addr, s.Task.Client.Cnf.Crypt, s.Task.Client.Cnf.Compress, remoteAddr, isLocal)
 				target, err := s.Bridge.SendLinkInfo(s.Task.Client.Id, link, nil)
 				if err != nil {
 					logs.Trace("DialContext: connection to host %s (target %s) failed: %v", r.Host, addr, err)
 					return nil, err
 				}
-				rawConn := conn.GetConn(target, link.Crypt, link.Compress, s.Task.Client.Rate, true)
+				rawConn := conn.GetConn(target, link.Crypt, link.Compress, s.Task.Client.Rate, true, isLocal)
 				return conn.NewFlowConn(rawConn, s.Task.Flow, s.Task.Client.Flow), nil
 			},
 		},

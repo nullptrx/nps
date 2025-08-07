@@ -24,22 +24,22 @@ func (Self *basePackager) Set(content []byte) (err error) {
 	Self.reset()
 
 	if content == nil {
-		logs.Error("mux:packer: newpack content is nil")
+		logs.Error("mux:packer: new pack content is nil")
 		return
-		//panic("mux:packer: newpack content is nil")
-		//err = errors.New("mux:packer: newpack content is nil")
+		//panic("mux:packer: new pack content is nil")
+		//err = errors.New("mux:packer: new pack content is nil")
 	}
 
 	n := len(content)
 	//fmt.Println(content)
 	//if n == 0 {
 	//	// 长度为0的包，不应该向上抛，不然客户端会EOF，这里暂时没解决空包的问题 TODO
-	//	//logs.Error("mux:packer: newpack content is zero length")
-	//	//err = errors.New("mux:packer: newpack content is zero length")
+	//	//logs.Error("mux:packer: new pack content is zero length")
+	//	//err = errors.New("mux:packer: new pack content is zero length")
 	//}
 	if n > maximumSegmentSize {
-		logs.Error("mux:packer: newpack content segment too large")
-		//err = errors.New("mux:packer: newpack content segment too large")
+		logs.Error("mux:packer: new pack content segment too large")
+		//err = errors.New("mux:packer: new pack content segment too large")
 		return
 	}
 
@@ -123,9 +123,10 @@ func (Self *basePackager) reset() {
 }
 
 type muxPackager struct {
-	flag   uint8
-	id     int32
-	window uint64
+	flag     uint8
+	id       int32
+	window   uint64
+	priority bool
 	basePackager
 }
 

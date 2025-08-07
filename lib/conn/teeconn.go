@@ -7,17 +7,25 @@ import (
 	"time"
 )
 
+const defaultMaxBufBytes = 64 * 1024
+
 type TeeConn struct {
-	underlying net.Conn
-	buf        *bytes.Buffer
-	mu         sync.Mutex
-	detached   bool
+	underlying  net.Conn
+	buf         *bytes.Buffer
+	mu          sync.Mutex
+	detached    bool
+	maxBufBytes int
 }
 
-func NewTeeConn(conn net.Conn) *TeeConn {
+func NewTeeConn(conn net.Conn, maxBufBytes ...int) *TeeConn {
+	size := defaultMaxBufBytes
+	if len(maxBufBytes) > 0 && maxBufBytes[0] > 0 {
+		size = maxBufBytes[0]
+	}
 	return &TeeConn{
-		underlying: conn,
-		buf:        new(bytes.Buffer),
+		underlying:  conn,
+		buf:         new(bytes.Buffer),
+		maxBufBytes: size,
 	}
 }
 
@@ -26,7 +34,14 @@ func (t *TeeConn) Read(p []byte) (n int, err error) {
 	if n > 0 {
 		t.mu.Lock()
 		if !t.detached {
-			t.buf.Write(p[:n])
+			available := t.maxBufBytes - t.buf.Len()
+			if available > 0 {
+				if n > available {
+					t.buf.Write(p[:available])
+				} else {
+					t.buf.Write(p[:n])
+				}
+			}
 		}
 		t.mu.Unlock()
 	}

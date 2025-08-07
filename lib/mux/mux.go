@@ -44,6 +44,7 @@ type Mux struct {
 	connMap            *ConnMap
 	newConnCh          chan *Conn
 	id                 int32
+	isInitiator        bool
 	closeChan          chan struct{}
 	counter            *latencyCounter
 	bw                 *Bandwidth
@@ -56,7 +57,7 @@ type Mux struct {
 	once               sync.Once
 }
 
-func NewMux(c net.Conn, connType string, pingCheckThreshold int) *Mux {
+func NewMux(c net.Conn, connType string, pingCheckThreshold int, isInitiator bool) *Mux {
 	//c.(*net.TCPConn).SetReadBuffer(0)
 	//c.(*net.TCPConn).SetWriteBuffer(0)
 	fd, err := getConnFd(c)
@@ -73,10 +74,16 @@ func NewMux(c net.Conn, connType string, pingCheckThreshold int) *Mux {
 	} else {
 		checkThreshold = uint32(pingCheckThreshold)
 	}
+	var startId int32
+	if isInitiator {
+		startId = -1
+	} else {
+		startId = 0
+	}
 	m := &Mux{
 		conn:               c,
 		connMap:            NewConnMap(),
-		id:                 0,
+		id:                 startId,
 		closeChan:          make(chan struct{}, 1),
 		newConnCh:          make(chan *Conn),
 		bw:                 NewBandwidth(fd),
@@ -102,7 +109,7 @@ func (s *Mux) NewConn() (*Conn, error) {
 	conn := NewConn(s.getId(), s)
 	//it must be Set before send
 	s.connMap.Set(conn.connId, conn)
-	s.sendInfo(muxNewConn, conn.connId, nil)
+	s.sendInfo(muxNewConn, conn.connId, false, nil)
 	//Set a timer timeout 120 second
 	timer := time.NewTimer(time.Minute * 2)
 	defer timer.Stop()
@@ -131,14 +138,13 @@ func (s *Mux) Addr() net.Addr {
 	return s.conn.LocalAddr()
 }
 
-func (s *Mux) sendInfo(flag uint8, id int32, data interface{}) {
+func (s *Mux) sendInfo(flag uint8, id int32, priority bool, data interface{}) {
 	if s.IsClosed() {
 		return
 	}
-	var err error
 	pack := muxPack.Get()
-	err = pack.Set(flag, id, data)
-	if err != nil {
+	pack.priority = priority
+	if err := pack.Set(flag, id, data); err != nil {
 		muxPack.Put(pack)
 		logs.Println("mux: New Pack err", err)
 		_ = s.Close()
@@ -209,7 +215,7 @@ func (s *Mux) ping() {
 				pad := rand.Intn(PingMaxPad)
 				payload := buf[:8+pad]
 
-				s.sendInfo(muxPingFlag, muxPing, payload)
+				s.sendInfo(muxPingFlag, muxPing, false, payload)
 				atomic.AddUint32(&s.pingCheckTime, 1)
 
 				jitter := time.Duration(rand.Int63n(int64(PingJitter))) - PingJitter/2
@@ -277,7 +283,7 @@ func (s *Mux) readSession() {
 			case <-s.closeChan:
 			case s.newConnCh <- connection:
 			}
-			s.sendInfo(muxNewConnOk, connection.connId, nil)
+			s.sendInfo(muxNewConnOk, connection.connId, false, nil)
 		}
 	}()
 	go func() {
@@ -321,7 +327,7 @@ func (s *Mux) readSession() {
 					pad := rand.Intn(PingMaxPad)
 					buf = pack.content[:8+pad]
 				}
-				s.sendInfo(muxPingReturn, muxPing, buf)
+				s.sendInfo(muxPingReturn, muxPing, false, buf)
 				windowBuff.Put(pack.content)
 				muxPack.Put(pack)
 				continue
@@ -467,9 +473,13 @@ func (s *Mux) release() {
 func (s *Mux) getId() (id int32) {
 	//Avoid going beyond the scope
 	if (math.MaxInt32 - s.id) < 10000 {
-		atomic.StoreInt32(&s.id, 0)
+		if s.isInitiator {
+			atomic.StoreInt32(&s.id, -1)
+		} else {
+			atomic.StoreInt32(&s.id, 0)
+		}
 	}
-	id = atomic.AddInt32(&s.id, 1)
+	id = atomic.AddInt32(&s.id, 2)
 	if _, ok := s.connMap.Get(id); ok {
 		return s.getId()
 	}

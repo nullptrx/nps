@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/djylb/nps/lib/conn"
@@ -88,186 +89,287 @@ func SetClientSelectMode(v any) error {
 	return nil
 }
 
+type Node struct {
+	mu      sync.RWMutex
+	Client  *Client
+	Addr    string
+	Version string
+	BaseVer int
+	signal  *conn.Conn
+	tunnel  *mux.Mux
+}
+
+func NewNode(addr, vs string, bv int) *Node {
+	return &Node{
+		Addr:    addr,
+		Version: vs,
+		BaseVer: bv,
+	}
+}
+
+func (n *Node) AddNode(node *Node) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if node.Version != "" {
+		n.Version = node.Version
+	}
+	if node.BaseVer != 0 {
+		n.BaseVer = node.BaseVer
+	}
+	if node.signal != nil {
+		n.addSignal(node.signal)
+	}
+	if node.tunnel != nil {
+		n.addTunnel(node.tunnel)
+	}
+}
+
+func (n *Node) AddSignal(signal *conn.Conn) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.addSignal(signal)
+}
+
+func (n *Node) addSignal(signal *conn.Conn) {
+	if n.signal != nil {
+		_ = n.signal.Close()
+	}
+	n.signal = signal
+}
+
+func (n *Node) AddTunnel(tunnel *mux.Mux) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.addTunnel(tunnel)
+}
+
+func (n *Node) addTunnel(tunnel *mux.Mux) {
+	if n.tunnel != nil {
+		_ = n.tunnel.Close()
+	}
+	n.tunnel = tunnel
+}
+
+func (n *Node) GetSignal() *conn.Conn {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.signal
+}
+
+func (n *Node) GetTunnel() *mux.Mux {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.tunnel
+}
+
+func (n *Node) IsOnline() bool {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return (n.tunnel != nil && !n.tunnel.IsClosed()) && (n.signal != nil && !n.signal.IsClosed())
+}
+
+func (n *Node) Close() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.tunnel != nil {
+		_ = n.tunnel.Close()
+		n.tunnel = nil
+	}
+	if n.signal != nil {
+		_ = n.signal.Close()
+		n.signal = nil
+	}
+	return nil
+}
+
 type Client struct {
+	mu        sync.RWMutex
 	Id        int
-	signal    atomic.Pointer[conn.Conn] // WORK_MAIN
-	tunnel    atomic.Pointer[mux.Mux]   // WORK_CHAN
-	file      atomic.Pointer[mux.Mux]   // WORK_FILE
-	signals   *pool.Pool[*conn.Conn]
-	tunnels   *pool.Pool[*mux.Mux]
-	files     *pool.Pool[*mux.Mux]
-	Version   string
-	retryTime int // it will add 1 when ping not ok until to 3 will close the client
+	LastAddr  string
+	nodeList  *pool.Pool[string] // addr
+	nodes     sync.Map           // map[addr]*Node
+	files     sync.Map           // map[fileUUID]addr
+	retryTime int                // it will add 1 when ping not ok until to 3 will close the client
 	closed    uint32
 }
 
-func NewClient(id int, t, f *mux.Mux, s *conn.Conn, vs string) *Client {
-	cli := &Client{
-		Id:      id,
-		Version: vs,
-		signals: pool.New[*conn.Conn](),
-		tunnels: pool.New[*mux.Mux](),
-		files:   pool.New[*mux.Mux](),
+func NewClient(id int, n *Node) *Client {
+	c := &Client{
+		Id:       id,
+		LastAddr: n.Addr,
+		nodeList: pool.New[string](),
 	}
-	if s != nil {
-		cli.signal.Store(s)
-		cli.signals.Add(s)
-	}
-	if t != nil {
-		cli.tunnel.Store(t)
-		cli.tunnels.Add(t)
-	}
-	if f != nil {
-		cli.file.Store(f)
-		cli.files.Add(f)
-	}
-	return cli
+	n.Client = c
+	c.nodes.Store(n.Addr, n)
+	c.nodeList.Add(n.Addr)
+	return c
 }
 
-func (c *Client) AddSignal(s *conn.Conn) {
-	if c.IsClosed() {
-		_ = s.Close()
+func (c *Client) AddNode(n *Node) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if v, ok := c.nodes.Load(n.Addr); ok {
+		existing := v.(*Node)
+		existing.AddNode(n)
+		c.LastAddr = n.Addr
 		return
 	}
-	c.signals.Add(s)
-	c.signal.Store(s)
+	n.Client = c
+	c.nodes.Store(n.Addr, n)
+	c.nodeList.Add(n.Addr)
+	c.LastAddr = n.Addr
 }
 
-func (c *Client) AddTunnel(t *mux.Mux) {
-	if c.IsClosed() {
-		_ = t.Close()
-		return
+func (c *Client) AddFile(key, addr string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.nodes.Load(addr); !ok {
+		return fmt.Errorf("addr %q not found", addr)
 	}
-	c.tunnels.Add(t)
-	c.tunnel.Store(t)
+	c.files.Store(key, addr)
+	return nil
 }
 
-func (c *Client) AddFile(f *mux.Mux) {
-	if c.IsClosed() {
-		_ = f.Close()
-		return
-	}
-	c.files.Add(f)
-	c.file.Store(f)
+func (c *Client) RemoveFile(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.files.Delete(key)
 }
 
-func (c *Client) SwitchSignal() {
-	cur := c.signal.Load()
-	if cur != nil && !cur.IsClosed() {
-		return
+func (c *Client) GetNodeByFile(key string) (*Node, bool) {
+	c.mu.RLock()
+	v, ok := c.files.Load(key)
+	c.mu.RUnlock()
+	if !ok {
+		return nil, false
 	}
-	c.signal.Store(nil)
+	addr, ok := v.(string)
+	if !ok {
+		return nil, false
+	}
+	c.mu.RLock()
+	n, ok := c.nodes.Load(addr)
+	c.mu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	node, ok := n.(*Node)
+	if ok {
+		if node.IsOnline() {
+			return node, true
+		}
+		_ = node.Close()
+		c.mu.Lock()
+		c.removeNode(addr)
+		c.mu.Unlock()
+	}
+	return nil, false
+}
+
+func (c *Client) CheckNode() *Node {
+	c.mu.RLock()
+	size := c.nodeList.Size()
+	c.mu.RUnlock()
+	if size == 0 {
+		logs.Warn("Client %d has no nodes to switch to", c.Id)
+		return nil
+	}
+	first := true
 	for {
-		v, ok := c.signals.Next()
-		if !ok {
-			return
+		var addr string
+		c.mu.RLock()
+		addr = c.LastAddr
+		c.mu.RUnlock()
+		if addr == "" {
+			var nextAddr string
+			switch ClientSelectMode {
+			case Primary, RoundRobin:
+				nextAddr, _ = c.nodeList.Next()
+			case Random:
+				nextAddr, _ = c.nodeList.Random()
+			default:
+				nextAddr, _ = c.nodeList.Next()
+			}
+			if nextAddr == "" {
+				logs.Warn("Client %d has no nodes to switch to", c.Id)
+				return nil
+			}
+			c.mu.Lock()
+			c.LastAddr = nextAddr
+			c.mu.Unlock()
+			addr = nextAddr
 		}
-		if v.IsClosed() {
-			_ = v.Close()
-			c.signals.Remove(v)
-			continue
+		c.mu.RLock()
+		raw, ok := c.nodes.Load(addr)
+		c.mu.RUnlock()
+		if ok {
+			node, ok := raw.(*Node)
+			if ok {
+				if node.IsOnline() {
+					if !first {
+						logs.Info("Client %d switched to backup node %s", c.Id, addr)
+					}
+					return node
+				}
+				_ = node.Close()
+			}
 		}
-		c.signal.Store(v)
-		logs.Info("Client %d switched to backup signal", c.Id)
-		return
+		first = false
+		c.mu.Lock()
+		removed := c.LastAddr
+		c.removeNode(removed)
+		c.mu.Unlock()
+		logs.Info("Client %d removed node %s", c.Id, removed)
 	}
 }
 
-func (c *Client) SwitchTunnel() {
-	cur := c.tunnel.Load()
-	if cur != nil && !cur.IsClosed() {
-		return
-	}
-	c.tunnel.Store(nil)
-	for {
-		v, ok := c.tunnels.Next()
-		if !ok {
-			return
-		}
-		if v.IsClosed() {
-			_ = v.Close()
-			c.tunnels.Remove(v)
-			continue
-		}
-		c.tunnel.Store(v)
-		logs.Info("Client %d switched to backup tunnel", c.Id)
-		return
-	}
-}
-
-func (c *Client) SwitchFile() {
-	cur := c.file.Load()
-	if cur != nil && !cur.IsClosed() {
-		return
-	}
-	for {
-		v, ok := c.files.Next()
-		if !ok {
-			return
-		}
-		if v.IsClosed() {
-			_ = v.Close()
-			c.files.Remove(v)
-			continue
-		}
-		c.file.Store(v)
-		logs.Info("Client %d switched to backup file", c.Id)
-		return
-	}
-}
-
-func (c *Client) GetSignal() *conn.Conn {
+func (c *Client) GetNode() *Node {
 	switch ClientSelectMode {
 	case Primary:
-		c.SwitchSignal()
-		return c.signal.Load()
+		return c.CheckNode()
 	case RoundRobin:
-		if v, ok := pickLive(c.signals, true); ok {
-			return v
-		}
+		c.mu.Lock()
+		c.LastAddr, _ = c.nodeList.Next()
+		c.mu.Unlock()
+		return c.CheckNode()
 	case Random:
-		if v, ok := pickLive(c.signals, false); ok {
-			return v
-		}
+		c.mu.Lock()
+		c.LastAddr, _ = c.nodeList.Random()
+		c.mu.Unlock()
+		return c.CheckNode()
 	default:
 	}
-	return c.signal.Load()
+	return c.CheckNode()
 }
 
-func (c *Client) GetTunnel() *mux.Mux {
-	switch ClientSelectMode {
-	case Primary:
-		c.SwitchTunnel()
-		return c.tunnel.Load()
-	case RoundRobin:
-		if v, ok := pickLive(c.tunnels, true); ok {
-			return v
-		}
-	case Random:
-		if v, ok := pickLive(c.tunnels, false); ok {
-			return v
-		}
-	default:
+func (c *Client) GetNodeByAddr(addr string) (*Node, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	raw, ok := c.nodes.Load(addr)
+	if !ok {
+		return nil, false
 	}
-	return c.tunnel.Load()
+	node, ok := raw.(*Node)
+	return node, ok
 }
 
-func (c *Client) GetFile() *mux.Mux {
-	switch ClientSelectMode {
-	case Primary:
-		c.SwitchFile()
-		return c.file.Load()
-	case RoundRobin:
-		if v, ok := pickLive(c.files, true); ok {
-			return v
+func (c *Client) removeNode(addr string) {
+	c.nodes.Delete(addr)
+	c.nodeList.Remove(addr)
+	if c.LastAddr == addr {
+		if next, ok := c.nodeList.Next(); ok {
+			c.LastAddr = next
+		} else {
+			c.LastAddr = ""
 		}
-	case Random:
-		if v, ok := pickLive(c.files, false); ok {
-			return v
-		}
-	default:
 	}
-	return c.file.Load()
+	c.files.Range(func(key, value interface{}) bool {
+		if v, ok := value.(string); ok && v == addr {
+			c.files.Delete(key)
+		}
+		return true
+	})
 }
 
 func (c *Client) IsClosed() bool {
@@ -278,48 +380,16 @@ func (c *Client) Close() error {
 	if !atomic.CompareAndSwapUint32(&c.closed, 0, 1) {
 		return nil
 	}
-	if v := c.signal.Load(); v != nil {
-		_ = v.Close()
-		c.signal.Store(nil)
-	}
-	if v := c.tunnel.Load(); v != nil {
-		_ = v.Close()
-		c.tunnel.Store(nil)
-	}
-	if v := c.file.Load(); v != nil {
-		_ = v.Close()
-		c.file.Store(nil)
-	}
-
-	c.signals.Clear(func(s *conn.Conn) { _ = s.Close() })
-	c.tunnels.Clear(func(m *mux.Mux) { _ = m.Close() })
-	c.files.Clear(func(m *mux.Mux) { _ = m.Close() })
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.nodes.Range(func(key, value interface{}) bool {
+		if n, ok := value.(*Node); ok {
+			_ = n.Close()
+		}
+		return true
+	})
+	c.nodeList.Clear(nil)
+	c.nodes = sync.Map{}
+	c.files = sync.Map{}
 	return nil
-}
-
-type live interface {
-	comparable
-	IsClosed() bool
-	Close() error
-}
-
-func pickLive[T live](pl *pool.Pool[T], round bool) (T, bool) {
-	for {
-		var v T
-		var ok bool
-		if round {
-			v, ok = pl.Next()
-		} else {
-			v, ok = pl.Random()
-		}
-		if !ok {
-			var zero T
-			return zero, false
-		}
-		if !v.IsClosed() {
-			return v, true
-		}
-		_ = v.Close()
-		pl.Remove(v)
-	}
 }

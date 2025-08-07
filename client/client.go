@@ -1,16 +1,11 @@
 package client
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"errors"
 	"net"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/djylb/nps/lib/common"
@@ -31,6 +26,7 @@ type TRPClient struct {
 	p2pAddr        map[string]string
 	tunnel         *mux.Mux
 	signal         *conn.Conn
+	fsm            *FileServerManager
 	ticker         *time.Ticker
 	cnf            *config.Config
 	disconnectTime int
@@ -41,7 +37,7 @@ type TRPClient struct {
 }
 
 // NewRPClient new client
-func NewRPClient(svrAddr string, vKey string, bridgeConnType string, proxyUrl string, cnf *config.Config, disconnectTime int) *TRPClient {
+func NewRPClient(svrAddr string, vKey string, bridgeConnType string, proxyUrl string, cnf *config.Config, disconnectTime int, fsm *FileServerManager) *TRPClient {
 	return &TRPClient{
 		svrAddr:        svrAddr,
 		p2pAddr:        make(map[string]string),
@@ -50,6 +46,7 @@ func NewRPClient(svrAddr string, vKey string, bridgeConnType string, proxyUrl st
 		proxyUrl:       proxyUrl,
 		cnf:            cnf,
 		disconnectTime: disconnectTime,
+		fsm:            fsm,
 		once:           sync.Once{},
 	}
 }
@@ -61,16 +58,21 @@ func (s *TRPClient) Start() {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	defer s.Close()
 	NowStatus = 0
-	c, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_MAIN, s.proxyUrl)
-	if err != nil {
-		HasFailed = true
-		logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
-		return
+	if Ver < 5 {
+		c, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_MAIN, s.proxyUrl)
+		if err != nil {
+			HasFailed = true
+			logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
+			return
+		}
+		logs.Info("Successful connection with server %s", s.svrAddr)
+		s.signal = c
 	}
-	logs.Info("Successful connection with server %s", s.svrAddr)
-	s.signal = c
 	//start a channel connection
 	s.newChan()
+	if Ver > 4 {
+
+	}
 	//monitor the connection
 	go s.ping()
 	//start health check if it's open
@@ -210,7 +212,7 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 				conn.SetUdpSession(udpTunnel)
 				logs.Trace("successful connection with client ,address %v", udpTunnel.RemoteAddr())
 				//read link info from remote
-				tunnel := mux.NewMux(udpTunnel, "kcp", s.disconnectTime)
+				tunnel := mux.NewMux(udpTunnel, "kcp", s.disconnectTime, true)
 				conn.Accept(tunnel, func(c net.Conn) {
 					go s.handleChan(c)
 				})
@@ -227,9 +229,30 @@ func (s *TRPClient) newChan() {
 	tunnel, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_CHAN, s.proxyUrl)
 	if err != nil {
 		logs.Error("failed to connect to server %s error: %v", s.svrAddr, err)
+		HasFailed = true
+		logs.Warn("The connection server failed and will be reconnected in five seconds.")
 		return
 	}
-	s.tunnel = mux.NewMux(tunnel.Conn, s.bridgeConnType, s.disconnectTime)
+	s.tunnel = mux.NewMux(tunnel.Conn, s.bridgeConnType, s.disconnectTime, true)
+	if Ver > 4 {
+		//c, err = NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_MAIN, s.proxyUrl)
+		muxConn, err := s.tunnel.NewConn()
+		if err != nil {
+			logs.Error("Failed to get new connection, possible version mismatch: %v", err)
+			_ = s.tunnel.Close()
+			return
+		}
+		muxConn.SetPriority()
+		c, err := SendType(conn.NewConn(muxConn), common.WORK_MAIN)
+		if err != nil {
+			logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
+			_ = s.tunnel.Close()
+			_ = muxConn.Close()
+			return
+		}
+		logs.Info("Successful connection with server %s", s.svrAddr)
+		s.signal = c
+	}
 	go func() {
 		for {
 			select {
@@ -266,46 +289,25 @@ func (s *TRPClient) handleChan(src net.Conn) {
 	}
 	//host for target processing
 	lk.Host = common.FormatAddress(lk.Host)
-	//if RateConn type is http, read the request and log
-	if lk.ConnType == "http" {
-		if targetConn, err := net.DialTimeout(common.CONN_TCP, lk.Host, lk.Option.Timeout); err != nil {
-			logs.Warn("connect to %s error %v", lk.Host, err)
-			_ = src.Close()
-		} else {
-			srcConn := conn.GetConn(src, lk.Crypt, lk.Compress, nil, false)
-			go func() {
-				_, _ = common.CopyBuffer(srcConn, targetConn)
-				_ = srcConn.Close()
-				_ = targetConn.Close()
-			}()
-			for {
-				select {
-				case <-s.ctx.Done():
-					_ = srcConn.Close()
-					_ = targetConn.Close()
-					return
-				default:
-				}
-				if r, err := http.ReadRequest(bufio.NewReader(srcConn)); err != nil {
-					logs.Error("http read error: %v", err)
-					_ = srcConn.Close()
-					_ = targetConn.Close()
-					return
-				} else {
-					remoteAddr := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
-					if len(remoteAddr) == 0 {
-						remoteAddr = r.RemoteAddr
-					}
-					logs.Trace("http request, method %s, host %s, url %s, remote address %s", r.Method, r.Host, r.URL.Path, remoteAddr)
-					_ = r.Write(targetConn)
-				}
-			}
-		}
-		return
-	}
+	//socks5 udp
 	if lk.ConnType == "udp5" {
 		logs.Trace("new %s connection with the goal of %s, remote address:%s", lk.ConnType, lk.Host, lk.RemoteAddr)
-		s.handleUdp(src, lk.Option.Timeout)
+		conn.HandleUdp5(s.ctx, src, lk.Option.Timeout)
+		return
+	}
+	//file mode
+	if lk.ConnType == "file" && s.fsm != nil {
+		key := strings.TrimPrefix(strings.TrimSpace(lk.Host), "file://")
+		vl, ok := s.fsm.GetListenerByKey(key)
+		if !ok {
+			logs.Warn("Fail to find file server: ", key)
+			_ = src.Close()
+			return
+		}
+		rwc := conn.GetConn(src, lk.Crypt, lk.Compress, nil, false, false)
+		c := conn.WrapConn(rwc, src)
+		vl.Deliver(c)
+		return
 	}
 	//connect to target if conn type is tcp or udp
 	if targetConn, err := net.DialTimeout(lk.ConnType, lk.Host, lk.Option.Timeout); err != nil {
@@ -313,119 +315,7 @@ func (s *TRPClient) handleChan(src net.Conn) {
 		_ = src.Close()
 	} else {
 		logs.Trace("new %s connection with the goal of %s, remote address:%s", lk.ConnType, lk.Host, lk.RemoteAddr)
-		conn.CopyWaitGroup(src, targetConn, lk.Crypt, lk.Compress, nil, nil, false, 0, nil, nil)
-	}
-}
-
-func (s *TRPClient) handleUdp(serverConn net.Conn, timeout time.Duration) {
-	// bind a local udp port
-	defer serverConn.Close()
-	local, err := net.ListenUDP("udp", nil)
-	if err != nil {
-		logs.Error("bind local udp port error %v", err)
-		return
-	}
-	defer local.Close()
-	relayCtx, cancel := context.WithCancel(s.ctx)
-	defer cancel()
-	var lastActive atomic.Value
-	bump := func() { lastActive.Store(time.Now()) }
-	bump()
-	go func() {
-		t := time.NewTimer(timeout)
-		defer func() {
-			t.Stop()
-			cancel()
-			_ = local.SetReadDeadline(time.Now())
-			_ = local.SetWriteDeadline(time.Now())
-			_ = serverConn.SetReadDeadline(time.Now())
-			_ = serverConn.SetWriteDeadline(time.Now())
-		}()
-		for {
-			select {
-			case <-relayCtx.Done():
-				return
-			case <-t.C:
-				la := lastActive.Load().(time.Time)
-				idle := time.Since(la)
-				if idle >= timeout {
-					return
-				}
-				t.Reset(timeout - idle)
-			}
-		}
-	}()
-	go func() {
-		defer cancel()
-		defer serverConn.Close()
-		b := common.BufPoolUdp.Get().([]byte)
-		defer common.BufPoolUdp.Put(b)
-		for {
-			select {
-			case <-relayCtx.Done():
-				return
-			default:
-			}
-			n, rAddr, err := local.ReadFrom(b)
-			if err != nil {
-				if errors.Is(err, net.ErrClosed) {
-					logs.Info("local UDP closed, exiting goroutine")
-					return
-				}
-				var ne net.Error
-				if errors.As(err, &ne) && (ne.Temporary() || ne.Timeout()) {
-					logs.Warn("temporary UDP read error, retrying: %v", err)
-					continue
-				}
-				logs.Error("read data from remote server error %v", err)
-				return
-			}
-			bump()
-			buf := bytes.Buffer{}
-			dgram := common.NewUDPDatagram(common.NewUDPHeader(0, 0, common.ToSocksAddr(rAddr)), b[:n])
-			_ = dgram.Write(&buf)
-			b, err := conn.GetLenBytes(buf.Bytes())
-			if err != nil {
-				logs.Warn("get len bytes error %v", err)
-				continue
-			}
-			if _, err := serverConn.Write(b); err != nil {
-				logs.Error("write data to remote error %v", err)
-				return
-			}
-			bump()
-		}
-	}()
-	b := common.BufPoolUdp.Get().([]byte)
-	defer common.BufPoolUdp.Put(b)
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		default:
-		}
-		n, err := serverConn.Read(b)
-		if err != nil {
-			logs.Error("read udp data from server error %v", err)
-			return
-		}
-		bump()
-		udpData, err := common.ReadUDPDatagram(bytes.NewReader(b[:n]))
-		if err != nil {
-			logs.Error("unpack data error %v", err)
-			return
-		}
-		rAddr, err := net.ResolveUDPAddr("udp", udpData.Header.Addr.String())
-		if err != nil {
-			logs.Error("build remote addr err %v", err)
-			continue // drop silently
-		}
-		_, err = local.WriteTo(udpData.Data, rAddr)
-		if err != nil {
-			logs.Error("write data to remote %v error %v", rAddr, err)
-			return
-		}
-		bump()
+		conn.CopyWaitGroup(src, targetConn, lk.Crypt, lk.Compress, nil, nil, false, 0, nil, nil, false)
 	}
 }
 

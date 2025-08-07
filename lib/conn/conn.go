@@ -302,14 +302,6 @@ func (s *Conn) getInfo(t interface{}) (err error) {
 	return
 }
 
-func IsTempOrTimeout(err error) bool {
-	if err == nil {
-		return false
-	}
-	var ne net.Error
-	return errors.As(err, &ne) && (ne.Temporary() || ne.Timeout())
-}
-
 func (s *Conn) IsClosed() bool {
 	return atomic.LoadUint32(&s.closed) == 1
 }

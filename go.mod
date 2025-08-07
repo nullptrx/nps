@@ -8,12 +8,13 @@ require (
 	github.com/beevik/ntp v1.4.3
 	github.com/brianvoe/gofakeit/v7 v7.3.0
 	github.com/c4milo/unpackit v1.0.0
-	github.com/caddyserver/certmagic v0.23.0
+	github.com/caddyserver/certmagic v0.24.0
 	github.com/ccding/go-stun v0.1.5
 	github.com/golang/snappy v1.0.0
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/kardianos/service v1.2.4
-	github.com/miekg/dns v1.1.67
+	github.com/miekg/dns v1.1.68
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/quic-go/quic-go v0.54.0
 	github.com/rs/zerolog v1.34.0

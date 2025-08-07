@@ -4,18 +4,19 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"github.com/djylb/nps/lib/common"
+	"github.com/djylb/nps/lib/crypt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/config"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/logs"
-	"github.com/djylb/nps/lib/mux"
 	"golang.org/x/net/webdav"
 )
 
@@ -28,10 +29,9 @@ type FileServerManager struct {
 	cancel  context.CancelFunc
 	mu      sync.Mutex
 	wg      sync.WaitGroup
-	servers []struct {
-		srv        *http.Server
-		listener   *mux.Mux
-		remoteConn *conn.Conn
+	servers map[string]struct {
+		srv      *http.Server
+		listener *conn.VirtualListener
 	}
 }
 
@@ -48,20 +48,26 @@ func NewFileServerManager(parentCtx context.Context) *FileServerManager {
 	return fsm
 }
 
-func (fsm *FileServerManager) StartFileServer(cfg *config.CommonConfig, t *file.Tunnel, vkey string) {
+func (fsm *FileServerManager) StartFileServer(_ *config.CommonConfig, t *file.Tunnel, vkey string) {
 	if fsm.ctx.Err() != nil {
 		logs.Warn("file server manager already closed, skip StartFileServer")
 		return
 	}
-	remoteConn, err := NewConn(cfg.Tp, vkey, cfg.Server, common.WORK_FILE, cfg.ProxyUrl)
-	if err != nil {
-		logs.Error("file server NewConn failed: %v", err)
-		return
+	addr := net.JoinHostPort(t.ServerIp, strconv.Itoa(t.Port))
+	vl := conn.NewVirtualListener(conn.ParseAddr(addr))
+	if t.MultiAccount == nil {
+		t.MultiAccount = new(file.MultiAccount)
 	}
+	ports := common.GetPorts(t.Ports)
+	if len(ports) == 0 {
+		ports = append(ports, 0)
+	}
+	t.Port = ports[0]
+	key := crypt.GenerateUUID(vkey, t.Mode, t.ServerIp, strconv.Itoa(t.Port), t.LocalPath, t.StripPre, strconv.FormatBool(t.ReadOnly), t.MultiAccount.Content)
 	registered := false
 	defer func() {
 		if !registered {
-			_ = remoteConn.Close()
+			_ = vl.Close()
 		}
 	}()
 	fs := http.FileServer(http.Dir(t.LocalPath))
@@ -96,28 +102,39 @@ func (fsm *FileServerManager) StartFileServer(cfg *config.CommonConfig, t *file.
 	if len(accounts) > 0 {
 		handler = basicAuth(accounts, "WebDAV", handler)
 	}
+	if t.ReadOnly {
+		handler = readOnly(handler)
+	}
 	srv := &http.Server{
 		BaseContext: func(_ net.Listener) context.Context { return fsm.ctx },
 		Handler:     handler,
 	}
 	logs.Info("start WebDAV server, local path %s, strip prefix %s, remote port %s", t.LocalPath, t.StripPre, t.Ports)
-	listener := mux.NewMux(remoteConn.Conn, common.CONN_TCP, cfg.DisconnectTime)
 	fsm.mu.Lock()
-	fsm.servers = append(fsm.servers, struct {
-		srv        *http.Server
-		listener   *mux.Mux
-		remoteConn *conn.Conn
-	}{srv, listener, remoteConn})
+	fsm.servers[key.String()] = struct {
+		srv      *http.Server
+		listener *conn.VirtualListener
+	}{srv, vl}
 	fsm.mu.Unlock()
 	registered = true
 
 	fsm.wg.Add(1)
 	go func() {
 		defer fsm.wg.Done()
-		if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := srv.Serve(vl); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logs.Error("WebDAV Serve error: %v", err)
 		}
 	}()
+}
+
+func (fsm *FileServerManager) GetListenerByKey(key string) (*conn.VirtualListener, bool) {
+	fsm.mu.Lock()
+	defer fsm.mu.Unlock()
+	entry, ok := fsm.servers[key]
+	if !ok {
+		return nil, false
+	}
+	return entry.listener, true
 }
 
 func (fsm *FileServerManager) CloseAll() {
@@ -126,14 +143,13 @@ func (fsm *FileServerManager) CloseAll() {
 	entries := fsm.servers
 	fsm.servers = nil
 	fsm.mu.Unlock()
-	for _, e := range entries {
+	for key, e := range entries {
 		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := e.srv.Shutdown(ctx2); err != nil {
-			logs.Error("FileServer Shutdown error: %v", err)
+			logs.Error("FileServer Shutdown error [%s]: %v", key, err)
 		}
 		cancel2()
 		_ = e.listener.Close()
-		_ = e.remoteConn.Close()
 	}
 	fsm.wg.Wait()
 }
@@ -161,5 +177,17 @@ func basicAuth(users map[string]string, realm string, next http.Handler) http.Ha
 			return
 		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+func readOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, "PROPFIND":
+			next.ServeHTTP(w, r)
+		default:
+			w.Header().Set("Allow", "GET, HEAD, PROPFIND")
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
 	})
 }

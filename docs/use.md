@@ -315,6 +315,7 @@ mode=file
 server_port=9100
 local_path=/tmp/
 strip_pre=/web/
+read_only=false
 ````
 
 | 项           | 含义       |
@@ -323,6 +324,7 @@ strip_pre=/web/
 | server_port | 服务端开启的端口 |
 | local_path  | 本地文件目录   |
 | strip_pre   | 前缀       |
+| read_only   | 只读       |
 
 对于`strip_pre`，访问公网`ip:9100/web/`相当于访问`/tmp/`目录
 

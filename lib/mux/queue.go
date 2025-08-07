@@ -47,7 +47,11 @@ func (Self *priorityQueue) push(packager *muxPackager) {
 		// the New conn package need some priority too
 		Self.middleChain.pushHead(unsafe.Pointer(packager))
 	default:
-		Self.lowestChain.pushHead(unsafe.Pointer(packager))
+		if packager.priority {
+			Self.middleChain.pushHead(unsafe.Pointer(packager))
+		} else {
+			Self.lowestChain.pushHead(unsafe.Pointer(packager))
+		}
 	}
 }
 

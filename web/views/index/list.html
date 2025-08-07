@@ -101,9 +101,9 @@
                     + '<b langtag="word-commandaccessp2p"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server=\"{{.addr}}\" -vkey=\"" + row.Client.VerifyKey
                     + "\" -type=\"" + {{.bridgeType}} + "\" -password=\"" + row.Password + "\" -target=\"" + row.Target.TargetStr + "\" -target_type=\"" + row.TargetType + "\"</code>" + "<br/><br>"
                     + '<b langtag="word-commandaccessp2ps"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server=\"{{.addr}}\" -vkey=\"" + row.Client.VerifyKey
-                    + "\" -type=\"" + {{.bridgeType}} + "\" -password=\"" + row.Password + "\" -local_type=\"p2ps\"" + "</code>" + "<br/><br>"
+                    + "\" -type=\"" + {{.bridgeType}} + "\" -password=\"" + row.Password + "\" -local_type=\"p2ps\" -fallback_secret=\"{{if .allow_secret_link}}true{{else}}false{{end}}\"" + "</code>" + "<br/><br>"
                     + '<b langtag="word-commandaccessp2pt"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server=\"{{.addr}}\" -vkey=\"" + row.Client.VerifyKey
-                    + "\" -type=\"" + {{.bridgeType}} + "\" -password=\"" + row.Password + "\" -local_type=\"p2pt\"" + "</code>"
+                    + "\" -type=\"" + {{.bridgeType}} + "\" -password=\"" + row.Password + "\" -local_type=\"p2pt\" -fallback_secret=\"{{if .allow_secret_link}}true{{else}}false{{end}}\"" + "</code>"
             }
             if (row.Mode == "secret") {
                 return tmp + "<br/><br>" + '<b langtag="word-commandaccess"></b>: ' + '<code onclick="oCopy(this)">' + "./npc{{.win}} -server=\"{{.addr}}\" -vkey=\"" + row.Client.VerifyKey

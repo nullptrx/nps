@@ -2,8 +2,10 @@ package conn
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"io"
 	"net"
 	"strconv"
@@ -20,14 +22,16 @@ import (
 )
 
 // GetConn get crypt or snappy conn
-func GetConn(conn net.Conn, cpt, snappy bool, rt *rate.Rate, isServer bool) io.ReadWriteCloser {
-	if cpt {
-		if isServer {
-			return rate.NewRateConn(crypt.NewTlsServerConn(conn), rt)
+func GetConn(conn net.Conn, cpt, snappy bool, rt *rate.Rate, isServer, isLocal bool) io.ReadWriteCloser {
+	if !isLocal {
+		if cpt {
+			if isServer {
+				return rate.NewRateConn(crypt.NewTlsServerConn(conn), rt)
+			}
+			return rate.NewRateConn(crypt.NewTlsClientConn(conn), rt)
+		} else if snappy {
+			return rate.NewRateConn(NewSnappyConn(conn), rt)
 		}
-		return rate.NewRateConn(crypt.NewTlsClientConn(conn), rt)
-	} else if snappy {
-		return rate.NewRateConn(NewSnappyConn(conn), rt)
 	}
 	return rate.NewRateConn(conn, rt)
 }
@@ -57,6 +61,96 @@ func GetLenBytes(buf []byte) (b []byte, err error) {
 	}
 	b = raw.Bytes()
 	return
+}
+
+func IsTempOrTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	var ne net.Error
+	return errors.As(err, &ne) && (ne.Temporary() || ne.Timeout())
+}
+
+func HandleUdp5(ctx context.Context, serverConn net.Conn, timeout time.Duration) {
+	// bind a local udp port
+	defer serverConn.Close()
+	timeoutConn := NewTimeoutConn(serverConn, timeout)
+	defer timeoutConn.Close()
+	local, err := net.ListenUDP("udp", nil)
+	if err != nil {
+		logs.Error("bind local udp port error %v", err)
+		return
+	}
+	defer local.Close()
+	relayCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go func() {
+		defer cancel()
+		b := common.BufPoolUdp.Get().([]byte)
+		defer common.BufPoolUdp.Put(b)
+		for {
+			select {
+			case <-relayCtx.Done():
+				return
+			default:
+			}
+			n, rAddr, err := local.ReadFrom(b)
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					logs.Info("local UDP closed, exiting goroutine")
+					return
+				}
+				if IsTempOrTimeout(err) {
+					logs.Warn("temporary UDP read error, retrying: %v", err)
+					continue
+				}
+				logs.Error("read data from remote server error %v", err)
+				return
+			}
+			buf := bytes.Buffer{}
+			dgram := common.NewUDPDatagram(common.NewUDPHeader(0, 0, common.ToSocksAddr(rAddr)), b[:n])
+			_ = dgram.Write(&buf)
+			b, err := GetLenBytes(buf.Bytes())
+			if err != nil {
+				logs.Warn("get len bytes error %v", err)
+				continue
+			}
+			if _, err := timeoutConn.Write(b); err != nil {
+				logs.Error("write data to remote error %v", err)
+				return
+			}
+		}
+	}()
+	b := common.BufPoolUdp.Get().([]byte)
+	defer common.BufPoolUdp.Put(b)
+	for {
+		select {
+		case <-relayCtx.Done():
+			return
+		default:
+		}
+		n, err := timeoutConn.Read(b)
+		if err != nil {
+			logs.Error("read udp data from server error %v", err)
+			return
+		}
+		udpData, err := common.ReadUDPDatagram(bytes.NewReader(b[:n]))
+		if err != nil {
+			logs.Error("unpack data error %v", err)
+			return
+		}
+		rAddr, err := net.ResolveUDPAddr("udp", udpData.Header.Addr.String())
+		if err != nil {
+			logs.Error("build remote addr err %v", err)
+			continue // drop silently
+		}
+		_, err = local.WriteTo(udpData.Data, rAddr)
+		if err != nil {
+			logs.Error("write data to remote %v error %v", rAddr, err)
+			return
+		}
+	}
 }
 
 // SetUdpSession udp connection setting
@@ -94,8 +188,8 @@ func ReadACK(c net.Conn, timeout time.Duration) error {
 
 // CopyWaitGroup conn1 mux conn
 func CopyWaitGroup(conn1, conn2 net.Conn, crypt bool, snappy bool, rate *rate.Rate,
-	flows []*file.Flow, isServer bool, proxyProtocol int, rb []byte, task *file.Tunnel) {
-	connHandle := GetConn(conn1, crypt, snappy, rate, isServer)
+	flows []*file.Flow, isServer bool, proxyProtocol int, rb []byte, task *file.Tunnel, isLocal bool) {
+	connHandle := GetConn(conn1, crypt, snappy, rate, isServer, isLocal)
 	proxyHeader := BuildProxyProtocolHeader(conn2, proxyProtocol)
 	if proxyHeader != nil {
 		logs.Debug("Sending Proxy Protocol v%d header to backend: %v", proxyProtocol, proxyHeader)
@@ -114,6 +208,25 @@ func CopyWaitGroup(conn1, conn2 net.Conn, crypt bool, snappy bool, rate *rate.Ra
 		_ = conn2.Close()
 	}
 	wg.Wait()
+	_ = connHandle.Close()
+	_ = conn2.Close()
+	return
+}
+
+func ParseAddr(addr string) net.Addr {
+	host, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return &net.TCPAddr{IP: net.ParseIP(addr), Port: 0}
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		ip = net.IPv4zero
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		port = 0
+	}
+	return &net.TCPAddr{IP: ip, Port: port}
 }
 
 func BuildProxyProtocolV1Header(clientAddr, targetAddr net.Addr) []byte {
