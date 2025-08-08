@@ -431,7 +431,7 @@ func (c *Client) RemoveOfflineNodes() (removed int) {
 	}
 	c.mu.Lock()
 	for _, it := range toRemove {
-		if v, ok := c.nodes.Load(it.addr); ok && v == it.node && it.node.IsOffline() {
+		if v, ok := c.nodes.Load(it.addr); ok && v == it.node && !it.node.IsOnline() {
 			c.removeNode(it.addr)
 			removed++
 			logs.Info("Client %d removed offline node %s", c.Id, it.addr)

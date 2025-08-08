@@ -540,10 +540,10 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 			if ok {
 				node = n
 				node.AddSignal(c)
+				client.RemoveOfflineNodes()
 			} else {
 				client.AddNode(node)
 			}
-			client.RemoveOfflineNodes()
 		}
 		go s.GetHealthFromClient(id, c)
 		logs.Info("clientId %d connection succeeded, address:%v ", id, c.Conn.RemoteAddr())
@@ -579,6 +579,7 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 			if ok {
 				node = n
 				node.AddTunnel(anyConn)
+				client.RemoveOfflineNodes()
 			} else {
 				client.AddNode(node)
 			}
