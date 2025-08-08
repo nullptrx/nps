@@ -90,14 +90,17 @@ func SetClientSelectMode(v any) error {
 	return nil
 }
 
+const retryTimeMax = 3
+
 type Node struct {
-	mu      sync.RWMutex
-	Client  *Client
-	Addr    string
-	Version string
-	BaseVer int
-	signal  *conn.Conn
-	tunnel  any //*mux.Mux or *quic.Conn
+	mu        sync.RWMutex
+	Client    *Client
+	Addr      string
+	Version   string
+	BaseVer   int
+	signal    *conn.Conn
+	tunnel    any //*mux.Mux or *quic.Conn
+	retryTime int
 }
 
 func NewNode(addr, vs string, bv int) *Node {
@@ -196,6 +199,16 @@ func (n *Node) IsOffline() bool {
 	return !n.isOnline()
 }
 
+func (n *Node) Retry() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.retryTime < retryTimeMax {
+		n.retryTime = n.retryTime + 1
+		return true
+	}
+	return false
+}
+
 func (n *Node) Close() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -204,6 +217,7 @@ func (n *Node) Close() error {
 		_ = n.signal.Close()
 		n.signal = nil
 	}
+	n.retryTime = retryTimeMax
 	return nil
 }
 

@@ -158,6 +158,14 @@ func GenerateUUID(nameParts ...string) uuid.UUID {
 	return uuid.NewSHA1(uuid.NameSpaceURL, []byte(name))
 }
 
+func GetUUID() uuid.UUID {
+	u, err := uuid.NewV7()
+	if err != nil {
+		return uuid.New()
+	}
+	return u
+}
+
 // GetRandomString 生成指定长度的随机密钥，支持可选传入id
 func GetRandomString(l int, id ...int) string {
 	// 字符集

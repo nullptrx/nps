@@ -1070,6 +1070,10 @@ loop:
 									tl.MultiAccount = new(file.MultiAccount)
 								}
 								key := crypt.GenerateUUID(client.VerifyKey, tl.Mode, tl.ServerIp, strconv.Itoa(tl.Port), tl.LocalPath, tl.StripPre, strconv.FormatBool(tl.ReadOnly), tl.MultiAccount.Content)
+								//addr := c.RemoteAddr().String()
+								//if ver < 5 {
+								//	addr = common.GetIpByAddr(addr)
+								//}
 								_ = cli.AddFile(key.String(), c.RemoteAddr().String())
 								tl.Target.TargetStr = fmt.Sprintf("file://%s", key.String())
 							}
