@@ -433,7 +433,9 @@ func (c *Client) RemoveOfflineNodes() (removed int) {
 		addr, ok1 := key.(string)
 		node, ok2 := value.(*Node)
 		if ok1 && ok2 && node.IsOffline() {
-			toRemove = append(toRemove, pair{addr: addr, node: node})
+			if !node.Retry() {
+				toRemove = append(toRemove, pair{addr: addr, node: node})
+			}
 		}
 		return true
 	})
