@@ -171,7 +171,7 @@ func (s *Bridge) StartTunnel() error {
 }
 
 // GetHealthFromClient get health information form client
-func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
+func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn, client *Client, node *Node) {
 	if id <= 0 {
 		return
 	}
@@ -181,7 +181,7 @@ func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 	//firstSuccess := false
 
 	for {
-		info, status, err := c.GetHealthInfo(10 * time.Second)
+		info, status, err := c.GetHealthInfo()
 		if err != nil {
 			//logs.Trace("GetHealthInfo error, id=%d, retry=%d, err=%v", id, retry, err)
 			if conn.IsTempOrTimeout(err) && retry < maxRetry {
@@ -257,6 +257,8 @@ func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 	}
 	//s.DelClient(id)
 	//_ = c.Close()
+	_ = node.Close()
+	client.RemoveOfflineNodes()
 }
 
 func (s *Bridge) verifyError(c *conn.Conn) {
@@ -545,7 +547,7 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 				client.AddNode(node)
 			}
 		}
-		go s.GetHealthFromClient(id, c)
+		go s.GetHealthFromClient(id, c, client, node)
 		logs.Info("clientId %d connection succeeded, address:%v ", id, c.Conn.RemoteAddr())
 
 	case common.WORK_CHAN:

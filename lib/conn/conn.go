@@ -210,9 +210,9 @@ func (s *Conn) SendHealthInfo(info, status string) (int, error) {
 }
 
 // GetHealthInfo get health info from conn
-func (s *Conn) GetHealthInfo(timeout time.Duration) (info string, status bool, err error) {
-	_ = s.SetReadDeadline(time.Now().Add(timeout))
-	defer s.SetReadDeadline(time.Time{})
+func (s *Conn) GetHealthInfo() (info string, status bool, err error) {
+	//_ = s.SetReadDeadline(time.Now().Add(timeout))
+	//defer s.SetReadDeadline(time.Time{})
 	var l int
 	l, err = s.GetLen()
 	if err != nil {
