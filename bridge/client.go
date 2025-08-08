@@ -245,6 +245,9 @@ func NewClient(id int, n *Node) *Client {
 }
 
 func (c *Client) AddNode(n *Node) {
+	if n == nil {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if v, ok := c.nodes.Load(n.Addr); ok {
@@ -401,6 +404,44 @@ func (c *Client) NodeCount() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.nodeList.Size()
+}
+
+func (c *Client) RemoveOfflineNodes() (removed int) {
+	if c.nodeList.Size() == 0 {
+		return 0
+	}
+	type pair struct {
+		addr string
+		node *Node
+	}
+	var toRemove []pair
+	c.nodes.Range(func(key, value any) bool {
+		addr, ok1 := key.(string)
+		node, ok2 := value.(*Node)
+		if ok1 && ok2 && node.IsOffline() {
+			toRemove = append(toRemove, pair{addr: addr, node: node})
+		}
+		return true
+	})
+	if len(toRemove) == 0 {
+		return 0
+	}
+	for _, it := range toRemove {
+		_ = it.node.Close()
+	}
+	c.mu.Lock()
+	for _, it := range toRemove {
+		if v, ok := c.nodes.Load(it.addr); ok && v == it.node && it.node.IsOffline() {
+			c.removeNode(it.addr)
+			removed++
+			logs.Info("Client %d removed offline node %s", c.Id, it.addr)
+		}
+	}
+	c.mu.Unlock()
+	if removed > 0 {
+		logs.Info("Client %d pruned %d offline node(s)", c.Id, removed)
+	}
+	return removed
 }
 
 func (c *Client) removeNode(addr string) {

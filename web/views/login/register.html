@@ -84,11 +84,32 @@
             loginNonce: "{{.login_nonce}}",
             timeOffset: 0
         };
+        function syncServerTime() {
+            var t0 = Date.now();
+            $.ajax({
+                url: window.nps.web_base_url + "/auth/gettime",
+                dataType: "json",
+                cache: false,
+                timeout: 5000,
+                success: function (res) {
+                    if (!res || res.time == null) return;
+                    var t3 = Date.now();
+                    var server = res.time * 1000;
+                    if (server == null) return;
+                    var rtt = t3 - t0;
+                    var estServerAtT3 = server + Math.floor(rtt / 2);
+                    window.nps.timeOffset = estServerAtT3 - t3;
+                }
+            });
+        }
         function encryptWithRSA(plain) {
             const crypt = new JSEncrypt();
             crypt.setPublicKey(window.nps.publicKey);
             return crypt.encrypt(plain);
         }
+        $(function () {
+            syncServerTime();
+        });
         function register() {
             const data = {};
             $("form").serializeArray().forEach(item => {
@@ -107,7 +128,7 @@
                 data: data,
                 success: function (res) {
                     if (res.status) {
-                        showMsg(langreply(res.msg), 'success', 1000, function() {
+                        showMsg(langreply(res.msg), 'success', 1000, function () {
                             window.location.href = window.nps.web_base_url + "/login/index";
                         });
                     } else {

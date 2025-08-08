@@ -531,17 +531,19 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 		if ver < 5 {
 			addr = common.GetIpByAddr(addr)
 		}
-		newNode := NewNode(addr, vs, ver)
-		newNode.AddSignal(c)
-		newClient := NewClient(id, newNode)
-		if v, loaded := s.Client.LoadOrStore(id, newClient); loaded {
-			client := v.(*Client)
-			node, ok := client.GetNodeByAddr(addr)
+		node := NewNode(addr, vs, ver)
+		node.AddSignal(c)
+		client := NewClient(id, node)
+		if v, loaded := s.Client.LoadOrStore(id, client); loaded {
+			client = v.(*Client)
+			n, ok := client.GetNodeByAddr(addr)
 			if ok {
+				node = n
 				node.AddSignal(c)
 			} else {
-				client.AddNode(newNode)
+				client.AddNode(node)
 			}
+			client.RemoveOfflineNodes()
 		}
 		go s.GetHealthFromClient(id, c)
 		logs.Info("clientId %d connection succeeded, address:%v ", id, c.Conn.RemoteAddr())
@@ -568,16 +570,17 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 		if ver < 5 {
 			addr = common.GetIpByAddr(addr)
 		}
-		newNode := NewNode(addr, vs, ver)
-		newNode.AddTunnel(anyConn)
-		newClient := NewClient(id, newNode)
-		if v, loaded := s.Client.LoadOrStore(id, newClient); loaded {
-			client := v.(*Client)
-			node, ok := client.GetNodeByAddr(addr)
+		node := NewNode(addr, vs, ver)
+		node.AddTunnel(anyConn)
+		client := NewClient(id, node)
+		if v, loaded := s.Client.LoadOrStore(id, client); loaded {
+			client = v.(*Client)
+			n, ok := client.GetNodeByAddr(addr)
 			if ok {
+				node = n
 				node.AddTunnel(anyConn)
 			} else {
-				client.AddNode(newNode)
+				client.AddNode(node)
 			}
 		}
 		if ver > 4 {
@@ -585,6 +588,8 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 				defer func() {
 					logs.Trace("tunnel connection closed, client %d, remote %v", id, c.RemoteAddr())
 					_ = c.Close()
+					_ = node.Close()
+					client.RemoveOfflineNodes()
 				}()
 				switch t := anyConn.(type) {
 				case *mux.Mux:
@@ -853,7 +858,6 @@ func (s *Bridge) ping() {
 		select {
 		case <-ticker.C:
 			closedClients := make([]int, 0)
-
 			s.Client.Range(func(key, value interface{}) bool {
 				clientID := key.(int)
 				if clientID <= 0 {
@@ -865,15 +869,13 @@ func (s *Bridge) ping() {
 					closedClients = append(closedClients, clientID)
 					return true
 				}
-				node, ok := client.GetNodeByAddr(client.LastAddr)
-				if !ok || node.IsOffline() {
+				client.RemoveOfflineNodes()
+				node := client.CheckNode()
+				if node == nil || node.IsOffline() {
 					client.retryTime++
 					if client.retryTime >= 3 {
 						logs.Trace("Stop client %d", clientID)
 						closedClients = append(closedClients, clientID)
-					}
-					if client.NodeCount() > 1 {
-						_ = client.CheckNode()
 					}
 				} else {
 					client.retryTime = 0 // Reset retry count when the state is normal
