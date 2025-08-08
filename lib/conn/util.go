@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,7 +69,12 @@ func IsTempOrTimeout(err error) bool {
 		return false
 	}
 	var ne net.Error
-	return errors.As(err, &ne) && (ne.Temporary() || ne.Timeout())
+	if errors.As(err, &ne) {
+		return ne.Temporary() || ne.Timeout()
+	} else {
+		s := strings.ToLower(strings.ReplaceAll(err.Error(), " ", ""))
+		return strings.Contains(s, "timeout")
+	}
 }
 
 func HandleUdp5(ctx context.Context, serverConn net.Conn, timeout time.Duration) {

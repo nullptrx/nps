@@ -194,7 +194,7 @@ func (s *Bridge) GetHealthFromClient(id int, c *conn.Conn) {
 			logs.Trace("GetHealthInfo error, id=%d, retry=%d, err=%v", id, retry, err)
 			break
 		}
-		logs.Trace("GetHealthInfo: %v, %v, %v", info, err, status)
+		//logs.Trace("GetHealthInfo: %v, %v, %v", info, err, status)
 		//firstSuccess = true
 		retry = 0
 
