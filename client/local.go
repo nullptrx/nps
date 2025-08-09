@@ -563,6 +563,7 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 		return
 	}
 	remoteConn := conn.NewConn(c)
+	defer remoteConn.Close()
 	mgr.mu.Lock()
 	uuid := mgr.uuid
 	mgr.mu.Unlock()
