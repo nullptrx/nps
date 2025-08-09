@@ -95,7 +95,7 @@
                 return tmp + "<br/><br>"
                     + '<b langtag="word-localpath"></b>: ' + row.LocalPath + '&emsp;'
                     + '<b langtag="word-stripprefix"></b>: ' + row.StripPre + '&emsp;<br/><br>'
-                    + '<b langtag="word-target"></b>: ' + row.Target.TargetStr + '&emsp;'
+                    + '<b langtag="word-target"></b>: <span onclick="oCopy(this)">' + row.Target.TargetStr + '</span>&emsp;'
             }
             if (row.Mode == "p2p") {
                 return tmp + "<br/><br>"

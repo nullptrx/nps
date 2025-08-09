@@ -176,6 +176,12 @@ func (n *Node) isOnline() bool {
 	return !n.isTunnelClosed() && (n.signal != nil && !n.signal.IsClosed()) || n.Client.Id < 0
 }
 
+func (n *Node) IsTunnelClosed() bool {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.isTunnelClosed()
+}
+
 func (n *Node) isTunnelClosed() bool {
 	if n.tunnel == nil {
 		return true

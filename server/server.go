@@ -61,7 +61,10 @@ func DealBridgeTask() {
 	for {
 		select {
 		case t := <-Bridge.OpenTask:
-			_ = AddTask(t)
+			//_ = AddTask(t)
+			if err := StartTask(t.Id); err != nil {
+				logs.Error("StartTask(%d) error: %v", t.Id, err)
+			}
 		case t := <-Bridge.CloseTask:
 			_ = StopServer(t.Id)
 		case id := <-Bridge.CloseClient:
@@ -71,8 +74,8 @@ func DealBridgeTask() {
 					_ = file.GetDb().DelClient(id)
 				}
 			}
-		case tunnel := <-Bridge.OpenTask:
-			_ = StartTask(tunnel.Id)
+		//case tunnel := <-Bridge.OpenTask:
+		//	_ = StartTask(tunnel.Id)
 		case s := <-Bridge.SecretChan:
 			logs.Trace("New secret connection, addr %v", s.Conn.Conn.RemoteAddr())
 			if t := file.GetDb().GetTaskByMd5Password(s.Password); t != nil {
@@ -238,7 +241,10 @@ func StartTask(id int) error {
 		if !tool.TestServerPort(t.Port, t.Mode) {
 			return errors.New("the port open error")
 		}
-		_ = AddTask(t)
+		err = AddTask(t)
+		if err != nil {
+			return err
+		}
 		t.Status = true
 		_ = file.GetDb().UpdateTask(t)
 	}

@@ -134,6 +134,8 @@ func StartFromFile(path string) {
 	}
 	common.SyncTime()
 
+	var uuid string
+
 	first := true
 	for {
 		if !first && !cnf.CommonConfig.AutoReconnection {
@@ -148,10 +150,13 @@ func StartFromFile(path string) {
 		if cnf.CommonConfig.TlsEnable {
 			cnf.CommonConfig.Tp = "tls"
 		}
-		c, uuid, err := NewConn(cnf.CommonConfig.Tp, cnf.CommonConfig.VKey, cnf.CommonConfig.Server, cnf.CommonConfig.ProxyUrl)
+		c, cid, err := NewConn(cnf.CommonConfig.Tp, cnf.CommonConfig.VKey, cnf.CommonConfig.Server, cnf.CommonConfig.ProxyUrl)
 		if err != nil {
 			logs.Error("Failed to connect: %v", err)
 			continue
+		}
+		if uuid == "" {
+			uuid = cid
 		}
 		err = SendType(c, common.WORK_CONFIG, uuid)
 		if err != nil {

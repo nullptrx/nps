@@ -29,17 +29,20 @@ type FileServerManager struct {
 	cancel  context.CancelFunc
 	mu      sync.Mutex
 	wg      sync.WaitGroup
-	servers map[string]struct {
-		srv      *http.Server
-		listener *conn.VirtualListener
-	}
+	servers map[string]*fileServer
+}
+
+type fileServer struct {
+	srv      *http.Server
+	listener *conn.VirtualListener
 }
 
 func NewFileServerManager(parentCtx context.Context) *FileServerManager {
 	ctx, cancel := context.WithCancel(parentCtx)
 	fsm := &FileServerManager{
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:     ctx,
+		cancel:  cancel,
+		servers: make(map[string]*fileServer),
 	}
 	go func() {
 		<-parentCtx.Done()
@@ -111,10 +114,15 @@ func (fsm *FileServerManager) StartFileServer(_ *config.CommonConfig, t *file.Tu
 	}
 	logs.Info("start WebDAV server, local path %s, strip prefix %s, remote port %s", t.LocalPath, t.StripPre, t.Ports)
 	fsm.mu.Lock()
-	fsm.servers[key.String()] = struct {
-		srv      *http.Server
-		listener *conn.VirtualListener
-	}{srv, vl}
+	if fsm.servers == nil {
+		fsm.mu.Unlock()
+		logs.Warn("file server manager already closed, skip StartFileServer")
+		return
+	}
+	fsm.servers[key.String()] = &fileServer{
+		srv:      srv,
+		listener: vl,
+	}
 	fsm.mu.Unlock()
 	registered = true
 
