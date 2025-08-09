@@ -134,7 +134,7 @@ func (s *Bridge) StartTunnel() error {
 
 	// kcp
 	if ServerKcpEnable {
-		logs.Info("server start, the bridge type is kcp, the bridge port is %s", connection.BridgeKcpPort)
+		logs.Info("Server start, the bridge type is kcp, the bridge port is %s", connection.BridgeKcpPort)
 		go func() {
 			bridgeKcp := *s
 			bridgeKcp.tunnelType = "kcp"
@@ -149,7 +149,7 @@ func (s *Bridge) StartTunnel() error {
 
 	// quic
 	if ServerQuicEnable {
-		logs.Info("server start, the bridge type is quic, the bridge port is %s", connection.BridgeQuicPort)
+		logs.Info("Server start, the bridge type is quic, the bridge port is %s", connection.BridgeQuicPort)
 		go func() {
 			tlsCfg := &tls.Config{
 				Certificates: []tls.Certificate{crypt.GetCert()},
@@ -326,7 +326,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			return
 		}
 		//verify
-		id, err = file.GetDb().GetIdByVerifyKey(string(keyBuf), c.Conn.RemoteAddr().String(), "", crypt.Md5)
+		id, err = file.GetDb().GetIdByVerifyKey(string(keyBuf), c.RemoteAddr().String(), "", crypt.Md5)
 		if err != nil {
 			logs.Error("Validation error for client %v (proto-ver %d, vKey %x): %v", c.Conn.RemoteAddr(), ver, keyBuf, err)
 			s.verifyError(c)
@@ -373,7 +373,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 			_ = c.Close()
 			return
 		}
-		client.Addr = common.GetIpByAddr(c.Conn.RemoteAddr().String())
+		client.Addr = common.GetIpByAddr(c.RemoteAddr().String())
 		infoBuf, err := c.GetShortLenContent()
 		if err != nil {
 			logs.Error("Failed to read encrypted IP from %v: %v", c.Conn.RemoteAddr(), err)
@@ -450,8 +450,21 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 				_ = c.Close()
 				return
 			}
-			_ = c.WriteLenContent(fpBuf)
+			err = c.WriteLenContent(fpBuf)
+			if err != nil {
+				logs.Error("Failed to write cert fingerprint for %v: %v", c.Conn.RemoteAddr(), err)
+				_ = c.Close()
+				return
+			}
 			if ver > 3 {
+				if ver > 5 {
+					err := c.WriteLenContent([]byte(crypt.GetUUID().String()))
+					if err != nil {
+						logs.Error("Failed to write UUID for %v: %v", c.Conn.RemoteAddr(), err)
+						_ = c.Close()
+						return
+					}
+				}
 				// --- protocol 0.30.0+ path ---
 				randByte, err := common.RandomBytes(1000)
 				if err != nil {
@@ -499,20 +512,39 @@ func (s *Bridge) DelClient(id int) {
 
 // use different
 func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
+	addr := c.RemoteAddr()
 	flag, err := c.ReadFlag()
 	if err != nil {
-		logs.Warn("Failed to read operation flag from %v: %v", c.Conn.RemoteAddr(), err)
+		logs.Warn("Failed to read operation flag from %v: %v", addr, err)
 		_ = c.Close()
 		return
 	}
+	var uuid string
 	if ver > 3 {
+		if ver > 5 {
+			// --- protocol 0.30.0+ path ---
+			uuidBuf, err := c.GetShortLenContent()
+			if err != nil {
+				logs.Error("Failed to read uuid buffer from %v: %v", addr, err)
+				_ = c.Close()
+				return
+			}
+			uuid = string(uuidBuf)
+		}
 		// --- protocol 0.30.0+ path ---
 		_, err := c.GetShortLenContent()
 		if err != nil {
-			logs.Error("Failed to read random buffer from %v: %v", c.Conn.RemoteAddr(), err)
+			logs.Error("Failed to read random buffer from %v: %v", addr, err)
 			_ = c.Close()
 			return
 		}
+	}
+	if uuid == "" {
+		uuid = addr.String()
+		if ver < 5 {
+			uuid = common.GetIpByAddr(uuid)
+		}
+		uuid = crypt.GenerateUUID(uuid).String()
 	}
 	isPub := file.GetDb().IsPubClient(id)
 	switch flag {
@@ -529,16 +561,12 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 		}
 
 		//the vKey connect by another, close the client of before
-		addr := c.RemoteAddr().String()
-		if ver < 5 {
-			addr = common.GetIpByAddr(addr)
-		}
-		node := NewNode(addr, vs, ver)
+		node := NewNode(uuid, vs, ver)
 		node.AddSignal(c)
 		client := NewClient(id, node)
 		if v, loaded := s.Client.LoadOrStore(id, client); loaded {
 			client = v.(*Client)
-			n, ok := client.GetNodeByAddr(addr)
+			n, ok := client.GetNodeByUUID(uuid)
 			if ok {
 				node = n
 				node.AddSignal(c)
@@ -548,11 +576,11 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 			}
 		}
 		go s.GetHealthFromClient(id, c, client, node)
-		logs.Info("clientId %d connection succeeded, address:%v ", id, c.Conn.RemoteAddr())
+		logs.Info("ClientId %d connection succeeded, address:%v ", id, addr)
 
 	case common.WORK_CHAN:
 		if !first {
-			logs.Error("can not create mux more than once")
+			logs.Error("Can not create mux more than once")
 			_ = c.Close()
 			return
 		}
@@ -564,20 +592,16 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 			anyConn = mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime, false)
 		}
 		if anyConn == nil {
-			logs.Warn("Failed to create Mux for client %v", c.Conn.RemoteAddr())
+			logs.Warn("Failed to create Mux for client %v", addr)
 			_ = c.Close()
 			return
 		}
-		addr := c.RemoteAddr().String()
-		if ver < 5 {
-			addr = common.GetIpByAddr(addr)
-		}
-		node := NewNode(addr, vs, ver)
+		node := NewNode(uuid, vs, ver)
 		node.AddTunnel(anyConn)
 		client := NewClient(id, node)
 		if v, loaded := s.Client.LoadOrStore(id, client); loaded {
 			client = v.(*Client)
-			n, ok := client.GetNodeByAddr(addr)
+			n, ok := client.GetNodeByUUID(uuid)
 			if ok {
 				node = n
 				node.AddTunnel(anyConn)
@@ -589,7 +613,7 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 		if ver > 4 {
 			go func() {
 				defer func() {
-					logs.Trace("tunnel connection closed, client %d, remote %v", id, c.RemoteAddr())
+					logs.Trace("Tunnel connection closed, client %d, remote %v", id, addr)
 					_ = c.Close()
 					_ = node.Close()
 					client.RemoveOfflineNodes()
@@ -615,7 +639,7 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 						go s.typeDeal(conn.NewConn(sc), id, ver, vs, false)
 					}
 				default:
-					logs.Error("unknown tunnel type")
+					logs.Error("Unknown tunnel type")
 				}
 			}()
 		}
@@ -627,11 +651,63 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 			return
 		}
 		_ = binary.Write(c, binary.LittleEndian, isPub)
-		go s.getConfig(c, isPub, client, ver, vs)
+		go s.getConfig(c, isPub, client, ver, vs, uuid)
 
 	case common.WORK_REGISTER:
 		go s.register(c)
 		return
+
+	case common.WORK_VISITOR:
+		if !first {
+			logs.Error("Can not create mux more than once")
+			_ = c.Close()
+			return
+		}
+		var anyConn any
+		qc, ok := c.Conn.(*conn.QuicAutoCloseConn)
+		if ok && ver > 4 {
+			anyConn = qc.GetSession()
+		} else {
+			anyConn = mux.NewMux(c.Conn, s.tunnelType, s.disconnectTime, false)
+		}
+		if anyConn == nil {
+			logs.Warn("Failed to create Mux for client %v", addr)
+			_ = c.Close()
+			return
+		}
+		go func() {
+			idle := NewIdleTimer(30*time.Second, func() { _ = c.Close() })
+			defer func() {
+				logs.Trace("Visitor connection closed, client %d, remote %v", id, addr)
+				idle.Stop()
+				_ = c.Close()
+			}()
+			switch t := anyConn.(type) {
+			case *mux.Mux:
+				conn.Accept(t, func(nc net.Conn) {
+					idle.Inc()
+					go s.typeDeal(conn.NewConn(nc).OnClose(func(*conn.Conn) {
+						idle.Dec()
+					}), id, ver, vs, false)
+				})
+				return
+			case *quic.Conn:
+				for {
+					stream, err := t.AcceptStream(context.Background())
+					if err != nil {
+						logs.Trace("QUIC accept stream error: %v", err)
+						return
+					}
+					sc := conn.NewQuicStreamConn(stream, t)
+					idle.Inc()
+					go s.typeDeal(conn.NewConn(sc).OnClose(func(c *conn.Conn) {
+						idle.Dec()
+					}), id, ver, vs, false)
+				}
+			default:
+				logs.Error("Unknown tunnel type")
+			}
+		}()
 
 	case common.WORK_SECRET:
 		b, err := c.GetShortContent(32)
@@ -736,7 +812,7 @@ func (s *Bridge) register(c *conn.Conn) {
 	_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
 	var hour int32
 	if err := binary.Read(c, binary.LittleEndian, &hour); err == nil {
-		ip := common.GetIpByAddr(c.Conn.RemoteAddr().String())
+		ip := common.GetIpByAddr(c.RemoteAddr().String())
 		s.Register.Store(ip, time.Now().Add(time.Hour*time.Duration(hour)))
 		logs.Info("Registered IP: %s for %d hours", ip, hour)
 	} else {
@@ -895,7 +971,7 @@ func (s *Bridge) ping() {
 }
 
 // get config and add task from client config
-func (s *Bridge) getConfig(c *conn.Conn, isPub bool, client *file.Client, ver int, vs string) {
+func (s *Bridge) getConfig(c *conn.Conn, isPub bool, client *file.Client, ver int, vs, uuid string) {
 	var fail bool
 loop:
 	for {
@@ -955,11 +1031,7 @@ loop:
 
 			_ = c.WriteAddOk()
 			_, _ = c.Write([]byte(client.VerifyKey))
-			addr := c.RemoteAddr().String()
-			if ver < 5 {
-				addr = common.GetIpByAddr(addr)
-			}
-			s.Client.Store(client.Id, NewClient(client.Id, NewNode(addr, vs, ver)))
+			s.Client.Store(client.Id, NewClient(client.Id, NewNode(uuid, vs, ver)))
 
 		case common.NEW_HOST:
 			h, err := c.GetHostInfo()
@@ -1070,11 +1142,7 @@ loop:
 									tl.MultiAccount = new(file.MultiAccount)
 								}
 								key := crypt.GenerateUUID(client.VerifyKey, tl.Mode, tl.ServerIp, strconv.Itoa(tl.Port), tl.LocalPath, tl.StripPre, strconv.FormatBool(tl.ReadOnly), tl.MultiAccount.Content)
-								//addr := c.RemoteAddr().String()
-								//if ver < 5 {
-								//	addr = common.GetIpByAddr(addr)
-								//}
-								_ = cli.AddFile(key.String(), c.RemoteAddr().String())
+								_ = cli.AddFile(key.String(), uuid)
 								tl.Target.TargetStr = fmt.Sprintf("file://%s", key.String())
 							}
 						}

@@ -151,7 +151,7 @@ func (https *HttpsServer) Start() error {
 			tlsConfig.SetSessionTicketKeys(https.ticketKeys)
 		}
 
-		acceptConn := conn.NewConnWithRb(c, rb)
+		acceptConn := conn.NewConn(c).SetRb(rb)
 		tlsConn := tls.Server(acceptConn, tlsConfig)
 		if err := tlsConn.Handshake(); err != nil {
 			_ = tlsConn.Close()

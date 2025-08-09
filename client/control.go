@@ -54,11 +54,15 @@ func init() {
 }
 
 func GetTaskStatus(server string, vKey string, tp string, proxyUrl string) {
-	c, err := NewConn(tp, vKey, server, common.WORK_CONFIG, proxyUrl)
+	c, uuid, err := NewConn(tp, vKey, server, proxyUrl)
 	if err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 	}
 	defer c.Close()
+	err = SendType(c, common.WORK_CONFIG, uuid)
+	if err != nil {
+		log.Fatalf("Failed to send type: %v", err)
+	}
 	if _, err := c.BufferWrite([]byte(common.WORK_STATUS)); err != nil {
 		log.Fatalf("Failed to write WORK_STATUS: %v", err)
 	}
@@ -94,7 +98,11 @@ func GetTaskStatus(server string, vKey string, tp string, proxyUrl string) {
 }
 
 func RegisterLocalIp(server string, vKey string, tp string, proxyUrl string, hour int) {
-	c, err := NewConn(tp, vKey, server, common.WORK_REGISTER, proxyUrl)
+	c, uuid, err := NewConn(tp, vKey, server, proxyUrl)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	err = SendType(c, common.WORK_REGISTER, uuid)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -139,9 +147,14 @@ func StartFromFile(path string) {
 		if cnf.CommonConfig.TlsEnable {
 			cnf.CommonConfig.Tp = "tls"
 		}
-		c, err := NewConn(cnf.CommonConfig.Tp, cnf.CommonConfig.VKey, cnf.CommonConfig.Server, common.WORK_CONFIG, cnf.CommonConfig.ProxyUrl)
+		c, uuid, err := NewConn(cnf.CommonConfig.Tp, cnf.CommonConfig.VKey, cnf.CommonConfig.Server, cnf.CommonConfig.ProxyUrl)
 		if err != nil {
-			logs.Error("%v", err)
+			logs.Error("Failed to connect: %v", err)
+			continue
+		}
+		err = SendType(c, common.WORK_CONFIG, uuid)
+		if err != nil {
+			logs.Error("Failed to send type: %v", err)
 			continue
 		}
 
@@ -222,7 +235,7 @@ func StartFromFile(path string) {
 			logs.Info("web access login username:%s password:%s", cnf.CommonConfig.Client.WebUserName, cnf.CommonConfig.Client.WebPassword)
 		}
 
-		NewRPClient(cnf.CommonConfig.Server, vkey, cnf.CommonConfig.Tp, cnf.CommonConfig.ProxyUrl, cnf, cnf.CommonConfig.DisconnectTime, fsm).Start()
+		NewRPClient(cnf.CommonConfig.Server, vkey, cnf.CommonConfig.Tp, cnf.CommonConfig.ProxyUrl, uuid, cnf, cnf.CommonConfig.DisconnectTime, fsm).Start()
 		//CloseLocalServer()
 		fsm.CloseAll()
 		p2pm.Close()
@@ -281,7 +294,7 @@ func EnsurePort(server string, tp string) string {
 }
 
 // NewConn Create a new connection with the server and verify it
-func NewConn(tp string, vkey string, server string, connType string, proxyUrl string) (*conn.Conn, error) {
+func NewConn(tp string, vkey string, server string, proxyUrl string) (*conn.Conn, string, error) {
 	//logs.Debug("NewConn: %s %s %s %s %s", tp, vkey, server, connType, proxyUrl)
 	var err error
 	var connection net.Conn
@@ -320,24 +333,24 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		conf := &tls.Config{InsecureSkipVerify: true}
 		rawConn, err := GetProxyConn(proxyUrl, server, timeout)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		connection, err = conn.NewTlsConn(rawConn, timeout, conf)
 		if err != nil {
 			_ = rawConn.Close()
-			return nil, err
+			return nil, "", err
 		}
 		tlsFp, tlsVerify = VerifyTLS(connection, host)
 	case "ws":
 		rawConn, err := GetProxyConn(proxyUrl, server, timeout)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		urlStr := "ws://" + server + path
 		wsConn, _, err := conn.DialWS(rawConn, urlStr, timeout)
 		if err != nil {
 			_ = rawConn.Close()
-			return nil, err
+			return nil, "", err
 		}
 		connection = conn.NewWsConn(wsConn)
 	case "wss":
@@ -345,12 +358,12 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		urlStr := "wss://" + server + path
 		rawConn, err := GetProxyConn(proxyUrl, server, timeout)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		wsConn, _, err := conn.DialWSS(rawConn, urlStr, timeout)
 		if err != nil {
 			_ = rawConn.Close()
-			return nil, err
+			return nil, "", err
 		}
 		if underlying := wsConn.NetConn(); underlying != nil {
 			tlsFp, tlsVerify = VerifyTLS(underlying, host)
@@ -366,14 +379,14 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		ctx := context.Background()
 		sess, err := quic.DialAddr(ctx, server, tlsCfg, QuicConfig)
 		if err != nil {
-			return nil, fmt.Errorf("quic dial error: %w", err)
+			return nil, "", fmt.Errorf("quic dial error: %w", err)
 		}
 		state := sess.ConnectionState().TLS
 		tlsFp, tlsVerify = VerifyState(state, host)
 		stream, err := sess.OpenStreamSync(ctx)
 		if err != nil {
 			_ = sess.CloseWithError(0, "")
-			return nil, fmt.Errorf("quic open stream error: %w", err)
+			return nil, "", fmt.Errorf("quic open stream error: %w", err)
 		}
 		connection = conn.NewQuicAutoCloseConn(stream, sess)
 	default:
@@ -385,12 +398,12 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 	}
 
 	if connection == nil {
-		return nil, fmt.Errorf("NewConn: unexpected nil connection for tp=%q server=%q", tp, server)
+		return nil, "", fmt.Errorf("NewConn: unexpected nil connection for tp=%q server=%q", tp, server)
 	}
 
 	if err != nil {
 		_ = connection.Close()
-		return nil, err
+		return nil, "", err
 	}
 
 	//logs.Debug("SetDeadline")
@@ -400,12 +413,12 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 	c := conn.NewConn(connection)
 	if _, err := c.BufferWrite([]byte(common.CONN_TEST)); err != nil {
 		_ = c.Close()
-		return nil, err
+		return nil, "", err
 	}
 	minVerBytes := []byte(version.GetVersion(Ver))
 	if err := c.WriteLenContent(minVerBytes); err != nil {
 		_ = c.Close()
-		return nil, err
+		return nil, "", err
 	}
 	vs := []byte(version.VERSION)
 	padLen := rand.Intn(MaxPad)
@@ -414,16 +427,16 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 	}
 	if err := c.WriteLenContent(vs); err != nil {
 		_ = c.Close()
-		return nil, err
+		return nil, "", err
 	}
-
+	var uuid string
 	if Ver == 0 {
 		// 0.26.0
 		b, err := c.GetShortContent(32)
 		if err != nil {
 			logs.Error("%v", err)
 			_ = c.Close()
-			return nil, err
+			return nil, "", err
 		}
 		if crypt.Md5(version.GetVersion(Ver)) != string(b) {
 			logs.Warn("The client does not match the server version. The current core version of the client is %s", version.GetVersion(Ver))
@@ -432,25 +445,25 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 		}
 		if _, err := c.BufferWrite([]byte(crypt.Md5(vkey))); err != nil {
 			_ = c.Close()
-			return nil, err
+			return nil, "", err
 		}
 		if s, err := c.ReadFlag(); err != nil {
 			_ = c.Close()
-			return nil, err
+			return nil, "", err
 		} else if s == common.VERIFY_EER {
 			_ = c.Close()
-			return nil, fmt.Errorf("validation key %s incorrect", vkey)
+			return nil, "", fmt.Errorf("validation key %s incorrect", vkey)
 		}
 	} else {
 		// 0.27.0
 		ts := common.TimeNow().Unix() - int64(rand.Intn(6))
 		if _, err := c.BufferWrite(common.TimestampToBytes(ts)); err != nil {
 			_ = c.Close()
-			return nil, err
+			return nil, "", err
 		}
 		if _, err := c.BufferWrite([]byte(crypt.Blake2b(vkey))); err != nil {
 			_ = c.Close()
-			return nil, err
+			return nil, "", err
 		}
 		var infoBuf []byte
 		if Ver < 3 {
@@ -459,7 +472,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			infoBuf, err = crypt.EncryptBytes(common.EncodeIP(common.GetOutboundIP()), vkey)
 			if err != nil {
 				_ = c.Close()
-				return nil, err
+				return nil, "", err
 			}
 		} else {
 			// 0.29.0
@@ -468,7 +481,7 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			tpLen := len(tpBytes)
 			if tpLen > 32 {
 				_ = c.Close()
-				return nil, fmt.Errorf("tp too long: %d bytes (max %d)", tpLen, 32)
+				return nil, "", fmt.Errorf("tp too long: %d bytes (max %d)", tpLen, 32)
 			}
 			length := byte(tpLen)
 			// IP(17 bit) + len(1 bit) + tpBytes
@@ -480,91 +493,108 @@ func NewConn(tp string, vkey string, server string, connType string, proxyUrl st
 			infoBuf, err = crypt.EncryptBytes(buf, vkey)
 			if err != nil {
 				_ = c.Close()
-				return nil, err
+				return nil, "", err
 			}
 		}
 		if err := c.WriteLenContent(infoBuf); err != nil {
 			_ = c.Close()
-			return nil, err
+			return nil, "", err
 		}
 		randBuf, err := common.RandomBytes(1000)
 		if err != nil {
 			_ = c.Close()
-			return nil, err
+			return nil, "", err
 		}
 		if err := c.WriteLenContent(randBuf); err != nil {
 			_ = c.Close()
-			return nil, err
+			return nil, "", err
 		}
 		hmacBuf := crypt.ComputeHMAC(vkey, ts, minVerBytes, vs, infoBuf, randBuf)
 		if _, err := c.BufferWrite(hmacBuf); err != nil {
 			_ = c.Close()
-			return nil, err
+			return nil, "", err
 		}
 		b, err := c.GetShortContent(32)
 		if err != nil {
 			logs.Error("error reading server response: %v", err)
 			_ = c.Close()
-			return nil, errors.New(fmt.Sprintf("Validation key %s incorrect", vkey))
+			return nil, "", errors.New(fmt.Sprintf("Validation key %s incorrect", vkey))
 		}
 		if !bytes.Equal(b, crypt.ComputeHMAC(vkey, ts, hmacBuf, []byte(version.GetVersion(Ver)))) {
 			logs.Warn("The client does not match the server version. The current core version of the client is %s", version.GetVersion(Ver))
 			_ = c.Close()
-			return nil, err
+			return nil, "", err
 		}
 		if Ver > 1 {
 			fpBuf, err := c.GetShortLenContent()
 			if err != nil {
 				_ = c.Close()
-				return nil, err
+				return nil, "", err
 			}
 			fpDec, err := crypt.DecryptBytes(fpBuf, vkey)
 			if err != nil {
 				_ = c.Close()
-				return nil, err
+				return nil, "", err
 			}
 			if !SkipTLSVerify && isTls && !tlsVerify && !bytes.Equal(fpDec, tlsFp) {
 				logs.Warn("Certificate verification failed. To skip verification, please set -skip_verify=true")
 				_ = c.Close()
-				return nil, errors.New("validation cert incorrect")
+				return nil, "", errors.New("validation cert incorrect")
 			}
 			crypt.AddTrustedCert(vkey, fpDec)
 			if Ver > 3 {
+				// v0.30.0
+				if Ver > 5 {
+					// v0.32.0
+					uuidBuf, err := c.GetShortLenContent()
+					if err != nil {
+						_ = c.Close()
+						return nil, "", err
+					}
+					uuid = string(uuidBuf)
+				}
 				_, err := c.GetShortLenContent()
 				if err != nil {
 					_ = c.Close()
-					return nil, err
+					return nil, "", err
 				}
 			}
 		}
 	}
-
-	return SendType(c, connType)
+	//_, err = SendType(c, connType, uuid)
+	return c, uuid, err
 }
 
-func SendType(c *conn.Conn, connType string) (*conn.Conn, error) {
+func SendType(c *conn.Conn, connType, uuid string) error {
 	if _, err := c.BufferWrite([]byte(connType)); err != nil {
 		_ = c.Close()
-		return nil, err
+		return err
 	}
 	if Ver > 3 {
 		// v0.30.0
+		if Ver > 5 {
+			// v0.32.0
+			if err := c.WriteLenContent([]byte(uuid)); err != nil {
+				_ = c.Close()
+				return err
+			}
+		}
 		randByte, err := common.RandomBytes(1000)
 		if err != nil {
 			_ = c.Close()
-			return nil, err
+			return err
 		}
 		if err := c.WriteLenContent(randByte); err != nil {
 			_ = c.Close()
-			return nil, err
+			return err
 		}
 	}
 	if err := c.FlushBuf(); err != nil {
 		_ = c.Close()
-		return nil, err
+		return err
 	}
 	c.SetAlive()
-	return c, nil
+	return nil
 }
 
 func GetProxyConn(proxyUrl, server string, timeout time.Duration) (rawConn net.Conn, err error) {

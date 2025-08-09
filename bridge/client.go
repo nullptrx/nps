@@ -95,7 +95,7 @@ const retryTimeMax = 3
 type Node struct {
 	mu        sync.RWMutex
 	Client    *Client
-	Addr      string
+	UUID      string
 	Version   string
 	BaseVer   int
 	signal    *conn.Conn
@@ -103,9 +103,9 @@ type Node struct {
 	retryTime int
 }
 
-func NewNode(addr, vs string, bv int) *Node {
+func NewNode(uuid, vs string, bv int) *Node {
 	return &Node{
-		Addr:    addr,
+		UUID:    uuid,
 		Version: vs,
 		BaseVer: bv,
 	}
@@ -238,10 +238,10 @@ func (n *Node) closeTunnel(err string) error {
 type Client struct {
 	mu        sync.RWMutex
 	Id        int
-	LastAddr  string
-	nodeList  *pool.Pool[string] // addr
-	nodes     sync.Map           // map[addr]*Node
-	files     sync.Map           // map[fileUUID]addr
+	LastUUID  string
+	nodeList  *pool.Pool[string] // nodeUUID
+	nodes     sync.Map           // map[nodeUUID]*Node
+	files     sync.Map           // map[fileUUID]nodeUUID
 	retryTime int                // it will add 1 when ping not ok until to 3 will close the client
 	closed    uint32
 }
@@ -249,12 +249,12 @@ type Client struct {
 func NewClient(id int, n *Node) *Client {
 	c := &Client{
 		Id:       id,
-		LastAddr: n.Addr,
+		LastUUID: n.UUID,
 		nodeList: pool.New[string](),
 	}
 	n.Client = c
-	c.nodes.Store(n.Addr, n)
-	c.nodeList.Add(n.Addr)
+	c.nodes.Store(n.UUID, n)
+	c.nodeList.Add(n.UUID)
 	return c
 }
 
@@ -264,29 +264,29 @@ func (c *Client) AddNode(n *Node) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if v, ok := c.nodes.Load(n.Addr); ok {
+	if v, ok := c.nodes.Load(n.UUID); ok {
 		existing := v.(*Node)
 		if existing.IsOnline() {
 			_ = n.Close()
 			return
 		}
 		existing.AddNode(n)
-		c.LastAddr = n.Addr
+		c.LastUUID = n.UUID
 		return
 	}
 	n.Client = c
-	c.nodes.Store(n.Addr, n)
-	c.nodeList.Add(n.Addr)
-	c.LastAddr = n.Addr
+	c.nodes.Store(n.UUID, n)
+	c.nodeList.Add(n.UUID)
+	c.LastUUID = n.UUID
 }
 
-func (c *Client) AddFile(key, addr string) error {
+func (c *Client) AddFile(key, uuid string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if _, ok := c.nodes.Load(addr); !ok {
-		return fmt.Errorf("addr %q not found", addr)
+	if _, ok := c.nodes.Load(uuid); !ok {
+		return fmt.Errorf("uuid %q not found", uuid)
 	}
-	c.files.Store(key, addr)
+	c.files.Store(key, uuid)
 	return nil
 }
 
@@ -303,12 +303,12 @@ func (c *Client) GetNodeByFile(key string) (*Node, bool) {
 	if !ok {
 		return nil, false
 	}
-	addr, ok := v.(string)
+	uuid, ok := v.(string)
 	if !ok {
 		return nil, false
 	}
 	c.mu.RLock()
-	n, ok := c.nodes.Load(addr)
+	n, ok := c.nodes.Load(uuid)
 	c.mu.RUnlock()
 	if !ok {
 		return nil, false
@@ -320,7 +320,7 @@ func (c *Client) GetNodeByFile(key string) (*Node, bool) {
 		}
 		_ = node.Close()
 		c.mu.Lock()
-		c.removeNode(addr)
+		c.removeNode(uuid)
 		c.mu.Unlock()
 	}
 	return nil, false
@@ -336,38 +336,38 @@ func (c *Client) CheckNode() *Node {
 	}
 	first := true
 	for {
-		var addr string
+		var lastUUID string
 		c.mu.RLock()
-		addr = c.LastAddr
+		lastUUID = c.LastUUID
 		c.mu.RUnlock()
-		if addr == "" {
-			var nextAddr string
+		if lastUUID == "" {
+			var nextUUID string
 			switch ClientSelectMode {
 			case Primary, RoundRobin:
-				nextAddr, _ = c.nodeList.Next()
+				nextUUID, _ = c.nodeList.Next()
 			case Random:
-				nextAddr, _ = c.nodeList.Random()
+				nextUUID, _ = c.nodeList.Random()
 			default:
-				nextAddr, _ = c.nodeList.Next()
+				nextUUID, _ = c.nodeList.Next()
 			}
-			if nextAddr == "" {
+			if nextUUID == "" {
 				logs.Warn("Client %d has no nodes to switch to", c.Id)
 				return nil
 			}
 			c.mu.Lock()
-			c.LastAddr = nextAddr
+			c.LastUUID = nextUUID
 			c.mu.Unlock()
-			addr = nextAddr
+			lastUUID = nextUUID
 		}
 		c.mu.RLock()
-		raw, ok := c.nodes.Load(addr)
+		raw, ok := c.nodes.Load(lastUUID)
 		c.mu.RUnlock()
 		if ok {
 			node, ok := raw.(*Node)
 			if ok {
 				if !node.IsOffline() {
 					if !first {
-						logs.Info("Client %d switched to backup node %s", c.Id, addr)
+						logs.Info("Client %d switched to backup node %s", c.Id, lastUUID)
 					}
 					return node
 				}
@@ -376,7 +376,7 @@ func (c *Client) CheckNode() *Node {
 		}
 		first = false
 		c.mu.Lock()
-		removed := c.LastAddr
+		removed := c.LastUUID
 		c.removeNode(removed)
 		c.mu.Unlock()
 		logs.Info("Client %d removed node %s", c.Id, removed)
@@ -389,12 +389,12 @@ func (c *Client) GetNode() *Node {
 		return c.CheckNode()
 	case RoundRobin:
 		c.mu.Lock()
-		c.LastAddr, _ = c.nodeList.Next()
+		c.LastUUID, _ = c.nodeList.Next()
 		c.mu.Unlock()
 		return c.CheckNode()
 	case Random:
 		c.mu.Lock()
-		c.LastAddr, _ = c.nodeList.Random()
+		c.LastUUID, _ = c.nodeList.Random()
 		c.mu.Unlock()
 		return c.CheckNode()
 	default:
@@ -402,11 +402,11 @@ func (c *Client) GetNode() *Node {
 	return c.CheckNode()
 }
 
-func (c *Client) GetNodeByAddr(addr string) (*Node, bool) {
+func (c *Client) GetNodeByUUID(uuid string) (*Node, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	raw, ok := c.nodes.Load(addr)
+	raw, ok := c.nodes.Load(uuid)
 	if !ok {
 		return nil, false
 	}
@@ -425,16 +425,16 @@ func (c *Client) RemoveOfflineNodes() (removed int) {
 		return 0
 	}
 	type pair struct {
-		addr string
+		uuid string
 		node *Node
 	}
 	var toRemove []pair
 	c.nodes.Range(func(key, value any) bool {
-		addr, ok1 := key.(string)
+		uuid, ok1 := key.(string)
 		node, ok2 := value.(*Node)
 		if ok1 && ok2 && node.IsOffline() {
 			if !node.Retry() {
-				toRemove = append(toRemove, pair{addr: addr, node: node})
+				toRemove = append(toRemove, pair{uuid: uuid, node: node})
 			}
 		}
 		return true
@@ -447,10 +447,10 @@ func (c *Client) RemoveOfflineNodes() (removed int) {
 	}
 	c.mu.Lock()
 	for _, it := range toRemove {
-		if v, ok := c.nodes.Load(it.addr); ok && v == it.node && !it.node.IsOnline() {
-			c.removeNode(it.addr)
+		if v, ok := c.nodes.Load(it.uuid); ok && v == it.node && !it.node.IsOnline() {
+			c.removeNode(it.uuid)
 			removed++
-			logs.Info("Client %d removed offline node %s", c.Id, it.addr)
+			logs.Info("Client %d removed offline node %s", c.Id, it.uuid)
 		}
 	}
 	c.mu.Unlock()
@@ -460,18 +460,18 @@ func (c *Client) RemoveOfflineNodes() (removed int) {
 	return removed
 }
 
-func (c *Client) removeNode(addr string) {
-	c.nodes.Delete(addr)
-	c.nodeList.Remove(addr)
-	if c.LastAddr == addr {
+func (c *Client) removeNode(uuid string) {
+	c.nodes.Delete(uuid)
+	c.nodeList.Remove(uuid)
+	if c.LastUUID == uuid {
 		if next, ok := c.nodeList.Next(); ok {
-			c.LastAddr = next
+			c.LastUUID = next
 		} else {
-			c.LastAddr = ""
+			c.LastUUID = ""
 		}
 	}
 	c.files.Range(func(key, value interface{}) bool {
-		if v, ok := value.(string); ok && v == addr {
+		if v, ok := value.(string); ok && v == uuid {
 			c.files.Delete(key)
 		}
 		return true

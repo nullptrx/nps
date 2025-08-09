@@ -39,6 +39,8 @@ type P2PManager struct {
 	udpConn      net.Conn
 	muxSession   *mux.Mux
 	quicConn     *quic.Conn
+	uuid         string
+	secretConn   any
 	bridge       *p2pBridge
 	statusOK     bool
 	statusCh     chan struct{}
@@ -320,19 +322,111 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 	return nil
 }
 
-func (mgr *P2PManager) getSecretConn() (net.Conn, error) {
-	remoteConn, err := NewConn(mgr.cfg.Tp, mgr.cfg.VKey, mgr.cfg.Server, common.WORK_SECRET, mgr.cfg.ProxyUrl)
+func (mgr *P2PManager) getSecretConn() (c net.Conn, err error) {
+	mgr.mu.Lock()
+	secretConn := mgr.secretConn
+	mgr.mu.Unlock()
+	if secretConn != nil {
+		switch tun := mgr.secretConn.(type) {
+		case *mux.Mux:
+			c, err = tun.NewConn()
+			if err != nil {
+				_ = tun.Close()
+			}
+		case *quic.Conn:
+			var stream *quic.Stream
+			stream, err = tun.OpenStreamSync(context.Background())
+			if err == nil {
+				c = conn.NewQuicStreamConn(stream, tun)
+			} else {
+				_ = tun.CloseWithError(0, err.Error())
+			}
+		default:
+			err = errors.New("the tunnel type error")
+			logs.Error("the tunnel type error")
+		}
+		if err != nil {
+			mgr.mu.Lock()
+			mgr.secretConn = nil
+			mgr.mu.Unlock()
+			secretConn = nil
+		}
+	}
+	if secretConn == nil {
+		pc, uuid, err := NewConn(mgr.cfg.Tp, mgr.cfg.VKey, mgr.cfg.Server, mgr.cfg.ProxyUrl)
+		if err != nil {
+			logs.Error("secret NewConn failed: %v", err)
+			_ = pc.Close()
+			return nil, err
+		}
+		mgr.mu.Lock()
+		if mgr.uuid == "" {
+			mgr.uuid = uuid
+		} else {
+			uuid = mgr.uuid
+		}
+		mgr.mu.Unlock()
+		if Ver > 5 {
+			err = SendType(pc, common.WORK_VISITOR, uuid)
+			if err != nil {
+				logs.Error("secret SendType failed: %v", err)
+				_ = pc.Close()
+				return nil, err
+			}
+			if mgr.cfg.Tp == common.CONN_QUIC {
+				qc, ok := pc.Conn.(*conn.QuicAutoCloseConn)
+				if !ok {
+					logs.Error("failed to get quic session")
+					_ = pc.Close()
+					return nil, errors.New("failed to get quic session")
+				}
+				sess := qc.GetSession()
+				var stream *quic.Stream
+				stream, err := sess.OpenStreamSync(mgr.ctx)
+				if err != nil {
+					logs.Error("secret OpenStreamSync failed: %v", err)
+					_ = pc.Close()
+					return nil, err
+				}
+				c = conn.NewQuicStreamConn(stream, sess)
+				secretConn = sess
+			} else {
+				muxConn := mux.NewMux(pc.Conn, mgr.cfg.Tp, mgr.cfg.DisconnectTime, true)
+				c, err = muxConn.NewConn()
+				if err != nil {
+					logs.Error("secret muxConn failed: %v", err)
+					_ = muxConn.Close()
+					_ = pc.Close()
+					return nil, err
+				}
+				secretConn = muxConn
+			}
+			mgr.mu.Lock()
+			mgr.secretConn = secretConn
+			mgr.mu.Unlock()
+		} else {
+			c = pc
+		}
+	}
+	if c == nil {
+		logs.Error("secret GetConn failed: %v", err)
+		return nil, errors.New("secret conn nil")
+	}
+	mgr.mu.Lock()
+	uuid := mgr.uuid
+	mgr.mu.Unlock()
+	err = SendType(conn.NewConn(c), common.WORK_SECRET, uuid)
 	if err != nil {
-		logs.Error("secret NewConn failed: %v", err)
-		_ = remoteConn.Close()
+		logs.Error("secret SendType failed: %v", err)
+		_ = c.Close()
 		return nil, err
 	}
-	if _, err := remoteConn.Write([]byte(crypt.Md5(mgr.local.Password))); err != nil {
+	if _, err := c.Write([]byte(crypt.Md5(mgr.local.Password))); err != nil {
 		logs.Error("secret write failed: %v", err)
-		_ = remoteConn.Close()
+		_ = c.Close()
 		return nil, err
 	}
-	return remoteConn, nil
+	return c, nil
 }
 
 func (mgr *P2PManager) handleUdpMonitor(cfg *config.CommonConfig, l *config.LocalServer) {
@@ -418,13 +512,67 @@ func (mgr *P2PManager) handleUdpMonitor(cfg *config.CommonConfig, l *config.Loca
 }
 
 func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l *config.LocalServer) {
-	remoteConn, err := NewConn(cfg.Tp, cfg.VKey, cfg.Server, common.WORK_P2P, cfg.ProxyUrl)
+	mgr.mu.Lock()
+	secretConn := mgr.secretConn
+	mgr.mu.Unlock()
+	var err error
+	var c net.Conn
+	if secretConn != nil {
+		switch tun := mgr.secretConn.(type) {
+		case *mux.Mux:
+			c, err = tun.NewConn()
+			if err != nil {
+				_ = tun.Close()
+			}
+		case *quic.Conn:
+			var stream *quic.Stream
+			stream, err = tun.OpenStreamSync(context.Background())
+			if err == nil {
+				c = conn.NewQuicStreamConn(stream, tun)
+			} else {
+				_ = tun.CloseWithError(0, err.Error())
+			}
+		default:
+			err = errors.New("the tunnel type error")
+			logs.Error("the tunnel type error")
+		}
+		if err != nil {
+			mgr.mu.Lock()
+			mgr.secretConn = nil
+			mgr.mu.Unlock()
+			secretConn = nil
+		}
+	} else {
+		var uuid string
+		c, uuid, err = NewConn(cfg.Tp, cfg.VKey, cfg.Server, cfg.ProxyUrl)
+		if err != nil {
+			logs.Error("Failed to connect to server: %v", err)
+			time.Sleep(5 * time.Second)
+			return
+		}
+		defer c.Close()
+		mgr.mu.Lock()
+		if mgr.uuid == "" {
+			mgr.uuid = uuid
+		} else {
+			uuid = mgr.uuid
+		}
+		mgr.mu.Unlock()
+	}
+	if c == nil {
+		logs.Error("secret NewConn failed: %v", err)
+		return
+	}
+	remoteConn := conn.NewConn(c)
+	mgr.mu.Lock()
+	uuid := mgr.uuid
+	mgr.mu.Unlock()
+	err = SendType(remoteConn, common.WORK_P2P, uuid)
 	if err != nil {
-		logs.Error("Failed to connect to server: %v", err)
+		logs.Error("Failed to send type to server: %v", err)
 		time.Sleep(5 * time.Second)
 		return
 	}
-	defer remoteConn.Close()
 	if _, err := remoteConn.Write([]byte(crypt.Md5(l.Password))); err != nil {
 		logs.Error("Failed to send password to server: %v", err)
 		time.Sleep(5 * time.Second)

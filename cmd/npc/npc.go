@@ -380,7 +380,7 @@ func run(ctx context.Context) {
 			go func() {
 				for {
 					logs.Info("Start server: " + serverAddr + " vkey: " + verifyKey + " type: " + connType)
-					client.NewRPClient(serverAddr, verifyKey, connType, *proxyUrl, nil, *disconnectTime, nil).Start()
+					client.NewRPClient(serverAddr, verifyKey, connType, *proxyUrl, "", nil, *disconnectTime, nil).Start()
 					logs.Info("Client closed! It will be reconnected in five seconds")
 					time.Sleep(time.Second * 5)
 				}

@@ -223,14 +223,7 @@ func ProcessHttp(c *conn.Conn, s *TunnelModeServer) error {
 			//go server.Close()
 		},
 	}
-	var listener *conn.OneConnListener
-	if c.Rb == nil {
-		c.Rb = rb
-		listener = conn.NewOneConnListener(c)
-	} else {
-		cc := conn.NewConnWithRb(c, rb)
-		listener = conn.NewOneConnListener(cc)
-	}
+	listener := conn.NewOneConnListener(c.SetRb(rb))
 	var shutdownTimerMu sync.Mutex
 	var shutdownTimer *time.Timer
 	defer func() {

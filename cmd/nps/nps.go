@@ -265,10 +265,7 @@ func run() {
 	crypt.InitTls(cert)
 	tool.InitAllowPort()
 	tool.StartSystemInfo()
-	timeout, err := beego.AppConfig.Int("disconnect_timeout")
-	if err != nil {
-		timeout = 60
-	}
+	timeout := beego.AppConfig.DefaultInt("disconnect_timeout", 60)
 	bridgeTcpPort := beego.AppConfig.DefaultInt("bridge_tcp_port", bridgePort)
 	bridgeKcpPort := beego.AppConfig.DefaultInt("bridge_kcp_port", bridgePort)
 	bridgeQuicPort, _ := beego.AppConfig.Int("bridge_quic_port")

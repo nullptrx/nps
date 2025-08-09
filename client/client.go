@@ -24,6 +24,7 @@ type TRPClient struct {
 	bridgeConnType string
 	proxyUrl       string
 	vKey           string
+	uuid           string
 	p2pAddr        map[string]string
 	tunnel         any
 	signal         *conn.Conn
@@ -38,13 +39,14 @@ type TRPClient struct {
 }
 
 // NewRPClient new client
-func NewRPClient(svrAddr string, vKey string, bridgeConnType string, proxyUrl string, cnf *config.Config, disconnectTime int, fsm *FileServerManager) *TRPClient {
+func NewRPClient(svrAddr, vKey, bridgeConnType, proxyUrl, uuid string, cnf *config.Config, disconnectTime int, fsm *FileServerManager) *TRPClient {
 	return &TRPClient{
 		svrAddr:        svrAddr,
 		p2pAddr:        make(map[string]string),
 		vKey:           vKey,
 		bridgeConnType: bridgeConnType,
 		proxyUrl:       proxyUrl,
+		uuid:           uuid,
 		cnf:            cnf,
 		disconnectTime: disconnectTime,
 		fsm:            fsm,
@@ -60,7 +62,16 @@ func (s *TRPClient) Start() {
 	defer s.Close()
 	NowStatus = 0
 	if Ver < 5 {
-		c, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_MAIN, s.proxyUrl)
+		c, uuid, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, s.proxyUrl)
+		if err != nil {
+			HasFailed = true
+			logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
+			return
+		}
+		if s.uuid == "" {
+			s.uuid = uuid
+		}
+		err = SendType(c, common.WORK_MAIN, s.uuid)
 		if err != nil {
 			HasFailed = true
 			logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
@@ -85,7 +96,8 @@ func (s *TRPClient) Start() {
 				return
 			}
 			mc.SetPriority()
-			c, err := SendType(conn.NewConn(mc), common.WORK_MAIN)
+			c := conn.NewConn(mc)
+			err = SendType(c, common.WORK_MAIN, s.uuid)
 			if err != nil {
 				logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
 				_ = mc.Close()
@@ -99,7 +111,8 @@ func (s *TRPClient) Start() {
 				return
 			}
 			sc := conn.NewQuicStreamConn(stream, t)
-			c, err := SendType(conn.NewConn(sc), common.WORK_MAIN)
+			c := conn.NewConn(sc)
+			err = SendType(c, common.WORK_MAIN, s.uuid)
 			if err != nil {
 				logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
 				_ = sc.Close()
@@ -265,9 +278,19 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 
 // mux tunnel
 func (s *TRPClient) newChan() {
-	tunnel, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, common.WORK_CHAN, s.proxyUrl)
+	tunnel, uuid, err := NewConn(s.bridgeConnType, s.vKey, s.svrAddr, s.proxyUrl)
 	if err != nil {
-		logs.Error("failed to connect to server %s error: %v", s.svrAddr, err)
+		logs.Error("Failed to connect to server %s error: %v", s.svrAddr, err)
+		HasFailed = true
+		logs.Warn("The connection server failed and will be reconnected in five seconds.")
+		return
+	}
+	if s.uuid == "" {
+		s.uuid = uuid
+	}
+	err = SendType(tunnel, common.WORK_CHAN, s.uuid)
+	if err != nil {
+		logs.Error("Failed to send type to server %s error: %v", s.svrAddr, err)
 		HasFailed = true
 		logs.Warn("The connection server failed and will be reconnected in five seconds.")
 		return

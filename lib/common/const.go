@@ -6,6 +6,7 @@ const (
 	VERIFY_SUCCESS    = "sucs"
 	WORK_MAIN         = "main"
 	WORK_CHAN         = "chan"
+	WORK_VISITOR      = "vstr"
 	WORK_CONFIG       = "conf"
 	WORK_REGISTER     = "rgst"
 	WORK_SECRET       = "sert"

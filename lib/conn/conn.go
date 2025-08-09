@@ -27,11 +27,12 @@ import (
 var LocalTCPAddr = &net.TCPAddr{IP: net.ParseIP("127.0.0.1")}
 
 type Conn struct {
-	Conn   net.Conn
-	Rb     []byte
-	wBuf   *bytes.Buffer
-	mu     sync.Mutex
-	closed uint32
+	Conn       net.Conn
+	rbs        [][]byte
+	wBuf       *bytes.Buffer
+	mu         sync.Mutex
+	closed     uint32
+	closeHooks []func(*Conn)
 }
 
 // NewConn new conn
@@ -42,12 +43,21 @@ func NewConn(conn net.Conn) *Conn {
 	}
 }
 
-func NewConnWithRb(conn net.Conn, rb []byte) *Conn {
-	return &Conn{
-		Conn: conn,
-		Rb:   rb,
-		wBuf: new(bytes.Buffer),
+func (s *Conn) SetRb(rbs ...[]byte) *Conn {
+	for _, rb := range rbs {
+		if len(rb) > 0 {
+			s.rbs = append(s.rbs, rb)
+		}
 	}
+	return s
+}
+
+func (s *Conn) OnClose(fn func(*Conn)) *Conn {
+	if fn == nil {
+		return s
+	}
+	s.closeHooks = append(s.closeHooks, fn)
+	return s
 }
 
 func (s *Conn) readRequest(buf []byte) (n int, err error) {
@@ -308,6 +318,23 @@ func (s *Conn) IsClosed() bool {
 
 func (s *Conn) Close() error {
 	if atomic.CompareAndSwapUint32(&s.closed, 0, 1) {
+		hooks := s.closeHooks
+		s.closeHooks = nil
+		for _, h := range hooks {
+			func() {
+				defer func() { _ = recover() }()
+				h(s)
+			}()
+		}
+		for i := range s.rbs {
+			s.rbs[i] = nil
+		}
+		s.rbs = nil
+		s.mu.Lock()
+		if s.wBuf != nil {
+			s.wBuf.Reset()
+		}
+		s.mu.Unlock()
 		return s.Conn.Close()
 	}
 	return errors.New("connection already closed")
@@ -362,15 +389,25 @@ func (s *Conn) Read(b []byte) (n int, err error) {
 		return 0, err
 	}
 
-	if s.Rb != nil {
-		//if the rb is not nil ,read rb first
-		if len(s.Rb) > 0 {
-			n = copy(b, s.Rb)
-			s.Rb = s.Rb[n:]
-			return
+	for len(s.rbs) > 0 {
+		cur := s.rbs[0]
+		if len(cur) == 0 {
+			s.rbs[0] = nil
+			s.rbs = s.rbs[1:]
+			continue
 		}
-		s.Rb = nil
+		n = copy(b, cur)
+		s.rbs[0] = cur[n:]
+		if len(s.rbs[0]) == 0 {
+			s.rbs[0] = nil
+			s.rbs = s.rbs[1:]
+			if len(s.rbs) == 0 {
+				s.rbs = nil
+			}
+		}
+		return n, nil
 	}
+
 	return s.Conn.Read(b)
 }
 

@@ -486,7 +486,7 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 	if backendReader.Buffered() > 0 {
 		pending := make([]byte, backendReader.Buffered())
 		if _, err := backendReader.Read(pending); err == nil {
-			netConn = conn.NewConnWithRb(netConn, pending)
+			netConn = conn.NewConn(netConn).SetRb(pending)
 		} else {
 			logs.Error("handleWebsocket: read backend buffered data failed: %v", err)
 			_ = netConn.Close()
@@ -504,7 +504,7 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 			_ = clientConn.Close()
 			return
 		}
-		clientConn = conn.NewConnWithRb(clientConn, pending)
+		clientConn = conn.NewConn(clientConn).SetRb(pending)
 	}
 
 	goroutine.Join(clientConn, netConn, []*file.Flow{host.Flow, host.Client.Flow}, s.Task, r.RemoteAddr)
