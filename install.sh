@@ -48,14 +48,16 @@ esac
 
 echo "Mode: $INSTALL_MODE"
 
+USE_CF_LATEST=0
+
 # Fetch latest version if unspecified
 if [ "$INSTALL_VERSION" = "latest" ]; then
   echo "Get latest version..."
   API_URL="https://api.github.com/repos/djylb/nps/releases/latest"
   if command -v curl >/dev/null 2>&1; then
-    RAW_JSON=$(curl -sSLf "$API_URL")
+    RAW_JSON=$(curl -sSLf "$API_URL" || true)
   else
-    RAW_JSON=$(wget -qO- "$API_URL")
+    RAW_JSON=$(wget -qO- "$API_URL" || true)
   fi
 
   INSTALL_VERSION=$(printf '%s' "$RAW_JSON" \
@@ -63,11 +65,17 @@ if [ "$INSTALL_VERSION" = "latest" ]; then
     | sed 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/')
 
   if [ -z "$INSTALL_VERSION" ]; then
-    echo "Error: failed to detect version" >&2
-    exit 1
+    echo "Warn: failed to detect version from GitHub API, will use CDN @latest." >&2
+    USE_CF_LATEST=1
+    INSTALL_VERSION=latest
   fi
 fi
-echo "Version: $INSTALL_VERSION"
+
+if [ "$USE_CF_LATEST" -eq 1 ]; then
+  echo "Version: latest (CDN @latest fallback)"
+else
+  echo "Version: $INSTALL_VERSION"
+fi
 
 # Determine OS
 OS="$(uname -s)"
@@ -119,11 +127,20 @@ fi
 download() {
   NAME=$1
   FILE="${OS}_${ARCH}_${NAME}.tar.gz"
-  URLS="
-    https://github.com/djylb/nps/releases/download/${INSTALL_VERSION}/${FILE}
-    https://cdn.jsdelivr.net/gh/djylb/nps-mirror@${INSTALL_VERSION}/${FILE}
-    https://fastly.jsdelivr.net/gh/djylb/nps-mirror@${INSTALL_VERSION}/${FILE}
-  "
+
+  if [ "$USE_CF_LATEST" -eq 1 ]; then
+    URLS="
+      https://cdn.jsdelivr.net/gh/djylb/nps-mirror@latest/${FILE}
+      https://fastly.jsdelivr.net/gh/djylb/nps-mirror@latest/${FILE}
+      https://github.com/djylb/nps/releases/latest/download/${FILE}
+    "
+  else
+    URLS="
+      https://github.com/djylb/nps/releases/download/${INSTALL_VERSION}/${FILE}
+      https://cdn.jsdelivr.net/gh/djylb/nps-mirror@${INSTALL_VERSION}/${FILE}
+      https://fastly.jsdelivr.net/gh/djylb/nps-mirror@${INSTALL_VERSION}/${FILE}
+    "
+  fi
 
   if [ -n "$INSTALL_DIR" ]; then
     mkdir -p "$INSTALL_DIR"
@@ -138,9 +155,9 @@ download() {
   for u in $URLS; do
     echo "Trying $u" >&2
     if command -v curl >/dev/null 2>&1; then
-      curl -sfSL -O "$u" && success=1 && break
+      if curl -sfSL -o "$FILE" "$u"; then success=1; break; fi
     else
-      wget -q -O "$FILE" "$u" && success=1 && break
+      if wget -q -O "$FILE" "$u"; then success=1; break; fi
     fi
   done
 
