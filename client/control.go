@@ -58,7 +58,7 @@ func GetTaskStatus(server string, vKey string, tp string, proxyUrl string) {
 	if err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 	}
-	defer c.Close()
+	//defer c.Close()
 	err = SendType(c, common.WORK_CONFIG, uuid)
 	if err != nil {
 		log.Fatalf("Failed to send type: %v", err)
@@ -102,7 +102,7 @@ func RegisterLocalIp(server string, vKey string, tp string, proxyUrl string, hou
 	if err != nil {
 		log.Fatalln(err)
 	}
-	defer c.Close()
+	//defer c.Close()
 	err = SendType(c, common.WORK_REGISTER, uuid)
 	if err != nil {
 		log.Fatalln(err)
@@ -316,14 +316,15 @@ func NewConn(tp string, vkey string, server string, proxyUrl string) (*conn.Conn
 	}
 	server = EnsurePort(server, tp)
 	host := common.GetIpByAddr(server)
-	if common.IsDomain(host) {
+	if !common.IsDomain(host) {
 		host = ""
 	}
 	//logs.Debug("Server: %s Path: %s", server, path)
 	if HasFailed {
-		server, err = common.GetFastAddr(server, tp)
-		if err != nil {
-			logs.Debug("Server: %s Path: %s Error: %v", server, path, err)
+		if s, e := common.GetFastAddr(server, tp); e == nil {
+			server = s
+		} else {
+			logs.Debug("Server: %s Path: %s Error: %v", server, path, e)
 		}
 	}
 
@@ -607,13 +608,14 @@ func GetProxyConn(proxyUrl, server string, timeout time.Duration) (rawConn net.C
 		}
 		switch u.Scheme {
 		case "socks5":
-			n, er := proxy.FromURL(u, nil)
+			dialer := &net.Dialer{Timeout: timeout}
+			n, er := proxy.FromURL(u, dialer)
 			if er != nil {
 				return nil, er
 			}
 			rawConn, err = n.Dial("tcp", server)
 		default:
-			rawConn, err = NewHttpProxyConn(u, server)
+			rawConn, err = NewHttpProxyConn(u, server, timeout)
 		}
 	} else {
 		dialer := net.Dialer{Timeout: timeout}
@@ -626,8 +628,8 @@ func GetProxyConn(proxyUrl, server string, timeout time.Duration) (rawConn net.C
 }
 
 // NewHttpProxyConn http proxy connection
-func NewHttpProxyConn(proxyURL *url.URL, remoteAddr string) (net.Conn, error) {
-	proxyConn, err := net.DialTimeout("tcp", proxyURL.Host, 10*time.Second)
+func NewHttpProxyConn(proxyURL *url.URL, remoteAddr string, timeout time.Duration) (net.Conn, error) {
+	proxyConn, err := net.DialTimeout("tcp", proxyURL.Host, timeout)
 	if err != nil {
 		return nil, err
 	}
