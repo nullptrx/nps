@@ -135,7 +135,7 @@
                             <input class="form-control" langtag="info-redirecturl" name="redirect_url" placeholder="" type="text">
                         </div>
                     </div>
-                    {{if eq true .allow_local_proxy}}
+                    {{ if and .allow_local_proxy (or .isAdmin .allow_user_local) }}
                     <div class="form-group" id="local_proxy">
                         <label class="control-label font-bold" langtag="word-proxytolocal"></label>
                         <div class="col-sm-12">

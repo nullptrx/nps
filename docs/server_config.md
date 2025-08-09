@@ -177,6 +177,7 @@ server {
 | `allow_time_limit`           | 是否允许到期时间限制                                |
 | `allow_tunnel_num_limit`     | 是否允许限制客户端最大隧道数                            |
 | `allow_local_proxy`          | 是否允许 NPS 本地代理连接（相当于在nps服务器上启动一个npc）       |
+| `allow_user_local`           | 是否允许用户使用 NPS 本地代理连接                       |
 | `allow_secret_link`          | 是否允许私密代理客户端指定连接地址                         |
 | `allow_secret_local`         | 是否允许私密代理客户端连接到服务器本地                       |
 | `allow_connection_num_limit` | 是否限制客户端最大连接数                              |

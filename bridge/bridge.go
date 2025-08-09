@@ -1096,6 +1096,7 @@ loop:
 
 				if len(ports) == 1 {
 					tl.Target = t.Target
+					tl.Target.LocalProxy = false
 					tl.Remark = t.Remark
 				} else {
 					tl.Remark = fmt.Sprintf("%s_%d", t.Remark, tl.Port)

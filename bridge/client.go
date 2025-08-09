@@ -272,7 +272,7 @@ func (c *Client) AddNode(n *Node) {
 	defer c.mu.Unlock()
 	if v, ok := c.nodes.Load(n.UUID); ok {
 		existing := v.(*Node)
-		if existing.IsOnline() {
+		if existing.IsOnline() && n.BaseVer < 6 {
 			_ = n.Close()
 			return
 		}

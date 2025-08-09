@@ -103,7 +103,7 @@
                             </select>
                         </div>
                     </div>
-                    {{if eq true .allow_local_proxy}}
+                    {{ if and .allow_local_proxy (or .isAdmin .allow_user_local) }}
                     <div class="form-group" id="local_proxy">
                         <label class="control-label font-bold" langtag="word-proxytolocal"></label>
                         <div class="col-sm-12">
@@ -185,8 +185,8 @@
     arr["mixProxy"] = ["auth", "client_id", "port", "server_ip", "mix_proxy", "flow_reset", "flow_limit", "time_limit"]
     //arr["socks5"] = ["auth", "client_id", "port", "server_ip", "flow_reset", "flow_limit", "time_limit"]
     //arr["httpProxy"] = ["auth", "client_id", "port", "server_ip", "flow_reset", "flow_limit", "time_limit"]
-    arr["secret"] = ["client_id", "target_type", "target", "password", "flow_reset", "flow_limit", "time_limit"]
-    arr["p2p"] = ["client_id", "target_type", "target", "password", "flow_reset", "flow_limit", "time_limit"]
+    arr["secret"] = ["client_id", "target_type", "target", "password", "flow_reset", "flow_limit", "time_limit", "local_proxy"]
+    arr["p2p"] = ["client_id", "target_type", "target", "password", "flow_reset", "flow_limit", "time_limit", "local_proxy"]
     arr["file"] = ["client_id", "port", "local_path", "strip_pre", "server_ip", "flow_reset", "flow_limit", "time_limit"]
 
     function resetForm() {

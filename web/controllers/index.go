@@ -118,6 +118,8 @@ func (s *IndexController) Add() {
 	} else {
 		id := int(file.GetDb().JsonDb.GetTaskId())
 		clientId := s.GetIntNoErr("client_id")
+		isAdmin := s.GetSession("isAdmin").(bool)
+		allowLocal := beego.AppConfig.DefaultBool("allow_user_local", beego.AppConfig.DefaultBool("allow_local_proxy", false)) || isAdmin
 		t := &file.Tunnel{
 			Port:       s.GetIntNoErr("port"),
 			ServerIp:   s.getEscapeString("server_ip"),
@@ -126,7 +128,7 @@ func (s *IndexController) Add() {
 			Target: &file.Target{
 				TargetStr:     strings.ReplaceAll(s.getEscapeString("target"), "\r\n", "\n"),
 				ProxyProtocol: s.GetIntNoErr("proxy_protocol"),
-				LocalProxy:    (clientId > 0 && s.GetBoolNoErr("local_proxy")) || clientId <= 0,
+				LocalProxy:    (clientId > 0 && s.GetBoolNoErr("local_proxy") && allowLocal) || clientId <= 0,
 			},
 			UserAuth: &file.MultiAccount{
 				Content:    s.getEscapeString("auth"),
@@ -222,6 +224,8 @@ func (s *IndexController) Edit() {
 					return
 				}
 			}
+			isAdmin := s.GetSession("isAdmin").(bool)
+			allowLocal := beego.AppConfig.DefaultBool("allow_user_local", beego.AppConfig.DefaultBool("allow_local_proxy", false)) || isAdmin
 			t.ServerIp = s.getEscapeString("server_ip")
 			t.Mode = s.getEscapeString("type")
 			t.TargetType = s.getEscapeString("target_type")
@@ -241,7 +245,7 @@ func (s *IndexController) Edit() {
 				t.Flow.InletFlow = 0
 			}
 			t.Target.ProxyProtocol = s.GetIntNoErr("proxy_protocol")
-			t.Target.LocalProxy = (clientId > 0 && s.GetBoolNoErr("local_proxy")) || clientId <= 0
+			t.Target.LocalProxy = (clientId > 0 && s.GetBoolNoErr("local_proxy") && allowLocal) || clientId <= 0
 			_ = file.GetDb().UpdateTask(t)
 			_ = server.StopServer(t.Id)
 			_ = server.StartTask(t.Id)
@@ -441,6 +445,8 @@ func (s *IndexController) AddHost() {
 		s.display("index/hadd")
 	} else {
 		id := int(file.GetDb().JsonDb.GetHostId())
+		isAdmin := s.GetSession("isAdmin").(bool)
+		allowLocal := beego.AppConfig.DefaultBool("allow_user_local", beego.AppConfig.DefaultBool("allow_local_proxy", false)) || isAdmin
 		clientId := s.GetIntNoErr("client_id")
 		h := &file.Host{
 			Id:   id,
@@ -448,7 +454,7 @@ func (s *IndexController) AddHost() {
 			Target: &file.Target{
 				TargetStr:     strings.ReplaceAll(s.getEscapeString("target"), "\r\n", "\n"),
 				ProxyProtocol: s.GetIntNoErr("proxy_protocol"),
-				LocalProxy:    (clientId > 0 && s.GetBoolNoErr("local_proxy")) || clientId <= 0,
+				LocalProxy:    (clientId > 0 && s.GetBoolNoErr("local_proxy") && allowLocal) || clientId <= 0,
 			},
 			UserAuth: &file.MultiAccount{
 				Content:    s.getEscapeString("auth"),
@@ -529,6 +535,8 @@ func (s *IndexController) EditHost() {
 			} else {
 				h.Client = client
 			}
+			isAdmin := s.GetSession("isAdmin").(bool)
+			allowLocal := beego.AppConfig.DefaultBool("allow_user_local", beego.AppConfig.DefaultBool("allow_local_proxy", false)) || isAdmin
 			h.Host = s.getEscapeString("host")
 			h.Target = &file.Target{TargetStr: strings.ReplaceAll(s.getEscapeString("target"), "\r\n", "\n")}
 			h.UserAuth = &file.MultiAccount{Content: s.getEscapeString("auth"), AccountMap: common.DealMultiUser(s.getEscapeString("auth"))}
@@ -545,7 +553,7 @@ func (s *IndexController) EditHost() {
 			h.KeyFile = s.getEscapeString("key_file")
 			h.CertFile = s.getEscapeString("cert_file")
 			h.Target.ProxyProtocol = s.GetIntNoErr("proxy_protocol")
-			h.Target.LocalProxy = (clientId > 0 && s.GetBoolNoErr("local_proxy")) || clientId <= 0
+			h.Target.LocalProxy = (clientId > 0 && s.GetBoolNoErr("local_proxy") && allowLocal) || clientId <= 0
 			h.Flow.FlowLimit = int64(s.GetIntNoErr("flow_limit"))
 			h.Flow.TimeLimit = common.GetTimeNoErrByStr(s.getEscapeString("time_limit"))
 			if s.GetBoolNoErr("flow_reset") {
