@@ -227,7 +227,7 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 	if mgr.ctx.Err() != nil {
 		return errors.New("parent context canceled")
 	}
-	if l.Type != "secret" {
+	if l.Type != "secret" && !DisableP2P {
 		mgr.p2p = true
 		mgr.secret = l.Fallback
 		mgr.wg.Add(1)

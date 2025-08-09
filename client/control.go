@@ -35,6 +35,7 @@ const MaxPad = 64
 
 var Ver = version.GetLatestIndex()
 var SkipTLSVerify = false
+var DisableP2P = false
 
 var TlsCfg = &tls.Config{
 	InsecureSkipVerify: true,

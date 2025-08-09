@@ -187,7 +187,9 @@ func (s *TRPClient) handleMain() {
 				} else {
 					localAddr = v
 				}
-				go s.newUdpConn(localAddr, rAddr, string(pwd))
+				if !DisableP2P {
+					go s.newUdpConn(localAddr, rAddr, string(pwd))
+				}
 			}
 		}
 	}

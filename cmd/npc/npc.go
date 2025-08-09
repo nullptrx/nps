@@ -41,6 +41,7 @@ var (
 	localProxy     = flag.Bool("local_proxy", false, "Secret enable proxy local (true or false)")
 	localType      = flag.String("local_type", "p2p", "P2P target type")
 	fallbackSecret = flag.Bool("fallback_secret", true, "P2P fallback secret (true or false)")
+	disableP2P     = flag.Bool("disable_p2p", false, "Disable P2P connection (true or false)")
 	logPath        = flag.String("log_path", "", "NPC log path (empty to use default, 'off' to disable)")
 	logMaxSize     = flag.Int("log_max_size", 5, "Maximum log file size in MB before rotation (0 to disable)")
 	logMaxDays     = flag.Int("log_max_days", 7, "Number of days to retain old log files (0 to disable)")
@@ -81,6 +82,7 @@ func main() {
 	}
 	client.Ver = *protoVer
 	client.SkipTLSVerify = *skipVerify
+	client.DisableP2P = *disableP2P
 	crypt.SkipVerify = *skipVerify
 	if *protoVer < 2 {
 		crypt.SkipVerify = true

@@ -828,7 +828,7 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 
 	clientValue, ok := s.Client.Load(clientId)
 	if !ok {
-		err = errors.New(fmt.Sprintf("the client %d is not connect", clientId))
+		err = fmt.Errorf("the client %d is not connect", clientId)
 		return
 	}
 
@@ -853,11 +853,11 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 		ip := common.GetIpByAddr(link.RemoteAddr)
 		ipValue, ok := s.Register.Load(ip)
 		if !ok {
-			return nil, errors.New(fmt.Sprintf("The ip %s is not in the validation list", ip))
+			return nil, fmt.Errorf("the ip %s is not in the validation list", ip)
 		}
 
 		if !ipValue.(time.Time).After(time.Now()) {
-			return nil, errors.New(fmt.Sprintf("The validity of the ip %s has expired", ip))
+			return nil, fmt.Errorf("the validity of the ip %s has expired", ip)
 		}
 	}
 
@@ -868,6 +868,11 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 		node, ok := client.GetNodeByFile(key)
 		if ok {
 			tunnel = node.GetTunnel()
+		} else {
+			logs.Warn("Failed to find tunnel for host: %s", link.Host)
+			err = fmt.Errorf("failed to find tunnel for host: %s", link.Host)
+			client.RemoveOfflineNodes()
+			return
 		}
 	} else {
 		node := client.GetNode()
