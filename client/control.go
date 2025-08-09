@@ -102,6 +102,7 @@ func RegisterLocalIp(server string, vKey string, tp string, proxyUrl string, hou
 	if err != nil {
 		log.Fatalln(err)
 	}
+	defer c.Close()
 	err = SendType(c, common.WORK_REGISTER, uuid)
 	if err != nil {
 		log.Fatalln(err)
@@ -155,6 +156,7 @@ func StartFromFile(path string) {
 		err = SendType(c, common.WORK_CONFIG, uuid)
 		if err != nil {
 			logs.Error("Failed to send type: %v", err)
+			_ = c.Close()
 			continue
 		}
 

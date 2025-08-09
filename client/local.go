@@ -327,7 +327,7 @@ func (mgr *P2PManager) getSecretConn() (c net.Conn, err error) {
 	secretConn := mgr.secretConn
 	mgr.mu.Unlock()
 	if secretConn != nil {
-		switch tun := mgr.secretConn.(type) {
+		switch tun := secretConn.(type) {
 		case *mux.Mux:
 			c, err = tun.NewConn()
 			if err != nil {
@@ -356,7 +356,6 @@ func (mgr *P2PManager) getSecretConn() (c net.Conn, err error) {
 		pc, uuid, err := NewConn(mgr.cfg.Tp, mgr.cfg.VKey, mgr.cfg.Server, mgr.cfg.ProxyUrl)
 		if err != nil {
 			logs.Error("secret NewConn failed: %v", err)
-			_ = pc.Close()
 			return nil, err
 		}
 		mgr.mu.Lock()
@@ -691,6 +690,7 @@ func (mgr *P2PManager) Close() {
 	udp := mgr.udpConn
 	muxSess := mgr.muxSession
 	qConn := mgr.quicConn
+	secretConn := mgr.secretConn
 	mgr.mu.Unlock()
 
 	for _, srv := range psList {
@@ -704,6 +704,16 @@ func (mgr *P2PManager) Close() {
 	}
 	if qConn != nil {
 		_ = qConn.CloseWithError(0, "close quic")
+	}
+	if secretConn != nil {
+		switch tun := secretConn.(type) {
+		case *mux.Mux:
+			_ = tun.Close()
+		case *quic.Conn:
+			_ = tun.CloseWithError(0, "p2p close")
+		default:
+			logs.Error("the tunnel type error")
+		}
 	}
 	mgr.wg.Wait()
 }

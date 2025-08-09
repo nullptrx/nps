@@ -75,6 +75,7 @@ func (s *TRPClient) Start() {
 		if err != nil {
 			HasFailed = true
 			logs.Error("The connection server failed and will be reconnected in five seconds, error %v", err)
+			_ = c.Close()
 			return
 		}
 		logs.Info("Successful connection with server %s", s.svrAddr)
@@ -93,6 +94,7 @@ func (s *TRPClient) Start() {
 			mc, err := t.NewConn()
 			if err != nil {
 				logs.Error("Failed to get new connection, possible version mismatch: %v", err)
+				s.Close()
 				return
 			}
 			mc.SetPriority()
@@ -108,6 +110,7 @@ func (s *TRPClient) Start() {
 			stream, err := t.OpenStreamSync(s.ctx)
 			if err != nil {
 				logs.Error("Quic OpenStreamSync failed, retrying: %v", err)
+				s.Close()
 				return
 			}
 			sc := conn.NewQuicStreamConn(stream, t)
@@ -293,6 +296,7 @@ func (s *TRPClient) newChan() {
 		logs.Error("Failed to send type to server %s error: %v", s.svrAddr, err)
 		HasFailed = true
 		logs.Warn("The connection server failed and will be reconnected in five seconds.")
+		_ = tunnel.Close()
 		return
 	}
 	if Ver > 4 && s.bridgeConnType == common.CONN_QUIC {
