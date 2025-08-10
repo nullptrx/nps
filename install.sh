@@ -6,9 +6,11 @@
 # version: release tag (default latest)
 
 # Must run as root
-if [ "$(id -u)" -ne 0 ]; then
-  echo "Error: Please run as root or use sudo." >&2
-  exit 1
+if command -v id >/dev/null 2>&1; then
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "Error: Please run as root or use sudo." >&2
+    exit 1
+  fi
 fi
 
 set -e
@@ -66,7 +68,7 @@ cleanup() {
     esac
   done
 }
-trap cleanup EXIT
+trap cleanup 0 INT TERM
 
 INSTALL_MODE="${1:-${NPS_INSTALL_MODE:-all}}"
 INSTALL_VERSION="${2:-${NPS_INSTALL_VERSION:-latest}}"
@@ -159,7 +161,7 @@ if [ "$ARCH" = "mips" ] || [ "$ARCH" = "mipsle" ]; then
   if has file; then
     out="$(file /bin/sh 2>/dev/null || true)"
     case "$out" in
-      *hard-float*|*hard float*)
+      *hard[-\ ]float*)
         echo "Use hard-float for $ARCH"
         ;;
       *)
@@ -363,3 +365,4 @@ case "$INSTALL_MODE" in
 esac
 
 echo "All done"
+
