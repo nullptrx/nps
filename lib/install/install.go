@@ -202,23 +202,31 @@ func downloadLatest(bin string) string {
 		Transport: transport,
 	}
 
-	// get version
-	data, err := httpClient.Get("https://api.github.com/repos/djylb/nps/releases/latest")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer data.Body.Close()
+	useCDNLatest := false
+	var version string
+	var rl release
 
-	b, err := io.ReadAll(data.Body)
-	if err != nil {
-		log.Fatal(err)
+	// get version
+	apiResp, err := httpClient.Get("https://api.github.com/repos/djylb/nps/releases/latest")
+	if err == nil && apiResp != nil && apiResp.StatusCode == http.StatusOK {
+		defer apiResp.Body.Close()
+		b, err := io.ReadAll(apiResp.Body)
+		if err == nil && json.Unmarshal(b, &rl) == nil && rl.TagName != "" {
+			version = rl.TagName
+			fmt.Println("The latest version is", version)
+		} else {
+			useCDNLatest = true
+		}
+	} else {
+		if apiResp != nil {
+			_ = apiResp.Body.Close()
+		}
+		useCDNLatest = true
 	}
-	rl := new(release)
-	if err := json.Unmarshal(b, &rl); err != nil {
-		log.Fatal(err)
+	if useCDNLatest {
+		version = "latest"
+		fmt.Println("GitHub API failed; use CDN @latest (skip hash).")
 	}
-	version := rl.TagName
-	fmt.Println("The latest version is", version)
 
 	osName := runtime.GOOS
 	archName := runtime.GOARCH
@@ -234,28 +242,41 @@ func downloadLatest(bin string) string {
 	}
 
 	var expectedHash string
-	for _, a := range rl.Assets {
-		if a.Name != filename {
-			continue
+	if !useCDNLatest {
+		for _, a := range rl.Assets {
+			if a.Name != filename {
+				continue
+			}
+			//fmt.Println("Expected Hash:", a.Digest)
+			if strings.HasPrefix(a.Digest, "sha256:") {
+				expectedHash = strings.TrimPrefix(a.Digest, "sha256:")
+			}
+			break
 		}
-		//fmt.Println("Expected Hash:", a.Digest)
-		if strings.HasPrefix(a.Digest, "sha256:") {
-			expectedHash = strings.TrimPrefix(a.Digest, "sha256:")
+		//fmt.Println("Expected SHA256:", expectedHash)
+		if expectedHash == "" {
+			fmt.Println("No SHA256 digest found for", filename, "; skipping hash check")
 		}
-		break
-	}
-	//fmt.Println("Expected SHA256:", expectedHash)
-	if expectedHash == "" {
-		fmt.Println("No SHA256 digest found for", filename, "; skipping hash check")
+	} else {
+		expectedHash = ""
 	}
 
 	// download latest package
-	urls := []string{
-		fmt.Sprintf("https://github.com/djylb/nps/releases/download/%s/%s", version, filename),
-		fmt.Sprintf("https://cdn.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
-		fmt.Sprintf("https://fastly.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
-		fmt.Sprintf("https://gcore.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
-		fmt.Sprintf("https://testingcf.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
+	var urls []string
+	if useCDNLatest {
+		urls = []string{
+			fmt.Sprintf("https://cdn.jsdelivr.net/gh/djylb/nps-mirror@latest/%s", filename),
+			fmt.Sprintf("https://fastly.jsdelivr.net/gh/djylb/nps-mirror@latest/%s", filename),
+			fmt.Sprintf("https://github.com/djylb/nps/releases/latest/download/%s", filename),
+		}
+	} else {
+		urls = []string{
+			fmt.Sprintf("https://github.com/djylb/nps/releases/download/%s/%s", version, filename),
+			fmt.Sprintf("https://cdn.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
+			fmt.Sprintf("https://fastly.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
+			fmt.Sprintf("https://gcore.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
+			fmt.Sprintf("https://testingcf.jsdelivr.net/gh/djylb/nps-mirror@%s/%s", version, filename),
+		}
 	}
 
 	var resp *http.Response
@@ -274,7 +295,13 @@ func downloadLatest(bin string) string {
 		log.Fatal("Download failed:", downloadErr)
 	}
 	if resp == nil || resp.StatusCode != http.StatusOK {
-		log.Fatalf("All mirrors failed; last status: %v", resp.StatusCode)
+		var code any
+		if resp != nil {
+			code = resp.StatusCode
+		} else {
+			code = "no response"
+		}
+		log.Fatalf("All mirrors failed; last status: %v", code)
 	}
 	defer resp.Body.Close()
 
