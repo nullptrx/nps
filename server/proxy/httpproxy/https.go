@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/beego/beego"
@@ -211,7 +212,7 @@ func (s *HttpsServer) handleHttpsProxy(host *file.Host, c net.Conn, rb []byte, s
 
 func (s *HttpsServer) Close() error {
 	_ = s.httpsServer.Close()
-	close(s.httpsServeListener.acceptConn)
+	_ = s.httpsServeListener.Close()
 	s.cert.Stop()
 	s.httpsStatus = false
 	return s.httpsListener.Close()
@@ -221,6 +222,7 @@ func (s *HttpsServer) Close() error {
 type HttpsListener struct {
 	acceptConn     chan *tls.Conn
 	parentListener net.Listener
+	closeOnce      sync.Once
 }
 
 func NewHttpsListener(l net.Listener) *HttpsListener {
@@ -230,18 +232,21 @@ func NewHttpsListener(l net.Listener) *HttpsListener {
 	}
 }
 
-func (httpsListener *HttpsListener) Accept() (net.Conn, error) {
-	httpsConn, ok := <-httpsListener.acceptConn
+func (l *HttpsListener) Accept() (net.Conn, error) {
+	httpsConn, ok := <-l.acceptConn
 	if !ok {
 		return nil, errors.New("failed to get connection")
 	}
 	return httpsConn, nil
 }
 
-func (httpsListener *HttpsListener) Close() error {
+func (l *HttpsListener) Close() error {
+	l.closeOnce.Do(func() {
+		close(l.acceptConn)
+	})
 	return nil
 }
 
-func (httpsListener *HttpsListener) Addr() net.Addr {
-	return httpsListener.parentListener.Addr()
+func (l *HttpsListener) Addr() net.Addr {
+	return l.parentListener.Addr()
 }
