@@ -25,7 +25,7 @@ var (
 	TaskPasswordIndex = index.NewStringIDIndex()
 )
 
-// GetDb init csv from file
+// GetDb init data from file
 func GetDb() *DbUtils {
 	once.Do(func() {
 		jsonDb := NewJsonDb(common.GetRunPath())

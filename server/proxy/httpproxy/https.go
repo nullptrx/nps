@@ -9,51 +9,38 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/beego/beego"
-	"github.com/caddyserver/certmagic"
 	"github.com/djylb/nps/lib/cache"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/logs"
-	"github.com/djylb/nps/server/proxy"
 )
 
 type HttpsServer struct {
-	HttpServer
-	listener        net.Listener
-	httpsListener   *HttpsListener
-	srv             *http.Server
-	cert            *cache.CertManager
-	certMagic       *certmagic.Config
-	certMagicTls    *tls.Config
-	hasDefaultCert  bool
-	defaultCertHash string
-	defaultCertFile string
-	defaultKeyFile  string
-	ticketKeys      [][32]byte
-	tlsNextProtos   []string
+	*HttpServer
+	httpsStatus        bool
+	httpsListener      net.Listener
+	httpsServeListener *HttpsListener
+	httpsServer        *http.Server
+	cert               *cache.CertManager
+	certMagicTls       *tls.Config
+	hasDefaultCert     bool
+	defaultCertHash    string
+	defaultCertFile    string
+	defaultKeyFile     string
+	ticketKeys         [][32]byte
+	tlsNextProtos      []string
 }
 
-func NewHttpsServer(l net.Listener, bridge proxy.NetBridge, task *file.Tunnel, srv *http.Server, magic *certmagic.Config) *HttpsServer {
-	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
+func NewHttpsServer(httpServer *HttpServer, l net.Listener) *HttpsServer {
 	https := &HttpsServer{
-		listener: l,
-		HttpServer: HttpServer{
-			BaseServer: proxy.BaseServer{
-				Task:            task,
-				Bridge:          bridge,
-				AllowLocalProxy: allowLocalProxy,
-				Mutex:           sync.Mutex{},
-			},
-			httpPort:  beego.AppConfig.DefaultInt("http_proxy_port", 0),
-			httpsPort: beego.AppConfig.DefaultInt("https_proxy_port", 0),
-			http3Port: beego.AppConfig.DefaultInt("http3_proxy_port", beego.AppConfig.DefaultInt("https_proxy_port", 0)),
-		},
+		HttpServer:      httpServer,
+		httpsStatus:     false,
+		httpsListener:   l,
 		defaultCertFile: beego.AppConfig.String("https_default_cert_file"),
 		defaultKeyFile:  beego.AppConfig.String("https_default_key_file"),
 	}
@@ -65,11 +52,11 @@ func NewHttpsServer(l net.Listener, bridge proxy.NetBridge, task *file.Tunnel, s
 	reload := beego.AppConfig.DefaultInt("ssl_cache_reload", 0)
 	idle := beego.AppConfig.DefaultInt("ssl_cache_idle", 60)
 	https.cert = cache.NewCertManager(maxNum, time.Duration(reload)*time.Second, time.Duration(idle)*time.Minute)
-	https.httpsListener = NewHttpsListener(l)
-	https.srv = srv
+	https.httpsServeListener = NewHttpsListener(l)
+	https.httpsServer = https.NewServer(https.HttpsPort, "https")
 
 	https.tlsNextProtos = []string{"h2", "http/1.1"}
-	if https.http3Port != 0 {
+	if https.Http3Port != 0 {
 		https.tlsNextProtos = append([]string{"h3"}, https.tlsNextProtos...)
 	}
 
@@ -81,13 +68,12 @@ func NewHttpsServer(l net.Listener, bridge proxy.NetBridge, task *file.Tunnel, s
 	}
 	https.ticketKeys = append(https.ticketKeys, key)
 
-	https.certMagic = magic
-	https.certMagicTls = magic.TLSConfig()
+	https.certMagicTls = https.Magic.TLSConfig()
 	https.certMagicTls.NextProtos = append(https.tlsNextProtos, https.certMagicTls.NextProtos...)
 	https.certMagicTls.SetSessionTicketKeys(https.ticketKeys)
 
 	go func() {
-		if err := https.srv.Serve(https.httpsListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := https.httpsServer.Serve(https.httpsServeListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logs.Error("HTTPS server exit: %v", err)
 		}
 	}()
@@ -95,8 +81,12 @@ func NewHttpsServer(l net.Listener, bridge proxy.NetBridge, task *file.Tunnel, s
 	return https
 }
 
-func (https *HttpsServer) Start() error {
-	conn.Accept(https.listener, func(c net.Conn) {
+func (s *HttpsServer) Start() error {
+	if s.httpsStatus {
+		return errors.New("https server already started")
+	}
+	s.httpsStatus = true
+	conn.Accept(s.httpsListener, func(c net.Conn) {
 		helloInfo, rb, err := crypt.ReadClientHello(c, nil)
 		if err != nil || helloInfo == nil {
 			logs.Debug("Failed to read clientHello from %v, err=%v", c.RemoteAddr(), err)
@@ -121,34 +111,34 @@ func (https *HttpsServer) Start() error {
 
 		if host.HttpsJustProxy {
 			logs.Debug("Certificate handled by backend")
-			https.handleHttpsProxy(host, c, rb, serverName)
+			s.handleHttpsProxy(host, c, rb, serverName)
 			return
 		}
 
 		var tlsConfig *tls.Config
-		if host.AutoSSL && (https.httpPort == 80 || https.httpsPort == 443) {
+		if host.AutoSSL && (s.HttpPort == 80 || s.HttpsPort == 443) {
 			logs.Debug("Auto SSL is enabled")
-			tlsConfig = https.certMagicTls
+			tlsConfig = s.certMagicTls
 		} else {
-			cert, err := https.cert.Get(host.CertFile, host.KeyFile, host.CertType, host.CertHash)
+			cert, err := s.cert.Get(host.CertFile, host.KeyFile, host.CertType, host.CertHash)
 			if err != nil {
-				if https.hasDefaultCert {
-					cert, err = https.cert.Get(https.defaultCertFile, https.defaultKeyFile, "file", https.defaultCertHash)
+				if s.hasDefaultCert {
+					cert, err = s.cert.Get(s.defaultCertFile, s.defaultKeyFile, "file", s.defaultCertHash)
 					if err != nil {
 						logs.Error("Failed to load certificate: %v", err)
 					}
 				}
 				if err != nil {
 					logs.Debug("Certificate handled by backend")
-					https.handleHttpsProxy(host, c, rb, serverName)
+					s.handleHttpsProxy(host, c, rb, serverName)
 					return
 				}
 			}
 			tlsConfig = &tls.Config{
 				Certificates: []tls.Certificate{*cert},
 			}
-			tlsConfig.NextProtos = https.tlsNextProtos
-			tlsConfig.SetSessionTicketKeys(https.ticketKeys)
+			tlsConfig.NextProtos = s.tlsNextProtos
+			tlsConfig.SetSessionTicketKeys(s.ticketKeys)
 		}
 
 		acceptConn := conn.NewConn(c).SetRb(rb)
@@ -157,8 +147,9 @@ func (https *HttpsServer) Start() error {
 			_ = tlsConn.Close()
 			return
 		}
-		https.httpsListener.acceptConn <- tlsConn
+		s.httpsServeListener.acceptConn <- tlsConn
 	})
+	s.httpsStatus = false
 	return nil
 }
 
@@ -198,8 +189,8 @@ func checkHTTPAndRedirect(c net.Conn, rb []byte) {
 	}
 }
 
-func (https *HttpsServer) handleHttpsProxy(host *file.Host, c net.Conn, rb []byte, sni string) {
-	if err := https.CheckFlowAndConnNum(host.Client); err != nil {
+func (s *HttpsServer) handleHttpsProxy(host *file.Host, c net.Conn, rb []byte, sni string) {
+	if err := s.CheckFlowAndConnNum(host.Client); err != nil {
 		logs.Debug("Client id %d, host id %d, error %v during https connection", host.Client.Id, host.Id, err)
 		_ = c.Close()
 		return
@@ -215,14 +206,15 @@ func (https *HttpsServer) handleHttpsProxy(host *file.Host, c net.Conn, rb []byt
 		return
 	}
 	logs.Info("New HTTPS connection, clientId %d, host %s, remote address %v", host.Client.Id, sni, c.RemoteAddr())
-	_ = https.DealClient(conn.NewConn(c), host.Client, targetAddr, rb, common.CONN_TCP, nil, []*file.Flow{host.Flow, host.Client.Flow}, host.Target.ProxyProtocol, host.Target.LocalProxy, nil)
+	_ = s.DealClient(conn.NewConn(c), host.Client, targetAddr, rb, common.CONN_TCP, nil, []*file.Flow{host.Flow, host.Client.Flow}, host.Target.ProxyProtocol, host.Target.LocalProxy, nil)
 }
 
-func (https *HttpsServer) Close() error {
-	_ = https.srv.Close()
-	close(https.httpsListener.acceptConn)
-	https.cert.Stop()
-	return https.listener.Close()
+func (s *HttpsServer) Close() error {
+	_ = s.httpsServer.Close()
+	close(s.httpsServeListener.acceptConn)
+	s.cert.Stop()
+	s.httpsStatus = false
+	return s.httpsListener.Close()
 }
 
 // HttpsListener wraps a parent listener.

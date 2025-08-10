@@ -3,7 +3,6 @@ package proxy
 import (
 	"net"
 
-	"github.com/beego/beego"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/file"
@@ -11,16 +10,14 @@ import (
 )
 
 type SecretServer struct {
-	BaseServer
+	*BaseServer
 	allowSecretLink  bool
 	allowSecretLocal bool
 }
 
-func NewSecretServer(bridge NetBridge, task *file.Tunnel) *SecretServer {
-	allowSecretLink := beego.AppConfig.DefaultBool("allow_secret_link", false)
-	allowSecretLocal := beego.AppConfig.DefaultBool("allow_secret_local", false)
+func NewSecretServer(bridge NetBridge, task *file.Tunnel, allowLocalProxy, allowSecretLink, allowSecretLocal bool) *SecretServer {
 	return &SecretServer{
-		BaseServer:       *NewBaseServer(bridge, task),
+		BaseServer:       NewBaseServer(bridge, task, allowLocalProxy),
 		allowSecretLink:  allowSecretLink,
 		allowSecretLocal: allowSecretLocal,
 	}

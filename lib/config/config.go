@@ -162,7 +162,7 @@ func dealCommon(s string) *CommonConfig {
 		case "remark":
 			c.Client.Remark = item[1]
 		case "pprof_addr":
-			common.InitPProfFromArg(item[1])
+			common.InitPProfByAddr(item[1])
 		case "disconnect_timeout":
 			c.DisconnectTime = common.GetIntNoErrByStr(item[1])
 		case "tls_enable":

@@ -13,7 +13,7 @@ import (
 )
 
 type P2PServer struct {
-	BaseServer
+	*BaseServer
 	p2pPort  int
 	sessions sync.Map // key string → *session
 	listener *net.UDPConn

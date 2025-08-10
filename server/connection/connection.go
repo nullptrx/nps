@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/beego/beego"
 	"github.com/djylb/nps/lib/logs"
@@ -32,6 +33,12 @@ var HttpsPort string
 var Http3Port string
 var WebIp string
 var WebPort string
+var P2pIp string
+var P2pPort string
+var QuicAlpn []string
+var QuicKeepAliveSec int
+var QuicIdleTimeoutSec int
+var QuicMaxStreams int64
 
 func InitConnectionService() {
 	BridgeIp = beego.AppConfig.DefaultString("bridge_ip", beego.AppConfig.String("bridge_tcp_ip"))
@@ -55,6 +62,13 @@ func InitConnectionService() {
 	Http3Port = beego.AppConfig.DefaultString("http3_proxy_port", HttpsPort)
 	WebIp = beego.AppConfig.String("web_ip")
 	WebPort = beego.AppConfig.String("web_port")
+	P2pIp = beego.AppConfig.String("p2p_ip")
+	P2pPort = beego.AppConfig.String("p2p_port")
+	quicAlpnList := beego.AppConfig.DefaultString("quic_alpn", "nps")
+	QuicAlpn = strings.Split(quicAlpnList, ",")
+	QuicKeepAliveSec = beego.AppConfig.DefaultInt("quic_keep_alive_period", 10)
+	QuicIdleTimeoutSec = beego.AppConfig.DefaultInt("quic_max_idle_timeout", 30)
+	QuicMaxStreams = beego.AppConfig.DefaultInt64("quic_max_incoming_streams", 100000)
 
 	if HttpPort == BridgePort || HttpsPort == BridgePort || WebPort == BridgePort || BridgeTlsPort == BridgePort {
 		port, err := strconv.Atoi(BridgePort)

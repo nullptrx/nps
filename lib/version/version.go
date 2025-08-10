@@ -1,5 +1,7 @@
 package version
 
+import "fmt"
+
 const VERSION = "0.32.1"
 const MinVer = 3
 
@@ -52,4 +54,8 @@ func GetLatestIndex() int {
 		return 0
 	}
 	return GetCount() - 1
+}
+
+func PrintVersion(ver int) {
+	fmt.Printf("Version: %s\nCore version: %s\nSame core version of client and server can connect each other\n", VERSION, GetVersion(ver))
 }

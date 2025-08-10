@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/beego/beego"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/file"
@@ -28,20 +27,15 @@ type entry struct {
 }
 
 type UdpModeServer struct {
-	BaseServer
+	*BaseServer
 	listener    *net.UDPConn
 	entries     sync.Map      // key: clientAddr.String(), value: *entry
 	readTimeout time.Duration // idle timeout for back-channel reads
 }
 
-func NewUdpModeServer(bridge NetBridge, task *file.Tunnel) *UdpModeServer {
-	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
+func NewUdpModeServer(bridge NetBridge, task *file.Tunnel, allowLocalProxy bool) *UdpModeServer {
 	return &UdpModeServer{
-		BaseServer: BaseServer{
-			Bridge:          bridge,
-			Task:            task,
-			AllowLocalProxy: allowLocalProxy,
-		},
+		BaseServer:  NewBaseServer(bridge, task, allowLocalProxy),
 		readTimeout: 60 * time.Second,
 	}
 }

@@ -17,7 +17,9 @@ import (
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/index"
 	"github.com/djylb/nps/lib/logs"
+	"github.com/djylb/nps/lib/rate"
 	"github.com/djylb/nps/lib/version"
+	"github.com/djylb/nps/server/connection"
 	"github.com/djylb/nps/server/proxy"
 	"github.com/djylb/nps/server/proxy/httpproxy"
 	"github.com/djylb/nps/server/tool"
@@ -38,8 +40,29 @@ func init() {
 	RunList = sync.Map{}
 }
 
-// InitFromCsv init task from db
-func InitFromCsv() {
+// InitFromDb init task from db
+func InitFromDb() {
+	if allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy"); allowLocalProxy {
+		db := file.GetDb()
+		if _, err := db.GetClient(-1); err != nil {
+			local := new(file.Client)
+			local.Id = -1
+			local.Remark = "Local Proxy"
+			local.Addr = "127.0.0.1"
+			local.Cnf = new(file.Config)
+			local.Flow = new(file.Flow)
+			local.Rate = rate.NewRate(int64(2 << 23))
+			local.Rate.Start()
+			local.NowConn = 0
+			local.Status = true
+			local.ConfigConnAllow = true
+			local.Version = version.VERSION
+			local.VerifyKey = "localproxy"
+			db.JsonDb.Clients.Store(local.Id, local)
+			logs.Info("Auto create local proxy client.")
+		}
+	}
+
 	//Add a public password
 	if vkey := beego.AppConfig.String("public_vkey"); vkey != "" {
 		c := file.NewClient(vkey, true, true)
@@ -80,7 +103,10 @@ func DealBridgeTask() {
 			logs.Trace("New secret connection, addr %v", s.Conn.Conn.RemoteAddr())
 			if t := file.GetDb().GetTaskByMd5Password(s.Password); t != nil {
 				if t.Status {
-					go proxy.NewSecretServer(Bridge, t).HandleSecret(s.Conn)
+					allowLocalProxy := beego.AppConfig.DefaultBool("allow_local_proxy", false)
+					allowSecretLink := beego.AppConfig.DefaultBool("allow_secret_link", false)
+					allowSecretLocal := beego.AppConfig.DefaultBool("allow_secret_local", false)
+					go proxy.NewSecretServer(Bridge, t, allowLocalProxy, allowSecretLink, allowSecretLocal).HandleSecret(s.Conn)
 				} else {
 					_ = s.Conn.Close()
 					logs.Trace("This key %s cannot be processed,status is close", s.Password)
@@ -141,26 +167,27 @@ func dealClientFlow() {
 // NewMode new a server by mode name
 func NewMode(Bridge *bridge.Bridge, c *file.Tunnel) proxy.Service {
 	var service proxy.Service
+	allowLocalProxy := beego.AppConfig.DefaultBool("allow_local_proxy", false)
 	switch c.Mode {
 	case "tcp", "file":
-		service = proxy.NewTunnelModeServer(proxy.ProcessTunnel, Bridge, c)
+		service = proxy.NewTunnelModeServer(proxy.ProcessTunnel, Bridge, c, allowLocalProxy)
 	case "mixProxy", "socks5", "httpProxy":
-		service = proxy.NewTunnelModeServer(proxy.ProcessMix, Bridge, c)
+		service = proxy.NewTunnelModeServer(proxy.ProcessMix, Bridge, c, allowLocalProxy)
 		//service = proxy.NewSock5ModeServer(Bridge, c)
 		//service = proxy.NewTunnelModeServer(proxy.ProcessHttp, Bridge, c)
 	case "tcpTrans":
-		service = proxy.NewTunnelModeServer(proxy.HandleTrans, Bridge, c)
+		service = proxy.NewTunnelModeServer(proxy.HandleTrans, Bridge, c, allowLocalProxy)
 	case "udp":
-		service = proxy.NewUdpModeServer(Bridge, c)
+		service = proxy.NewUdpModeServer(Bridge, c, allowLocalProxy)
 	case "webServer":
-		InitFromCsv()
+		InitFromDb()
 		t := &file.Tunnel{
 			Port:   0,
 			Mode:   "httpHostServer",
 			Status: true,
 		}
 		_ = AddTask(t)
-		service = proxy.NewWebServer(Bridge)
+		service = NewWebServer(Bridge)
 	case "httpHostServer":
 		httpPort, _ := beego.AppConfig.Int("http_proxy_port")
 		httpsPort, _ := beego.AppConfig.Int("https_proxy_port")
@@ -169,7 +196,7 @@ func NewMode(Bridge *bridge.Bridge, c *file.Tunnel) proxy.Service {
 		//cacheLen, _ := beego.AppConfig.Int("http_cache_length")
 		addOrigin, _ := beego.AppConfig.Bool("http_add_origin_header")
 		httpOnlyPass := beego.AppConfig.String("x_nps_http_only")
-		service = httpproxy.NewHttp(Bridge, c, httpPort, httpsPort, http3Port, httpOnlyPass, addOrigin, HttpProxyCache)
+		service = httpproxy.NewHttpProxy(Bridge, c, httpPort, httpsPort, http3Port, httpOnlyPass, addOrigin, allowLocalProxy, HttpProxyCache)
 	}
 	return service
 }
@@ -1044,12 +1071,12 @@ func GetDashboardData(force bool) map[string]interface{} {
 	data["httpsProxyPort"] = beego.AppConfig.String("https_proxy_port")
 	data["ipLimit"] = beego.AppConfig.String("ip_limit")
 	data["flowStoreInterval"] = beego.AppConfig.String("flow_store_interval")
-	data["serverIp"] = common.GetServerIp()
+	data["serverIp"] = common.GetServerIp(connection.P2pIp)
 	data["serverIpv4"] = common.GetOutboundIP().String()
 	data["serverIpv6"] = common.GetOutboundIPv6().String()
-	data["p2pIp"] = beego.AppConfig.String("p2p_ip")
-	data["p2pPort"] = beego.AppConfig.String("p2p_port")
-	data["p2pAddr"] = common.JoinHostPort(common.GetServerIp(), beego.AppConfig.String("p2p_port"))
+	data["p2pIp"] = connection.P2pIp
+	data["p2pPort"] = connection.P2pPort
+	data["p2pAddr"] = common.JoinHostPort(common.GetServerIp(connection.P2pIp), connection.P2pPort)
 	data["logLevel"] = beego.AppConfig.String("log_level")
 	data["upTime"] = common.GetRunTime()
 	data["upSecs"] = common.GetRunSecs()
@@ -1060,14 +1087,14 @@ func GetDashboardData(force bool) map[string]interface{} {
 		return true
 	})
 	data["tcpCount"] = tcpCount
-	cpuPercet, _ := cpu.Percent(0, true)
+	cpuPercent, _ := cpu.Percent(0, true)
 	var cpuAll float64
-	for _, v := range cpuPercet {
+	for _, v := range cpuPercent {
 		cpuAll += v
 	}
 	loads, _ := load.Avg()
 	data["load"] = loads.String()
-	data["cpu"] = math.Round(cpuAll / float64(len(cpuPercet)))
+	data["cpu"] = math.Round(cpuAll / float64(len(cpuPercent)))
 	swap, _ := mem.SwapMemory()
 	data["swap_mem"] = math.Round(swap.UsedPercent)
 	vir, _ := mem.VirtualMemory()

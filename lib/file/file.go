@@ -11,12 +11,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/beego/beego"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/djylb/nps/lib/rate"
-	"github.com/djylb/nps/lib/version"
 )
 
 func NewJsonDb(runPath string) *JsonDb {
@@ -79,26 +77,6 @@ func (s *JsonDb) LoadTaskFromJsonFile() {
 
 func (s *JsonDb) LoadClientFromJsonFile() {
 	Blake2bVkeyIndex.Clear()
-	if allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy"); allowLocalProxy {
-		if _, err := s.GetClient(-1); err != nil {
-			local := new(Client)
-			local.Id = -1
-			local.Remark = "Local Proxy"
-			local.Addr = "127.0.0.1"
-			local.Cnf = new(Config)
-			local.Flow = new(Flow)
-			local.Rate = rate.NewRate(int64(2 << 23))
-			local.Rate.Start()
-			local.NowConn = 0
-			local.Status = true
-			local.ConfigConnAllow = true
-			local.Version = version.VERSION
-			local.VerifyKey = "localproxy"
-			s.Clients.Store(local.Id, local)
-			s.ClientIncreaseId = 0
-			logs.Info("Auto create local proxy client.")
-		}
-	}
 	loadSyncMapFromFile(s.ClientFilePath, Client{}, func(v interface{}) {
 		post := v.(*Client)
 		if post.Id > 0 {

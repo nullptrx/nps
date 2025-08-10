@@ -3,26 +3,21 @@ package httpproxy
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
-	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/beego/beego"
-	"github.com/caddyserver/certmagic"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/goroutine"
-	"github.com/djylb/nps/lib/index"
 	"github.com/djylb/nps/lib/logs"
-	"github.com/djylb/nps/server/connection"
 	"github.com/djylb/nps/server/proxy"
 )
 
@@ -35,140 +30,32 @@ const (
 )
 
 type HttpServer struct {
-	proxy.BaseServer
-	httpPort        int
-	httpsPort       int
-	http3Port       int
-	httpServer      *http.Server
-	httpsServer     *http.Server
-	httpsListener   net.Listener
-	http3PacketConn net.PacketConn
-	httpProxyCache  *index.AnyIntIndex
-	httpOnlyPass    string
-	addOrigin       bool
-	httpPortStr     string
-	httpsPortStr    string
-	http3PortStr    string
-	magic           *certmagic.Config
-	acme            *certmagic.ACMEIssuer
-	errorAlways     bool
+	*HttpProxy
+	httpStatus   bool
+	httpListener net.Listener
+	httpServer   *http.Server
 }
 
-func NewHttp(bridge proxy.NetBridge, task *file.Tunnel, httpPort, httpsPort, http3Port int, httpOnlyPass string, addOrigin bool, httpProxyCache *index.AnyIntIndex) *HttpServer {
-	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
-	return &HttpServer{
-		BaseServer: proxy.BaseServer{
-			Task:            task,
-			Bridge:          bridge,
-			AllowLocalProxy: allowLocalProxy,
-			Mutex:           sync.Mutex{},
-		},
-		httpPort:       httpPort,
-		httpsPort:      httpsPort,
-		http3Port:      http3Port,
-		httpProxyCache: httpProxyCache,
-		httpOnlyPass:   httpOnlyPass,
-		addOrigin:      addOrigin,
-		httpPortStr:    strconv.Itoa(httpPort),
-		httpsPortStr:   strconv.Itoa(httpsPort),
-		http3PortStr:   strconv.Itoa(http3Port),
+func NewHttpServer(httpProxy *HttpProxy, l net.Listener) *HttpServer {
+	hs := &HttpServer{
+		httpStatus:   false,
+		HttpProxy:    httpProxy,
+		httpListener: l,
 	}
+	hs.httpServer = hs.NewServer(hs.HttpPort, "http")
+	return hs
 }
 
 func (s *HttpServer) Start() error {
-	var err error
-	s.ErrorContent, err = common.ReadAllFromFile(common.ResolvePath(beego.AppConfig.DefaultString("error_page", "web/static/page/error.html")))
-	if err != nil {
-		s.ErrorContent = []byte("nps 404")
+	if s.httpStatus {
+		return errors.New("http server already started")
 	}
-	s.errorAlways = beego.AppConfig.DefaultBool("error_always", false)
-
-	certmagic.Default.Logger = logs.ZapLogger
-	certmagic.DefaultACME.Agreed = true
-	certmagic.DefaultACME.Email = beego.AppConfig.String("ssl_email")
-	switch strings.ToLower(beego.AppConfig.DefaultString("ssl_ca", "LetsEncrypt")) {
-	case "letsencrypt", "le", "prod", "production":
-		certmagic.DefaultACME.CA = certmagic.LetsEncryptProductionCA
-	case "zerossl", "zero", "zs":
-		certmagic.DefaultACME.CA = certmagic.ZeroSSLProductionCA
-	case "googletrust", "google", "goog":
-		certmagic.DefaultACME.CA = certmagic.GoogleTrustProductionCA
-	default:
-		certmagic.DefaultACME.CA = certmagic.LetsEncryptStagingCA
+	s.httpStatus = true
+	if err := s.httpServer.Serve(s.httpListener); err != nil {
+		s.httpStatus = false
+		return err
 	}
-	certmagic.Default.Storage = &certmagic.FileStorage{
-		Path: common.ResolvePath(beego.AppConfig.DefaultString("ssl_path", "ssl")),
-	}
-	s.magic = certmagic.NewDefault()
-	if certmagic.DefaultACME.CA == certmagic.ZeroSSLProductionCA {
-		s.magic.Issuers = []certmagic.Issuer{
-			&certmagic.ZeroSSLIssuer{
-				APIKey: beego.AppConfig.String("ssl_zerossl_api"),
-			},
-		}
-	}
-	s.magic.OnDemand = &certmagic.OnDemandConfig{
-		DecisionFunc: func(ctx context.Context, name string) error {
-			h, err := file.GetDb().FindCertByHost(name)
-			if err != nil {
-				return fmt.Errorf("unknown host %q", name)
-			}
-			if !h.AutoSSL {
-				return fmt.Errorf("AutoSSL disabled for %q", name)
-			}
-			return nil
-		},
-	}
-	s.acme = certmagic.NewACMEIssuer(s.magic, certmagic.DefaultACME)
-
-	if s.httpPort > 0 {
-		s.httpServer = s.NewServer(s.httpPort, "http")
-		go func() {
-			l, err := connection.GetHttpListener()
-			if err != nil {
-				logs.Error("Failed to start HTTP listener: %v", err)
-				os.Exit(0)
-			}
-			logs.Info("HTTP server listening on port %d", s.httpPort)
-			if err := s.httpServer.Serve(l); err != nil {
-				logs.Error("HTTP server stopped: %v", err)
-				os.Exit(0)
-			}
-		}()
-	}
-
-	if s.httpsPort > 0 {
-		s.httpsServer = s.NewServer(s.httpsPort, "https")
-		s.httpsListener, err = connection.GetHttpsListener()
-		if err != nil {
-			logs.Error("Failed to start HTTPS listener: %v", err)
-			os.Exit(0)
-		}
-		logs.Info("HTTPS server listening on port %d", s.httpsPort)
-		httpsServer := NewHttpsServer(s.httpsListener, s.Bridge, s.Task, s.httpsServer, s.magic)
-		go func() {
-			if err := httpsServer.Start(); err != nil {
-				logs.Error("HTTPS server stopped: %v", err)
-				os.Exit(0)
-			}
-		}()
-
-		if s.http3Port > 0 {
-			s.http3PacketConn, err = net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP(connection.HttpIp), Port: s.http3Port})
-			if err != nil {
-				logs.Error("Failed to start HTTP/3 listener: %v", err)
-				os.Exit(0)
-			}
-			logs.Info("HTTP/3 server listening on port %d", s.http3Port)
-			http3Server := NewHttp3Server(httpsServer, s.http3PacketConn)
-			go func() {
-				if err := http3Server.Start(); err != nil {
-					logs.Error("HTTP/3 server stopped: %v", err)
-					os.Exit(0)
-				}
-			}()
-		}
-	}
+	s.httpStatus = false
 	return nil
 }
 
@@ -176,16 +63,10 @@ func (s *HttpServer) Close() error {
 	if s.httpServer != nil {
 		_ = s.httpServer.Close()
 	}
-	if s.httpsServer != nil {
-		_ = s.httpsServer.Close()
+	if s.httpListener != nil {
+		_ = s.httpListener.Close()
 	}
-	if s.httpsListener != nil {
-		_ = s.httpsListener.Close()
-	}
-	if s.http3PacketConn != nil {
-		_ = s.http3PacketConn.Close()
-	}
-	s.httpProxyCache.Clear()
+	s.httpStatus = false
 	return nil
 }
 
@@ -194,7 +75,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	host, err := file.GetDb().GetInfoByHost(r.Host, r)
 	if err != nil || host.IsClose {
 		//http.Error(w, "404 Host not found", http.StatusNotFound)
-		if s.errorAlways {
+		if s.ErrorAlways {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Header().Set("Connection", "close")
 			w.WriteHeader(http.StatusNotFound)
@@ -222,13 +103,13 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// AutoSSL
-	if host.AutoSSL && strings.HasPrefix(r.URL.Path, "/.well-known/acme-challenge/") && (s.httpPort == 80 || s.httpsPort == 443) {
-		s.acme.HandleHTTPChallenge(w, r)
+	if host.AutoSSL && strings.HasPrefix(r.URL.Path, "/.well-known/acme-challenge/") && (s.HttpPort == 80 || s.HttpsPort == 443) {
+		s.Acme.HandleHTTPChallenge(w, r)
 		return
 	}
 
 	// HTTP-Only
-	isHttpOnlyRequest := s.httpOnlyPass != "" && r.Header.Get("X-NPS-Http-Only") == s.httpOnlyPass
+	isHttpOnlyRequest := s.HttpOnlyPass != "" && r.Header.Get("X-NPS-Http-Only") == s.HttpOnlyPass
 	if isHttpOnlyRequest {
 		r.Header.Del("X-NPS-Http-Only")
 	}
@@ -236,8 +117,8 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	// Auto 301 to HTTPS
 	if !isHttpOnlyRequest && host.AutoHttps && r.TLS == nil {
 		redirectHost := common.RemovePortFromHost(r.Host)
-		if s.httpsPort != 443 {
-			redirectHost += ":" + s.httpsPortStr
+		if s.HttpsPort != 443 {
+			redirectHost += ":" + s.HttpsPortStr
 		}
 		http.Redirect(w, r, "https://"+redirectHost+r.RequestURI, http.StatusMovedPermanently)
 		return
@@ -273,7 +154,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	// 307 Temporary Redirect
 	if host.RedirectURL != "" {
-		redirectURL := common.ChangeRedirectURL(r, host.RedirectURL)
+		redirectURL := s.ChangeRedirectURL(r, host.RedirectURL)
 		http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 		return
 	}
@@ -297,7 +178,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var tr *http.Transport
-	if v, ok := s.httpProxyCache.Get(host.Id); ok {
+	if v, ok := s.HttpProxyCache.Get(host.Id); ok {
 		tr = v.(*http.Transport)
 	} else {
 		tr = &http.Transport{
@@ -309,7 +190,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 			MaxIdleConnsPerHost:   100,
 			IdleConnTimeout:       90 * time.Second,
 		}
-		s.httpProxyCache.Add(host.Id, tr)
+		s.HttpProxyCache.Add(host.Id, tr)
 	}
 
 	rp := &httputil.ReverseProxy{
@@ -321,7 +202,7 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 				req.URL.Scheme = "http"
 			}
 			//logs.Debug("Director: set req.URL.Scheme=%s, req.URL.Host=%s", req.URL.Scheme, req.URL.Host)
-			common.ChangeHostAndHeader(req, host.HostChange, host.HeaderChange, isHttpOnlyRequest)
+			s.ChangeHostAndHeader(req, host.HostChange, host.HeaderChange, isHttpOnlyRequest)
 			req.URL.Host = r.Host
 			if isHttpOnlyRequest {
 				req.Header["X-Forwarded-For"] = nil
@@ -340,14 +221,14 @@ func (s *HttpServer) handleProxy(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			// H3
-			if s.http3Port > 0 && r.TLS != nil && !host.HttpsJustProxy && !host.CompatMode {
-				resp.Header.Set("Alt-Svc", `h3=":`+s.http3PortStr+`"; ma=86400`)
+			if s.Http3Port > 0 && r.TLS != nil && !host.HttpsJustProxy && !host.CompatMode {
+				resp.Header.Set("Alt-Svc", `h3=":`+s.Http3PortStr+`"; ma=86400`)
 			}
-			common.ChangeResponseHeader(resp, host.RespHeaderChange)
+			s.ChangeResponseHeader(resp, host.RespHeaderChange)
 			return nil
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
-			s.httpProxyCache.Remove(host.Id)
+			s.HttpProxyCache.Remove(host.Id)
 			if err == io.EOF {
 				logs.Info("ErrorHandler: io.EOF encountered, writing 521")
 				rw.WriteHeader(521)
@@ -429,7 +310,7 @@ func (s *HttpServer) handleWebsocket(w http.ResponseWriter, r *http.Request, hos
 		}
 	}
 
-	common.ChangeHostAndHeader(r, host.HostChange, host.HeaderChange, isHttpOnlyRequest || host.CompatMode)
+	s.ChangeHostAndHeader(r, host.HostChange, host.HeaderChange, isHttpOnlyRequest || host.CompatMode)
 
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {

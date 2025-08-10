@@ -8,9 +8,7 @@ import (
 	"net"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/beego/beego"
 	"github.com/djylb/nps/lib/logs"
 	"github.com/quic-go/quic-go"
 	"github.com/xtaci/kcp-go/v5"
@@ -44,16 +42,7 @@ func NewKcpListenerAndProcess(addr string, f func(c net.Conn)) error {
 	//return nil
 }
 
-func NewQuicListenerAndProcess(addr string, tlsConfig *tls.Config, f func(c net.Conn)) error {
-	keepAliveSec := beego.AppConfig.DefaultInt("quic_keep_alive_period", 10)
-	idleTimeoutSec := beego.AppConfig.DefaultInt("quic_max_idle_timeout", 30)
-	maxStreams := beego.AppConfig.DefaultInt64("quic_max_incoming_streams", 100000)
-
-	quicConfig := &quic.Config{
-		KeepAlivePeriod:    time.Duration(keepAliveSec) * time.Second,
-		MaxIdleTimeout:     time.Duration(idleTimeoutSec) * time.Second,
-		MaxIncomingStreams: maxStreams,
-	}
+func NewQuicListenerAndProcess(addr string, tlsConfig *tls.Config, quicConfig *quic.Config, f func(c net.Conn)) error {
 	listener, err := quic.ListenAddr(addr, tlsConfig, quicConfig)
 	if err != nil {
 		logs.Error("QUIC listen error: %v", err)

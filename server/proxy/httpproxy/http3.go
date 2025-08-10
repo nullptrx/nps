@@ -2,6 +2,7 @@ package httpproxy
 
 import (
 	"crypto/tls"
+	"errors"
 	"net"
 
 	"github.com/djylb/nps/lib/file"
@@ -11,22 +12,24 @@ import (
 
 type Http3Server struct {
 	*HttpsServer
-	udpConn     net.PacketConn
-	http3Server *http3.Server
+	http3Status   bool
+	http3Listener net.PacketConn
+	http3Server   *http3.Server
 }
 
 func NewHttp3Server(httpsSrv *HttpsServer, udpConn net.PacketConn) *Http3Server {
 	return &Http3Server{
-		HttpsServer: httpsSrv,
-		udpConn:     udpConn,
+		http3Status:   false,
+		HttpsServer:   httpsSrv,
+		http3Listener: udpConn,
 	}
 }
 
-func (h3 *Http3Server) Start() error {
-	if h3.http3Port <= 0 {
-		return nil
+func (s *Http3Server) Start() error {
+	if s.http3Status {
+		return errors.New("http3 server is already running")
 	}
-
+	s.httpStatus = true
 	tlsConfig := &tls.Config{
 		NextProtos: []string{"h3"},
 		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
@@ -35,14 +38,14 @@ func (h3 *Http3Server) Start() error {
 				return nil, nil
 			}
 
-			if host.AutoSSL && (h3.httpPort == 80 || h3.httpsPort == 443) {
-				return h3.certMagicTls, nil
+			if host.AutoSSL && (s.HttpPort == 80 || s.HttpsPort == 443) {
+				return s.certMagicTls, nil
 			}
 
-			cert, err := h3.cert.Get(host.CertFile, host.KeyFile, host.CertType, host.CertHash)
+			cert, err := s.cert.Get(host.CertFile, host.KeyFile, host.CertType, host.CertHash)
 			if err != nil {
-				if h3.hasDefaultCert {
-					cert, err = h3.cert.Get(h3.defaultCertFile, h3.defaultKeyFile, "file", h3.defaultCertHash)
+				if s.hasDefaultCert {
+					cert, err = s.cert.Get(s.defaultCertFile, s.defaultKeyFile, "file", s.defaultCertHash)
 					if err != nil {
 						logs.Error("Failed to load certificate: %v", err)
 					}
@@ -54,29 +57,30 @@ func (h3 *Http3Server) Start() error {
 			config := &tls.Config{
 				Certificates: []tls.Certificate{*cert},
 			}
-			config.NextProtos = h3.tlsNextProtos
-			config.SetSessionTicketKeys(h3.ticketKeys)
+			config.NextProtos = s.tlsNextProtos
+			config.SetSessionTicketKeys(s.ticketKeys)
 
 			return config, nil
 		},
 	}
-	tlsConfig.SetSessionTicketKeys(h3.ticketKeys)
+	tlsConfig.SetSessionTicketKeys(s.ticketKeys)
 
-	h3.http3Server = &http3.Server{
-		Handler:   h3.srv.Handler,
+	s.http3Server = &http3.Server{
+		Handler:   s.httpsServer.Handler,
 		TLSConfig: tlsConfig,
 	}
 
-	go func() {
-		if err := h3.http3Server.Serve(h3.udpConn); err != nil {
-			logs.Error("HTTP/3 Serve error: %v", err)
-		}
-	}()
+	if err := s.http3Server.Serve(s.http3Listener); err != nil {
+		logs.Error("HTTP/3 Serve error: %v", err)
+		s.httpsStatus = false
+		return err
+	}
+	s.httpsStatus = false
 	return nil
 }
 
-func (h3 *Http3Server) Close() error {
-	_ = h3.udpConn.Close()
-	_ = h3.http3Server.Close()
-	return nil
+func (s *Http3Server) Close() error {
+	_ = s.http3Server.Close()
+	s.httpsStatus = false
+	return s.http3Listener.Close()
 }

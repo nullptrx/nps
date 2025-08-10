@@ -270,7 +270,7 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 	switch l.Type {
 	case "p2ps":
 		logs.Info("start http/socks5 monitor port %d", l.Port)
-		srv := proxy.NewTunnelModeServer(proxy.ProcessMix, mgr.bridge, task)
+		srv := proxy.NewTunnelModeServer(proxy.ProcessMix, mgr.bridge, task, true)
 		mgr.mu.Lock()
 		mgr.proxyServers = append(mgr.proxyServers, srv)
 		mgr.mu.Unlock()
@@ -282,7 +282,7 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 		return nil
 	case "p2pt":
 		logs.Info("start tcp trans monitor port %d", l.Port)
-		srv := proxy.NewTunnelModeServer(proxy.HandleTrans, mgr.bridge, task)
+		srv := proxy.NewTunnelModeServer(proxy.HandleTrans, mgr.bridge, task, true)
 		mgr.mu.Lock()
 		mgr.proxyServers = append(mgr.proxyServers, srv)
 		mgr.mu.Unlock()
@@ -296,7 +296,7 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 
 	if l.TargetType == common.CONN_ALL || l.TargetType == common.CONN_TCP {
 		logs.Info("local tcp monitoring started on port %d", l.Port)
-		srv := proxy.NewTunnelModeServer(proxy.ProcessTunnel, mgr.bridge, task)
+		srv := proxy.NewTunnelModeServer(proxy.ProcessTunnel, mgr.bridge, task, true)
 		mgr.mu.Lock()
 		mgr.proxyServers = append(mgr.proxyServers, srv)
 		mgr.mu.Unlock()
@@ -308,7 +308,7 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 	}
 	if l.TargetType == common.CONN_ALL || l.TargetType == common.CONN_UDP {
 		logs.Info("local udp monitoring started on port %d", l.Port)
-		srv := proxy.NewUdpModeServer(mgr.bridge, task)
+		srv := proxy.NewUdpModeServer(mgr.bridge, task, true)
 		mgr.mu.Lock()
 		mgr.proxyServers = append(mgr.proxyServers, srv)
 		mgr.mu.Unlock()

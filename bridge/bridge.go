@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/beego/beego"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/crypt"
@@ -109,7 +108,7 @@ func (s *Bridge) StartTunnel() error {
 				os.Exit(0)
 				return
 			}
-			wsLn := conn.NewWSListener(wsListener, beego.AppConfig.String("bridge_path"))
+			wsLn := conn.NewWSListener(wsListener, connection.BridgePath)
 			conn.Accept(wsLn, func(c net.Conn) {
 				s.cliProcess(conn.NewConn(c), "ws")
 			})
@@ -125,7 +124,7 @@ func (s *Bridge) StartTunnel() error {
 				os.Exit(0)
 				return
 			}
-			wssLn := conn.NewWSSListener(wssListener, beego.AppConfig.String("bridge_path"), crypt.GetCert())
+			wssLn := conn.NewWSSListener(wssListener, connection.BridgePath, crypt.GetCert())
 			conn.Accept(wssLn, func(c net.Conn) {
 				s.cliProcess(conn.NewConn(c), "wss")
 			})
@@ -150,15 +149,19 @@ func (s *Bridge) StartTunnel() error {
 	// quic
 	if ServerQuicEnable {
 		logs.Info("Server start, the bridge type is quic, the bridge port is %s", connection.BridgeQuicPort)
+
+		quicConfig := &quic.Config{
+			KeepAlivePeriod:    time.Duration(connection.QuicKeepAliveSec) * time.Second,
+			MaxIdleTimeout:     time.Duration(connection.QuicIdleTimeoutSec) * time.Second,
+			MaxIncomingStreams: connection.QuicMaxStreams,
+		}
 		go func() {
 			tlsCfg := &tls.Config{
 				Certificates: []tls.Certificate{crypt.GetCert()},
 			}
-			alpnList := beego.AppConfig.DefaultString("quic_alpn", "nps")
-			protocols := strings.Split(alpnList, ",")
-			tlsCfg.NextProtos = protocols
+			tlsCfg.NextProtos = connection.QuicAlpn
 			addr := common.BuildAddress(connection.BridgeQuicIp, connection.BridgeQuicPort)
-			err := conn.NewQuicListenerAndProcess(addr, tlsCfg, func(c net.Conn) {
+			err := conn.NewQuicListenerAndProcess(addr, tlsCfg, quicConfig, func(c net.Conn) {
 				s.cliProcess(conn.NewConn(c), "quic")
 			})
 			if err != nil {
@@ -755,13 +758,13 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 			_ = c.Close()
 			return
 		}
-		serverPort := beego.AppConfig.String("p2p_port")
+		serverPort := connection.P2pPort
 		if serverPort == "" {
 			logs.Warn("get local udp addr error")
 			_ = c.Close()
 			return
 		}
-		serverIP := common.GetServerIp()
+		serverIP := common.GetServerIp(connection.P2pIp)
 		svrAddr := common.BuildAddress(serverIP, serverPort)
 		signalAddr := common.BuildAddress(serverIP, serverPort)
 		remoteIP := net.ParseIP(common.GetIpByAddr(c.RemoteAddr().String()))

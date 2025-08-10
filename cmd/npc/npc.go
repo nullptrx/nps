@@ -77,7 +77,7 @@ func main() {
 	}
 	// 显示版本并退出
 	if *ver {
-		common.PrintVersion(*protoVer)
+		version.PrintVersion(*protoVer)
 		return
 	}
 	client.Ver = *protoVer
@@ -305,7 +305,7 @@ func (p *Npc) run() error {
 
 // 主运行逻辑
 func run(ctx context.Context) {
-	common.InitPProfFromArg(*pprofAddr)
+	common.InitPProfByAddr(*pprofAddr)
 	if *tlsEnable {
 		*connType = "tls"
 	}

@@ -7,46 +7,31 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
-	"github.com/beego/beego"
-	"github.com/djylb/nps/bridge"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/logs"
-	"github.com/djylb/nps/server/connection"
 )
 
-var _ = unsafe.Sizeof(0)
-
-//var httpNum = 0
-
-//go:linkname initBeforeHTTPRun github.com/beego/beego.initBeforeHTTPRun
-func initBeforeHTTPRun()
-
 type TunnelModeServer struct {
-	BaseServer
+	*BaseServer
 	process           process
 	listener          net.Listener
 	activeConnections sync.Map
 }
 
 // NewTunnelModeServer tcp|host|mixproxy
-func NewTunnelModeServer(process process, bridge NetBridge, task *file.Tunnel) *TunnelModeServer {
-	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
-	s := new(TunnelModeServer)
-	s.Bridge = bridge
-	s.process = process
-	s.Task = task
-	s.AllowLocalProxy = allowLocalProxy
-	s.activeConnections = sync.Map{} // 初始化连接池
-	return s
+func NewTunnelModeServer(process process, bridge NetBridge, task *file.Tunnel, allowLocalProxy bool) *TunnelModeServer {
+	return &TunnelModeServer{
+		BaseServer:        NewBaseServer(bridge, task, allowLocalProxy),
+		process:           process,
+		activeConnections: sync.Map{},
+	}
 }
 
 func (s *TunnelModeServer) Start() error {
@@ -88,46 +73,6 @@ func (s *TunnelModeServer) Close() error {
 	})
 	s.activeConnections = sync.Map{}
 	return s.listener.Close()
-}
-
-type WebServer struct {
-	BaseServer
-}
-
-func (s *WebServer) Start() error {
-	p, _ := beego.AppConfig.Int("web_port")
-	if p == 0 {
-		stop := make(chan struct{})
-		<-stop
-	}
-	beego.BConfig.WebConfig.Session.SessionOn = true
-	beego.SetStaticPath(beego.AppConfig.String("web_base_url")+"/static", filepath.Join(common.GetRunPath(), "web", "static"))
-	beego.SetViewsPath(filepath.Join(common.GetRunPath(), "web", "views"))
-	err := errors.New("Web management startup failure ")
-	var l net.Listener
-	if l, err = connection.GetWebManagerListener(); err == nil {
-		initBeforeHTTPRun()
-		if beego.AppConfig.String("web_open_ssl") == "true" {
-			keyPath := beego.AppConfig.String("web_key_file")
-			certPath := beego.AppConfig.String("web_cert_file")
-			err = http.ServeTLS(l, beego.BeeApp.Handlers, certPath, keyPath)
-		} else {
-			err = http.Serve(l, beego.BeeApp.Handlers)
-		}
-	} else {
-		logs.Error("%v", err)
-	}
-	return err
-}
-
-func (s *WebServer) Close() error {
-	return nil
-}
-
-func NewWebServer(bridge *bridge.Bridge) *WebServer {
-	s := new(WebServer)
-	s.Bridge = bridge
-	return s
 }
 
 type process func(c *conn.Conn, s *TunnelModeServer) error

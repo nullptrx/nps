@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
-	"html"
 	"html/template"
 	"io"
 	"math"
@@ -26,10 +25,8 @@ import (
 	"time"
 
 	"github.com/araddon/dateparse"
-	"github.com/beego/beego"
 	"github.com/beevik/ntp"
 	"github.com/djylb/nps/lib/logs"
-	"github.com/djylb/nps/lib/version"
 )
 
 // ExtractHost
@@ -360,283 +357,6 @@ func GetTimeNoErrByStr(str string) time.Time {
 
 func ContainsFold(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
-}
-
-// ChangeHostAndHeader Change headers and host of request
-func ChangeHostAndHeader(r *http.Request, host string, header string, httpOnly bool) {
-	// 设置 Host 头部信息
-	scheme := "http"
-	ssl := "off"
-	serverPort := beego.AppConfig.DefaultString("http_proxy_port", "80")
-	if r.TLS != nil {
-		scheme = "https"
-		ssl = "on"
-		serverPort = beego.AppConfig.DefaultString("https_proxy_port", "443")
-	}
-	// Host 不带端口
-	origHost := r.Host
-	hostOnly := RemovePortFromHost(origHost)
-
-	// 替换 Host
-	if host != "" {
-		r.Host = host
-		if orig := r.Header.Get("Origin"); orig != "" {
-			r.Header.Set("Origin", scheme+"://"+host)
-		}
-	}
-
-	// 获取请求的客户端 IP Port
-	remoteAddr := r.RemoteAddr
-	clientIP := GetIpByAddr(remoteAddr)
-	clientPort := GetPortStrByAddr(remoteAddr)
-
-	//logs.Debug("get X-Remote-IP = " + clientIP)
-
-	// 获取 X-Forwarded-For 头部的先前值
-	proxyAddXFF := clientIP
-	if prior, ok := r.Header["X-Forwarded-For"]; ok {
-		proxyAddXFF = strings.Join(prior, ", ") + ", " + clientIP
-	}
-
-	//logs.Debug("get X-Forwarded-For = " + proxyAddXFF)
-
-	// 判断是否需要添加真实 IP 信息
-	var addOrigin bool
-	if !httpOnly {
-		addOrigin, _ = beego.AppConfig.Bool("http_add_origin_header")
-		//r.Header.Set("X-Forwarded-For", proxyAddXFF)
-	} else {
-		addOrigin = false
-	}
-
-	// 添加头部信息
-	if addOrigin {
-		if r.Header.Get("X-Forwarded-Proto") == "" {
-			r.Header.Set("X-Forwarded-Proto", scheme)
-		}
-		//r.Header.Set("X-Forwarded-For", clientIP)
-		r.Header.Set("X-Real-IP", clientIP)
-	}
-
-	if header == "" {
-		return
-	}
-
-	expandVars := func(val string) string {
-		rep := strings.NewReplacer(
-			// 协议/SSL
-			"${scheme}", scheme,
-			"${ssl}", ssl,
-			"${forwarded_ssl}", ssl,
-
-			// 主机
-			"${host}", hostOnly,
-			"${http_host}", origHost,
-
-			// 客户端
-			"${remote_addr}", remoteAddr,
-			"${remote_ip}", clientIP,
-			"${remote_port}", clientPort,
-			"${proxy_add_x_forwarded_for}", proxyAddXFF,
-
-			// URL 相关
-			"${request_uri}", r.RequestURI, // 包括 ?args
-			"${uri}", r.URL.Path, // 不含 args
-			"${args}", r.URL.RawQuery, // 不含 “?”
-			"${query_string}", r.URL.RawQuery, // 同 $args
-			"${scheme_host}", scheme+"://"+origHost, // 组合变量
-
-			// 连接头
-			"${http_upgrade}", r.Header.Get("Upgrade"),
-			"${http_connection}", r.Header.Get("Connection"),
-
-			// 端口
-			"${server_port}", serverPort,
-
-			// Range 相关
-			"${http_range}", r.Header.Get("Range"),
-			"${http_if_range}", r.Header.Get("If-Range"),
-		)
-		return rep.Replace(val)
-	}
-
-	// 设置自定义头部信息
-	h := strings.Split(strings.ReplaceAll(header, "\r\n", "\n"), "\n")
-	for _, v := range h {
-		hd := strings.SplitN(v, ":", 2)
-		if len(hd) == 2 {
-			key := strings.TrimSpace(hd[0])
-			if key == "" {
-				continue
-			}
-			val := strings.TrimSpace(hd[1])
-			val = html.UnescapeString(val)
-			val = expandVars(val)
-			r.Header.Set(key, val)
-		}
-	}
-}
-
-// ChangeResponseHeader Change headers of response
-func ChangeResponseHeader(resp *http.Response, header string) {
-	if header == "" {
-		return
-	}
-
-	if resp == nil || resp.Request == nil {
-		return
-	}
-
-	httpPort := beego.AppConfig.DefaultString("http_proxy_port", "80")
-	httpsPort := beego.AppConfig.DefaultString("https_proxy_port", "443")
-	http3Port := beego.AppConfig.DefaultString("http3_proxy_port", httpsPort)
-
-	scheme := "http"
-	ssl := "off"
-	serverPort := httpPort
-	if resp.Request.TLS != nil {
-		scheme = "https"
-		ssl = "on"
-		serverPort = httpsPort
-	}
-
-	origHost := resp.Request.Host
-	hostOnly := RemovePortFromHost(origHost)
-
-	remoteAddr := resp.Request.RemoteAddr
-	clientIP := GetIpByAddr(remoteAddr)
-	clientPort := GetPortStrByAddr(remoteAddr)
-
-	timeNow := time.Now()
-
-	expandVars := func(val string) string {
-		rep := strings.NewReplacer(
-			// Protocol/SSL
-			"${scheme}", scheme,
-			"${ssl}", ssl,
-
-			// Ports
-			"${server_port}", serverPort,
-			"${server_port_http}", httpPort,
-			"${server_port_https}", httpsPort,
-			"${server_port_http3}", http3Port,
-
-			// Host info
-			"${host}", hostOnly,
-			"${http_host}", origHost,
-
-			// Client info
-			"${remote_addr}", remoteAddr,
-			"${remote_ip}", clientIP,
-			"${remote_port}", clientPort,
-
-			// Request info
-			"${request_method}", resp.Request.Method,
-			"${request_host}", resp.Request.Host,
-			"${request_uri}", resp.Request.RequestURI,
-			"${request_path}", resp.Request.URL.Path,
-			"${uri}", resp.Request.URL.Path,
-			"${query_string}", resp.Request.URL.RawQuery,
-			"${args}", resp.Request.URL.RawQuery,
-			"${origin}", resp.Request.Header.Get("Origin"),
-			"${user_agent}", resp.Request.Header.Get("User-Agent"),
-			"${http_referer}", resp.Request.Header.Get("Referer"),
-			"${scheme_host}", scheme+"://"+origHost,
-
-			// Response info
-			"${status}", resp.Status,
-			"${status_code}", strconv.Itoa(resp.StatusCode),
-			"${content_length}", strconv.FormatInt(resp.ContentLength, 10),
-			"${content_type}", resp.Header.Get("Content-Type"),
-			"${via}", resp.Header.Get("Via"),
-
-			// Time variables
-			"${date}", timeNow.UTC().Format(http.TimeFormat),
-			"${timestamp}", strconv.FormatInt(timeNow.UTC().Unix(), 10),
-			"${timestamp_ms}", strconv.FormatInt(timeNow.UTC().UnixNano()/1e6, 10),
-		)
-		return rep.Replace(val)
-	}
-
-	// 设置自定义头部信息
-	h := strings.Split(strings.ReplaceAll(header, "\r\n", "\n"), "\n")
-	for _, v := range h {
-		hd := strings.SplitN(v, ":", 2)
-		if len(hd) == 2 {
-			key := strings.TrimSpace(hd[0])
-			if key == "" {
-				continue
-			}
-			val := strings.TrimSpace(hd[1])
-			val = html.UnescapeString(val)
-			val = expandVars(val)
-			resp.Header.Set(key, val)
-		}
-	}
-}
-
-// ChangeRedirectURL Change redirect URL
-func ChangeRedirectURL(r *http.Request, url string) string {
-	val := strings.TrimSpace(url)
-	val = html.UnescapeString(val)
-
-	if !strings.Contains(val, "${") {
-		return val
-	}
-
-	// 设置 Host 头部信息
-	scheme := "http"
-	ssl := "off"
-	serverPort := beego.AppConfig.DefaultString("http_proxy_port", "80")
-	if r.TLS != nil {
-		scheme = "https"
-		ssl = "on"
-		serverPort = beego.AppConfig.DefaultString("https_proxy_port", "443")
-	}
-
-	// Host 不带端口
-	origHost := r.Host
-	hostOnly := RemovePortFromHost(origHost)
-
-	// 获取请求的客户端 IP Port
-	remoteAddr := r.RemoteAddr
-	clientIP := GetIpByAddr(remoteAddr)
-	clientPort := GetPortStrByAddr(remoteAddr)
-
-	// 获取 X-Forwarded-For 头部的先前值
-	proxyAddXFF := clientIP
-	if prior, ok := r.Header["X-Forwarded-For"]; ok {
-		proxyAddXFF = strings.Join(prior, ", ") + ", " + clientIP
-	}
-
-	rep := strings.NewReplacer(
-		// 协议/SSL
-		"${scheme}", scheme,
-		"${ssl}", ssl,
-		"${forwarded_ssl}", ssl,
-
-		// 主机
-		"${host}", hostOnly,
-		"${http_host}", origHost,
-
-		// 客户端
-		"${remote_addr}", remoteAddr,
-		"${remote_ip}", clientIP,
-		"${remote_port}", clientPort,
-		"${proxy_add_x_forwarded_for}", proxyAddXFF,
-
-		// URL 相关
-		"${request_uri}", r.RequestURI, // 包括 ?args
-		"${uri}", r.URL.Path, // 不含 args
-		"${args}", r.URL.RawQuery, // 不含 “?”
-		"${query_string}", r.URL.RawQuery, // 同 $args
-		"${scheme_host}", scheme+"://"+origHost, // 组合变量
-
-		// 端口
-		"${server_port}", serverPort,
-	)
-
-	return rep.Replace(val)
 }
 
 // ReadAllFromFile Read file content by file path
@@ -1185,13 +905,12 @@ func IsPublicIP(IP net.IP) bool {
 	return false
 }
 
-func GetServerIp() string {
-	p2pIP := beego.AppConfig.String("p2p_ip")
-	if p2pIP != "" && p2pIP != "0.0.0.0" && p2pIP != "::" {
-		return p2pIP
+func GetServerIp(ip string) string {
+	if ip != "" && ip != "0.0.0.0" && ip != "::" {
+		return ip
 	}
 
-	if p2pIP == "::" {
+	if ip == "::" {
 		tmpConn, err := GetLocalUdp6Addr()
 		if err == nil {
 			return tmpConn.LocalAddr().(*net.UDPAddr).IP.String()
@@ -1369,8 +1088,4 @@ func ValidatePoW(bits int, parts ...string) bool {
 		}
 	}
 	return true
-}
-
-func PrintVersion(ver int) {
-	fmt.Printf("Version: %s\nCore version: %s\nSame core version of client and server can connect each other\n", version.VERSION, version.GetVersion(ver))
 }

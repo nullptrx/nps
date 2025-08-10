@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/beego/beego"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/file"
@@ -35,8 +34,7 @@ type BaseServer struct {
 	sync.Mutex
 }
 
-func NewBaseServer(bridge NetBridge, task *file.Tunnel) *BaseServer {
-	allowLocalProxy, _ := beego.AppConfig.Bool("allow_local_proxy")
+func NewBaseServer(bridge NetBridge, task *file.Tunnel, allowLocalProxy bool) *BaseServer {
 	return &BaseServer{
 		Bridge:          bridge,
 		Task:            task,
