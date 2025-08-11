@@ -331,8 +331,8 @@ func run(ctx context.Context) {
 		commonConfig.Client = new(file.Client)
 		commonConfig.Client.Cnf = new(file.Config)
 		commonConfig.DisconnectTime = *p2pTime
-		p2pm := client.NewP2PManager(ctx)
-		go p2pm.StartLocalServer(localServer, commonConfig)
+		p2pm := client.NewP2PManager(ctx, commonConfig)
+		go p2pm.StartLocalServer(localServer)
 		return
 	}
 	env := common.GetEnvMap()

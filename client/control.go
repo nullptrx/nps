@@ -213,7 +213,7 @@ func StartFromFile(path string) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		fsm := NewFileServerManager(ctx)
-		p2pm := NewP2PManager(ctx)
+		p2pm := NewP2PManager(ctx, cnf.CommonConfig)
 
 		//send  task to server
 		for _, v := range cnf.Tasks {
@@ -227,13 +227,13 @@ func StartFromFile(path string) {
 			}
 			if v.Mode == "file" {
 				//start local file server
-				go fsm.StartFileServer(cnf.CommonConfig, v, vkey)
+				go fsm.StartFileServer(v, vkey)
 			}
 		}
 
 		//create local server secret or p2p
 		for _, v := range cnf.LocalServer {
-			go p2pm.StartLocalServer(v, cnf.CommonConfig)
+			go p2pm.StartLocalServer(v)
 		}
 
 		_ = c.Close()

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/djylb/nps/lib/common"
-	"github.com/djylb/nps/lib/config"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/crypt"
 	"github.com/djylb/nps/lib/file"
@@ -51,7 +50,7 @@ func NewFileServerManager(parentCtx context.Context) *FileServerManager {
 	return fsm
 }
 
-func (fsm *FileServerManager) StartFileServer(_ *config.CommonConfig, t *file.Tunnel, vkey string) {
+func (fsm *FileServerManager) StartFileServer(t *file.Tunnel, vkey string) {
 	if fsm.ctx.Err() != nil {
 		logs.Warn("file server manager already closed, skip StartFileServer")
 		return
