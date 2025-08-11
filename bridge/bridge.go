@@ -489,7 +489,7 @@ func (s *Bridge) cliProcess(c *conn.Conn, tunnelType string) {
 		}
 		c.SetReadDeadlineBySecond(5)
 	}
-	s.typeDeal(c, id, ver, clientVer, true)
+	go s.typeDeal(c, id, ver, clientVer, true)
 	return
 }
 

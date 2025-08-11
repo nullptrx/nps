@@ -1,6 +1,7 @@
 package conn
 
 import (
+	"context"
 	"net"
 	"time"
 
@@ -60,5 +61,12 @@ func NewQuicAutoCloseConn(stream *quic.Stream, sess *quic.Conn) *QuicAutoCloseCo
 
 func (q *QuicAutoCloseConn) Close() error {
 	_ = q.QuicStreamConn.Close()
+	drain := 300 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), drain)
+	defer cancel()
+	select {
+	case <-q.QuicStreamConn.stream.Context().Done():
+	case <-ctx.Done():
+	}
 	return q.sess.CloseWithError(0, "close")
 }
