@@ -409,7 +409,7 @@ func (s *HttpServer) DialContext(ctx context.Context, network, addr string) (net
 	h := ctx.Value(ctxHost).(*file.Host)
 	targetAddr, err := h.Target.GetRandomTarget()
 	if err != nil {
-		logs.Warn("No backend found for h: %s Err: %v", h.Id, err)
+		logs.Warn("No backend found for h: %d Err: %v", h.Id, err)
 		return nil, err
 	}
 	isLocal := s.AllowLocalProxy && h.Target.LocalProxy || h.Client.Id < 0

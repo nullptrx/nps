@@ -246,7 +246,7 @@ func run() {
 	if beego.AppConfig.DefaultBool("secure_mode", false) {
 		bridge.ServerSecureMode = true
 	}
-	logs.Info("the config path is:" + common.GetRunPath())
+	logs.Info("the config path is: %s", common.GetRunPath())
 	logs.Info("the version of server is %s, allow client core version to be %s", version.VERSION, version.GetMinVersion(bridge.ServerSecureMode))
 	_ = bridge.SetClientSelectMode(beego.AppConfig.DefaultString("bridge_select_mode", ""))
 	ntpServer := beego.AppConfig.DefaultString("ntp_server", "")
