@@ -253,6 +253,7 @@ func (mgr *P2PManager) StartLocalServer(l *config.LocalServer, cfg *config.Commo
 				Compress: cfg.Client.Cnf.Compress,
 			},
 			Status:    true,
+			IsConnect: true,
 			RateLimit: 0,
 			Flow:      &file.Flow{},
 		},

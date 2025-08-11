@@ -865,10 +865,11 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 	}
 
 	var tunnel any
+	var node *Node
 	if strings.Contains(link.Host, "file://") {
 		key := strings.TrimPrefix(strings.TrimSpace(link.Host), "file://")
 		link.ConnType = "file"
-		node, ok := client.GetNodeByFile(key)
+		node, ok = client.GetNodeByFile(key)
 		if ok {
 			tunnel = node.GetTunnel()
 		} else {
@@ -878,13 +879,13 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 			return
 		}
 	} else {
-		node := client.GetNode()
+		node = client.GetNode()
 		if node != nil {
 			tunnel = node.GetTunnel()
 		}
 	}
 
-	if tunnel == nil {
+	if tunnel == nil || node == nil {
 		s.DelClient(clientId)
 		err = errors.New("the client connect error")
 		return
@@ -912,10 +913,11 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 		return
 	}
 
-	if link.Option.NeedAck {
+	if link.Option.NeedAck && node.BaseVer > 5 {
 		if err := conn.ReadACK(target, link.Option.Timeout); err != nil {
 			_ = target.Close()
 			logs.Trace("ReadACK failed: %v", err)
+			_ = node.Close()
 			return nil, err
 		}
 	}
