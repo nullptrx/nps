@@ -173,6 +173,7 @@ func downloadLatest(bin string) string {
 	const keepAliveTime = 30 * time.Second
 
 	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			d := &net.Dialer{
 				Timeout:   timeout,
