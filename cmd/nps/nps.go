@@ -48,7 +48,7 @@ func main() {
 		crypt.PrintTOTPCode(*getTOTP)
 		return
 	}
-	// init log
+	// show ver
 	if *ver {
 		version.PrintVersion(version.GetLatestIndex())
 		return
@@ -77,7 +77,7 @@ func main() {
 	common.InitPProfByAddr(pprofAddr)
 	err := common.SetTimezone(beego.AppConfig.String("timezone"))
 	if err != nil {
-		logs.Warn("set timezone error %v", err)
+		logs.Warn("Set timezone error %v", err)
 	}
 	common.SetCustomDNS(beego.AppConfig.String("dns_server"))
 	logType := beego.AppConfig.DefaultString("log", "stdout")

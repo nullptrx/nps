@@ -63,6 +63,7 @@ var (
 	ntpServer      = flag.String("ntp_server", "", "NTP server for time synchronization")
 	ntpInterval    = flag.Int("ntp_interval", 5, "interval between NTP synchronizations (minutes)")
 	tlsEnable      = flag.Bool("tls_enable", false, "Enable TLS (Deprecated)")
+	timezone       = flag.String("timezone", "", "Time zone to use for time(eg: Asia/Shanghai)")
 	genTOTP        = flag.Bool("gen2fa", false, "Generate TOTP Secret")
 	getTOTP        = flag.String("get2fa", "", "Get TOTP Code")
 )
@@ -100,6 +101,12 @@ func main() {
 	// 配置NTP
 	common.SetNtpServer(*ntpServer)
 	common.SetNtpInterval(time.Duration(*ntpInterval) * time.Minute)
+
+	// 配置时区
+	err := common.SetTimezone(*timezone)
+	if err != nil {
+		logs.Warn("Set timezone error %v", err)
+	}
 
 	// 初始化服务
 	options := make(service.KeyValue)
