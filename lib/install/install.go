@@ -202,26 +202,23 @@ func downloadLatest(bin string) string {
 		Transport: transport,
 	}
 
-	useCDNLatest := false
+	useCDNLatest := true
+	rl := new(release)
 	var version string
-	var rl release
-
 	// get version
-	apiResp, err := httpClient.Get("https://api.github.com/repos/djylb/nps/releases/latest")
-	if err == nil && apiResp != nil && apiResp.StatusCode == http.StatusOK {
-		defer apiResp.Body.Close()
-		b, err := io.ReadAll(apiResp.Body)
-		if err == nil && json.Unmarshal(b, &rl) == nil && rl.TagName != "" {
-			version = rl.TagName
-			fmt.Println("The latest version is", version)
-		} else {
-			useCDNLatest = true
+	data, err := httpClient.Get("https://api.github.com/repos/djylb/nps/releases/latest")
+	if err == nil {
+		defer data.Body.Close()
+		b, err := io.ReadAll(data.Body)
+		if err == nil {
+			if err := json.Unmarshal(b, &rl); err == nil {
+				version = rl.TagName
+				if version != "" {
+					useCDNLatest = false
+				}
+				fmt.Println("The latest version is", version)
+			}
 		}
-	} else {
-		if apiResp != nil {
-			_ = apiResp.Body.Close()
-		}
-		useCDNLatest = true
 	}
 	if useCDNLatest {
 		version = "latest"
@@ -268,6 +265,8 @@ func downloadLatest(bin string) string {
 			fmt.Sprintf("https://cdn.jsdelivr.net/gh/djylb/nps-mirror@latest/%s", filename),
 			fmt.Sprintf("https://fastly.jsdelivr.net/gh/djylb/nps-mirror@latest/%s", filename),
 			fmt.Sprintf("https://github.com/djylb/nps/releases/latest/download/%s", filename),
+			fmt.Sprintf("https://gcore.jsdelivr.net/gh/djylb/nps-mirror@latest/%s", filename),
+			fmt.Sprintf("https://testingcf.jsdelivr.net/gh/djylb/nps-mirror@latest/%s", filename),
 		}
 	} else {
 		urls = []string{
