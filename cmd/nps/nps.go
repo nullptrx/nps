@@ -75,6 +75,10 @@ func main() {
 	pprofPort := beego.AppConfig.String("pprof_port")
 	pprofAddr := common.BuildAddress(pprofIp, pprofPort)
 	common.InitPProfByAddr(pprofAddr)
+	err := common.SetTimezone(beego.AppConfig.String("timezone"))
+	if err != nil {
+		logs.Warn("set timezone error %v", err)
+	}
 	common.SetCustomDNS(beego.AppConfig.String("dns_server"))
 	logType := beego.AppConfig.DefaultString("log", "stdout")
 	logLevel = beego.AppConfig.DefaultString("log_level", "trace")

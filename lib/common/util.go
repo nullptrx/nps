@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/araddon/dateparse"
 	"github.com/beevik/ntp"
@@ -972,6 +973,21 @@ func RandomBytes(maxLen int) ([]byte, error) {
 		return nil, err
 	}
 	return buf, nil
+}
+
+func SetTimezone(tz string) error {
+	if tz == "" {
+		tz = os.Getenv("TZ")
+	}
+	if tz == "" {
+		return nil
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		return err
+	}
+	time.Local = loc
+	return nil
 }
 
 var (

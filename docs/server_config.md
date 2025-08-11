@@ -26,6 +26,7 @@ nps.exe -conf_path=D:\test\nps
 | `appname`      | 应用名称           |
 | `runmode`      | 运行模式（dev/pro）  |
 | `dns_server`   | DNS 服务器        |
+| `timezone`     | 时区             |
 | `ntp_server`   | NTP 服务器        |
 | `ntp_interval` | NTP 最小查询间隔（分钟） |
 
