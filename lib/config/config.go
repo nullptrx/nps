@@ -68,22 +68,23 @@ func NewConfig(path string) (c *Config, err error) {
 				nextIndex = len(c.content)
 			}
 			nowContent = c.content[nowIndex:nextIndex]
-
-			if strings.Index(getTitleContent(c.title[i]), "secret") == 0 && !strings.Contains(nowContent, "mode") {
+			nowContent = stripCommentLines(nowContent)
+			if strings.HasPrefix(getTitleContent(c.title[i]), "secret") && !strings.Contains(nowContent, "mode") {
 				local := delLocalService(nowContent)
 				local.Type = "secret"
 				c.LocalServer = append(c.LocalServer, local)
 				continue
 			}
-			//except mode
-			if strings.Index(getTitleContent(c.title[i]), "p2p") == 0 && !strings.Contains(nowContent, "mode") {
+			if strings.HasPrefix(getTitleContent(c.title[i]), "p2p") && !strings.Contains(nowContent, "mode") {
 				local := delLocalService(nowContent)
-				local.Type = "p2p"
+				if local.Type == "" {
+					local.Type = "p2p"
+				}
 				c.LocalServer = append(c.LocalServer, local)
 				continue
 			}
 			//health set
-			if strings.Index(getTitleContent(c.title[i]), "health") == 0 {
+			if strings.HasPrefix(getTitleContent(c.title[i]), "health") {
 				c.Healths = append(c.Healths, dealHealth(nowContent))
 				continue
 			}
@@ -106,9 +107,16 @@ func NewConfig(path string) (c *Config, err error) {
 	return
 }
 
+var bracketRE = regexp.MustCompile(`[\[\]]`)
+
 func getTitleContent(s string) string {
-	re, _ := regexp.Compile(`[\[\]]`)
-	return re.ReplaceAllString(s, "")
+	return bracketRE.ReplaceAllString(s, "")
+}
+
+var commentLineRE = regexp.MustCompile(`(?m)^[ \t]*#.*(\r?\n|$)`)
+
+func stripCommentLines(s string) string {
+	return commentLineRE.ReplaceAllString(s, "")
 }
 
 func dealCommon(s string) *CommonConfig {

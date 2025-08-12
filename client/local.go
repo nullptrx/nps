@@ -561,7 +561,8 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 			mgr.mu.Unlock()
 			secretConn = nil
 		}
-	} else {
+	}
+	if secretConn == nil {
 		var uuid string
 		c, uuid, err = NewConn(cfg.Tp, cfg.VKey, cfg.Server, cfg.ProxyUrl)
 		if err != nil {
@@ -579,7 +580,7 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 		mgr.mu.Unlock()
 	}
 	if c == nil {
-		logs.Error("secret NewConn failed: %v", err)
+		logs.Error("Get conn failed: %v", err)
 		return
 	}
 	remoteConn := conn.NewConn(c)

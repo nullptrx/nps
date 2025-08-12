@@ -802,6 +802,7 @@ func (s *Bridge) typeDeal(c *conn.Conn, id, ver int, vs string, first bool) {
 			logs.Warn("p2p head flush error: %v", err)
 		}
 		logs.Trace("P2P: remoteIP=%s, svr1Addr=%s, clientIP=%s, svr2Addr=%s", remoteIP, svrAddr, signalIP, signalAddr)
+		time.Sleep(time.Second)
 		_ = c.Close()
 		return
 	}

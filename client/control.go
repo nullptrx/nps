@@ -151,6 +151,16 @@ func StartFromFile(path string) {
 		if cnf.CommonConfig.TlsEnable {
 			cnf.CommonConfig.Tp = "tls"
 		}
+
+		if len(cnf.LocalServer) > 0 {
+			p2pm := NewP2PManager(context.Background(), cnf.CommonConfig)
+			//create local server secret or p2p
+			for _, v := range cnf.LocalServer {
+				go p2pm.StartLocalServer(v)
+			}
+			return
+		}
+
 		c, cid, err := NewConn(cnf.CommonConfig.Tp, cnf.CommonConfig.VKey, cnf.CommonConfig.Server, cnf.CommonConfig.ProxyUrl)
 		if err != nil {
 			logs.Error("Failed to connect: %v", err)
@@ -213,7 +223,6 @@ func StartFromFile(path string) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		fsm := NewFileServerManager(ctx)
-		p2pm := NewP2PManager(ctx, cnf.CommonConfig)
 
 		//send  task to server
 		for _, v := range cnf.Tasks {
@@ -230,12 +239,6 @@ func StartFromFile(path string) {
 				go fsm.StartFileServer(v, vkey)
 			}
 		}
-
-		//create local server secret or p2p
-		for _, v := range cnf.LocalServer {
-			go p2pm.StartLocalServer(v)
-		}
-
 		_ = c.Close()
 		if cnf.CommonConfig.Client.WebUserName == "" || cnf.CommonConfig.Client.WebPassword == "" {
 			logs.Info("web access login username:user password:%s", vkey)
@@ -246,7 +249,6 @@ func StartFromFile(path string) {
 		NewRPClient(cnf.CommonConfig.Server, vkey, cnf.CommonConfig.Tp, cnf.CommonConfig.ProxyUrl, uuid, cnf, cnf.CommonConfig.DisconnectTime, fsm).Start()
 		//CloseLocalServer()
 		fsm.CloseAll()
-		p2pm.Close()
 		cancel()
 	}
 }
