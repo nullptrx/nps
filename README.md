@@ -139,6 +139,9 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.32.4 (2025-08-12)**
+  - 避免注释影响配置文件解析
+
 - **v0.32.3 (2025-08-12)**
   - 支持使用代理更新 [#128](https://github.com/djylb/nps/issues/128)
   - 调整日志输出

@@ -92,6 +92,12 @@ func main() {
 		crypt.SkipVerify = true
 	}
 
+	// 配置时区
+	err := common.SetTimezone(*timezone)
+	if err != nil {
+		logs.Warn("Set timezone error %v", err)
+	}
+
 	// 配置日志
 	configureLogging()
 
@@ -101,12 +107,6 @@ func main() {
 	// 配置NTP
 	common.SetNtpServer(*ntpServer)
 	common.SetNtpInterval(time.Duration(*ntpInterval) * time.Minute)
-
-	// 配置时区
-	err := common.SetTimezone(*timezone)
-	if err != nil {
-		logs.Warn("Set timezone error %v", err)
-	}
 
 	// 初始化服务
 	options := make(service.KeyValue)

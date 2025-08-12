@@ -977,9 +977,6 @@ func RandomBytes(maxLen int) ([]byte, error) {
 
 func SetTimezone(tz string) error {
 	if tz == "" {
-		tz = os.Getenv("TZ")
-	}
-	if tz == "" {
 		return nil
 	}
 	loc, err := time.LoadLocation(tz)
