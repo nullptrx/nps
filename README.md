@@ -139,6 +139,9 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.32.5 (2025-08-17)**
+  - 避免状态获取失败引起崩溃 [#133](https://github.com/djylb/nps/issues/133)
+
 - **v0.32.4 (2025-08-12)**
   - 避免注释影响配置文件解析
   - 修复时区不生效

@@ -973,27 +973,40 @@ func GetDashboardData(force bool) map[string]interface{} {
 			return true
 		})
 		cached["tcpCount"] = tcpCount
-		cpuPercet, _ := cpu.Percent(0, true)
-		var cpuAll float64
-		for _, v := range cpuPercet {
-			cpuAll += v
+		cpuPercent, err := cpu.Percent(0, true)
+		if err == nil {
+			var cpuAll float64
+			for _, v := range cpuPercent {
+				cpuAll += v
+			}
+			cpl := len(cpuPercent)
+			if cpl > 0 {
+				cached["cpu"] = math.Round(cpuAll / float64(cpl))
+			}
 		}
-		loads, _ := load.Avg()
-		cached["load"] = loads.String()
-		cached["cpu"] = math.Round(cpuAll / float64(len(cpuPercet)))
-		swap, _ := mem.SwapMemory()
-		cached["swap_mem"] = math.Round(swap.UsedPercent)
-		vir, _ := mem.VirtualMemory()
-		cached["virtual_mem"] = math.Round(vir.UsedPercent)
-		conn, _ := net.ProtoCounters(nil)
+		loads, err := load.Avg()
+		if err == nil {
+			cached["load"] = loads.String()
+		}
+		swap, err := mem.SwapMemory()
+		if err == nil {
+			cached["swap_mem"] = math.Round(swap.UsedPercent)
+		}
+		vir, err := mem.VirtualMemory()
+		if err == nil {
+			cached["virtual_mem"] = math.Round(vir.UsedPercent)
+		}
+		conn, err := net.ProtoCounters(nil)
+		if err == nil {
+			for _, v := range conn {
+				cached[v.Protocol] = v.Stats["CurrEstab"]
+			}
+		}
 		if v, ok := ioSendRate.Load().(float64); ok {
 			cached["io_send"] = v
 		}
 		if v, ok := ioRecvRate.Load().(float64); ok {
 			cached["io_recv"] = v
-		}
-		for _, v := range conn {
-			cached[v.Protocol] = v.Stats["CurrEstab"]
 		}
 		cacheMu.RLock()
 		lastRefresh = time.Now()
@@ -1087,27 +1100,40 @@ func GetDashboardData(force bool) map[string]interface{} {
 		return true
 	})
 	data["tcpCount"] = tcpCount
-	cpuPercent, _ := cpu.Percent(0, true)
-	var cpuAll float64
-	for _, v := range cpuPercent {
-		cpuAll += v
+	cpuPercent, err := cpu.Percent(0, true)
+	if err == nil {
+		var cpuAll float64
+		for _, v := range cpuPercent {
+			cpuAll += v
+		}
+		cpl := len(cpuPercent)
+		if cpl > 0 {
+			cached["cpu"] = math.Round(cpuAll / float64(cpl))
+		}
 	}
-	loads, _ := load.Avg()
-	data["load"] = loads.String()
-	data["cpu"] = math.Round(cpuAll / float64(len(cpuPercent)))
-	swap, _ := mem.SwapMemory()
-	data["swap_mem"] = math.Round(swap.UsedPercent)
-	vir, _ := mem.VirtualMemory()
-	data["virtual_mem"] = math.Round(vir.UsedPercent)
-	conn, _ := net.ProtoCounters(nil)
+	loads, err := load.Avg()
+	if err == nil {
+		data["load"] = loads.String()
+	}
+	swap, err := mem.SwapMemory()
+	if err == nil {
+		data["swap_mem"] = math.Round(swap.UsedPercent)
+	}
+	vir, err := mem.VirtualMemory()
+	if err == nil {
+		data["virtual_mem"] = math.Round(vir.UsedPercent)
+	}
+	conn, err := net.ProtoCounters(nil)
+	if err == nil {
+		for _, v := range conn {
+			data[v.Protocol] = v.Stats["CurrEstab"]
+		}
+	}
 	if v, ok := ioSendRate.Load().(float64); ok {
 		data["io_send"] = v
 	}
 	if v, ok := ioRecvRate.Load().(float64); ok {
 		data["io_recv"] = v
-	}
-	for _, v := range conn {
-		data[v.Protocol] = v.Stats["CurrEstab"]
 	}
 	//chart
 	var fg int
