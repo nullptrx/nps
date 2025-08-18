@@ -139,6 +139,9 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.32.6 (2025-08-18)**
+  - 重构状态获取函数 [#134](https://github.com/djylb/nps/issues/134)
+
 - **v0.32.5 (2025-08-17)**
   - 避免状态获取失败引起崩溃 [#133](https://github.com/djylb/nps/issues/133)
 

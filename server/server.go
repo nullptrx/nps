@@ -962,72 +962,116 @@ func GetDashboardData(force bool) map[string]interface{} {
 	lastR := lastRefresh
 	lastFR := lastFullRefresh
 	cacheMu.RUnlock()
+
 	if cached != nil && !force && time.Since(lastFR) < 5*time.Second {
 		if time.Since(lastR) < 1*time.Second {
 			return cached
 		}
-		cached["upTime"] = common.GetRunTime()
+
 		tcpCount := 0
 		file.GetDb().JsonDb.Clients.Range(func(key, value interface{}) bool {
 			tcpCount += int(value.(*file.Client).NowConn)
 			return true
 		})
-		cached["tcpCount"] = tcpCount
-		cpuPercent, err := cpu.Percent(0, true)
-		if err == nil {
-			var cpuAll float64
+
+		var cpuVal interface{}
+		if cpuPercent, err := cpu.Percent(0, true); err == nil {
+			var sum float64
 			for _, v := range cpuPercent {
-				cpuAll += v
+				sum += v
 			}
-			cpl := len(cpuPercent)
-			if cpl > 0 {
-				cached["cpu"] = math.Round(cpuAll / float64(cpl))
-			}
-		}
-		loads, err := load.Avg()
-		if err == nil {
-			cached["load"] = loads.String()
-		}
-		swap, err := mem.SwapMemory()
-		if err == nil {
-			cached["swap_mem"] = math.Round(swap.UsedPercent)
-		}
-		vir, err := mem.VirtualMemory()
-		if err == nil {
-			cached["virtual_mem"] = math.Round(vir.UsedPercent)
-		}
-		conn, err := net.ProtoCounters(nil)
-		if err == nil {
-			for _, v := range conn {
-				cached[v.Protocol] = v.Stats["CurrEstab"]
+			if n := len(cpuPercent); n > 0 {
+				cpuVal = math.Round(sum / float64(n))
 			}
 		}
+
+		var loadVal interface{}
+		if loads, err := load.Avg(); err == nil {
+			loadVal = loads.String()
+		}
+
+		var swapVal interface{}
+		if swap, err := mem.SwapMemory(); err == nil {
+			swapVal = math.Round(swap.UsedPercent)
+		}
+
+		var virtVal interface{}
+		if vir, err := mem.VirtualMemory(); err == nil {
+			virtVal = math.Round(vir.UsedPercent)
+		}
+
+		protoVals := map[string]int64{}
+		if pcounters, err := net.ProtoCounters(nil); err == nil {
+			for _, v := range pcounters {
+				if val, ok := v.Stats["CurrEstab"]; ok {
+					protoVals[v.Protocol] = val
+				}
+			}
+		}
+
+		var ioSend, ioRecv interface{}
 		if v, ok := ioSendRate.Load().(float64); ok {
-			cached["io_send"] = v
+			ioSend = v
 		}
 		if v, ok := ioRecvRate.Load().(float64); ok {
-			cached["io_recv"] = v
+			ioRecv = v
 		}
-		cacheMu.RLock()
-		lastRefresh = time.Now()
-		cacheMu.RUnlock()
-		return cached
+
+		upTime := common.GetRunTime()
+
+		now := time.Now()
+
+		cacheMu.Lock()
+		dst := dashboardCache
+		if dst == nil {
+			dst = cached
+		}
+		dst["upTime"] = upTime
+		dst["tcpCount"] = tcpCount
+		if cpuVal != nil {
+			dst["cpu"] = cpuVal
+		}
+		if loadVal != nil {
+			dst["load"] = loadVal
+		}
+		if swapVal != nil {
+			dst["swap_mem"] = swapVal
+		}
+		if virtVal != nil {
+			dst["virtual_mem"] = virtVal
+		}
+		for k, v := range protoVals {
+			dst[k] = v
+		}
+		if ioSend != nil {
+			dst["io_send"] = ioSend
+		}
+		if ioRecv != nil {
+			dst["io_recv"] = ioRecv
+		}
+		lastRefresh = now
+		cacheMu.Unlock()
+
+		return dst
 	}
+
 	data := make(map[string]interface{})
 	data["version"] = version.VERSION
 	data["minVersion"] = GetMinVersion()
 	data["hostCount"] = common.GetSyncMapLen(&file.GetDb().JsonDb.Hosts)
 	data["clientCount"] = common.GetSyncMapLen(&file.GetDb().JsonDb.Clients)
-	if beego.AppConfig.String("public_vkey") != "" { //remove public vkey
+	if beego.AppConfig.String("public_vkey") != "" { // remove public vkey
 		data["clientCount"] = data["clientCount"].(int) - 1
 	}
+
 	dealClientData()
+
 	c := 0
 	var in, out int64
 	file.GetDb().JsonDb.Clients.Range(func(key, value interface{}) bool {
 		v := value.(*file.Client)
 		if v.IsConnect {
-			c += 1
+			c++
 		}
 		clientIn := v.Flow.InletFlow - (v.InletFlow + v.ExportFlow)
 		if clientIn < 0 {
@@ -1044,37 +1088,40 @@ func GetDashboardData(force bool) map[string]interface{} {
 	data["clientOnlineCount"] = c
 	data["inletFlowCount"] = int(in)
 	data["exportFlowCount"] = int(out)
-	var tcp, udp, secret, socks5, p2p, http int
+
+	var tcpN, udpN, secretN, socks5N, p2pN, httpN int
 	file.GetDb().JsonDb.Tasks.Range(func(key, value interface{}) bool {
-		switch value.(*file.Tunnel).Mode {
+		t := value.(*file.Tunnel)
+		switch t.Mode {
 		case "tcp":
-			tcp += 1
+			tcpN++
 		case "socks5":
-			socks5 += 1
+			socks5N++
 		case "httpProxy":
-			http += 1
+			httpN++
 		case "mixProxy":
-			if value.(*file.Tunnel).HttpProxy {
-				http += 1
+			if t.HttpProxy {
+				httpN++
 			}
-			if value.(*file.Tunnel).Socks5Proxy {
-				socks5 += 1
+			if t.Socks5Proxy {
+				socks5N++
 			}
 		case "udp":
-			udp += 1
+			udpN++
 		case "p2p":
-			p2p += 1
+			p2pN++
 		case "secret":
-			secret += 1
+			secretN++
 		}
 		return true
 	})
-	data["tcpC"] = tcp
-	data["udpCount"] = udp
-	data["socks5Count"] = socks5
-	data["httpProxyCount"] = http
-	data["secretCount"] = secret
-	data["p2pCount"] = p2p
+	data["tcpC"] = tcpN
+	data["udpCount"] = udpN
+	data["socks5Count"] = socks5N
+	data["httpProxyCount"] = httpN
+	data["secretCount"] = secretN
+	data["p2pCount"] = p2pN
+
 	bridgeType := beego.AppConfig.String("bridge_type")
 	if bridgeType == "both" {
 		bridgeType = "tcp"
@@ -1094,39 +1141,37 @@ func GetDashboardData(force bool) map[string]interface{} {
 	data["upTime"] = common.GetRunTime()
 	data["upSecs"] = common.GetRunSecs()
 	data["startTime"] = common.GetStartTime()
+
 	tcpCount := 0
 	file.GetDb().JsonDb.Clients.Range(func(key, value interface{}) bool {
 		tcpCount += int(value.(*file.Client).NowConn)
 		return true
 	})
 	data["tcpCount"] = tcpCount
-	cpuPercent, err := cpu.Percent(0, true)
-	if err == nil {
+
+	if cpuPercent, err := cpu.Percent(0, true); err == nil {
 		var cpuAll float64
 		for _, v := range cpuPercent {
 			cpuAll += v
 		}
-		cpl := len(cpuPercent)
-		if cpl > 0 {
-			cached["cpu"] = math.Round(cpuAll / float64(cpl))
+		if n := len(cpuPercent); n > 0 {
+			data["cpu"] = math.Round(cpuAll / float64(n))
 		}
 	}
-	loads, err := load.Avg()
-	if err == nil {
+	if loads, err := load.Avg(); err == nil {
 		data["load"] = loads.String()
 	}
-	swap, err := mem.SwapMemory()
-	if err == nil {
+	if swap, err := mem.SwapMemory(); err == nil {
 		data["swap_mem"] = math.Round(swap.UsedPercent)
 	}
-	vir, err := mem.VirtualMemory()
-	if err == nil {
+	if vir, err := mem.VirtualMemory(); err == nil {
 		data["virtual_mem"] = math.Round(vir.UsedPercent)
 	}
-	conn, err := net.ProtoCounters(nil)
-	if err == nil {
-		for _, v := range conn {
-			data[v.Protocol] = v.Stats["CurrEstab"]
+	if pcounters, err := net.ProtoCounters(nil); err == nil {
+		for _, v := range pcounters {
+			if val, ok := v.Stats["CurrEstab"]; ok {
+				data[v.Protocol] = val
+			}
 		}
 	}
 	if v, ok := ioSendRate.Load().(float64); ok {
@@ -1135,19 +1180,22 @@ func GetDashboardData(force bool) map[string]interface{} {
 	if v, ok := ioRecvRate.Load().(float64); ok {
 		data["io_recv"] = v
 	}
-	//chart
-	var fg int
-	if len(tool.ServerStatus) >= 10 {
-		fg = len(tool.ServerStatus) / 10
+
+	// chart
+	if n := len(tool.ServerStatus); n >= 10 {
+		fg := n / 10
 		for i := 0; i <= 9; i++ {
 			data["sys"+strconv.Itoa(i+1)] = tool.ServerStatus[i*fg]
 		}
 	}
-	cacheMu.RLock()
+
+	now := time.Now()
+	cacheMu.Lock()
 	dashboardCache = data
-	lastRefresh = time.Now()
-	lastFullRefresh = time.Now()
-	cacheMu.RUnlock()
+	lastRefresh = now
+	lastFullRefresh = now
+	cacheMu.Unlock()
+
 	return data
 }
 
