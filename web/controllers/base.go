@@ -249,6 +249,9 @@ func (s *BaseController) CheckUserAuth() {
 
 func GetBestBridge(ip string) (bridgeType, bridgeAddr, bridgeIp, bridgePort string) {
 	bridgeIp = beego.AppConfig.DefaultString("bridge_addr", common.GetIpByAddr(ip))
+	if strings.IndexByte(bridgeIp, ':') >= 0 && !(strings.HasPrefix(bridgeIp, "[") && strings.HasSuffix(bridgeIp, "]")) {
+		bridgeIp = "[" + bridgeIp + "]"
+	}
 	bridgeType = beego.AppConfig.String("bridge_type")
 	bridgePort = strconv.Itoa(server.Bridge.TunnelPort)
 	bridgeAddr = bridgeIp + ":" + bridgePort

@@ -519,27 +519,44 @@ func InIntArr(arr []int, val int) bool {
 	return false
 }
 
-// GetPorts format ports str to a int array
-func GetPorts(p string) []int {
-	var ps []int
-	arr := strings.Split(p, ",")
-	for _, v := range arr {
-		fw := strings.Split(v, "-")
-		if len(fw) == 2 {
-			if IsPort(fw[0]) && IsPort(fw[1]) {
-				start, _ := strconv.Atoi(fw[0])
-				end, _ := strconv.Atoi(fw[1])
-				for i := start; i <= end; i++ {
-					ps = append(ps, i)
+// GetPorts format ports str to an int array
+func GetPorts(s string) []int {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	seen := make(map[int]struct{})
+	for _, item := range strings.Split(s, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if fw := strings.SplitN(item, "-", 2); len(fw) == 2 {
+			a, b := strings.TrimSpace(fw[0]), strings.TrimSpace(fw[1])
+			if IsPort(a) && IsPort(b) {
+				start, _ := strconv.Atoi(a)
+				end, _ := strconv.Atoi(b)
+				if end < start {
+					start, end = end, start
 				}
-			} else {
-				continue
+				for i := start; i <= end; i++ {
+					seen[i] = struct{}{}
+				}
 			}
-		} else if IsPort(v) {
-			p, _ := strconv.Atoi(v)
-			ps = append(ps, p)
+			continue
+		}
+		if IsPort(item) {
+			port, _ := strconv.Atoi(item)
+			seen[port] = struct{}{}
 		}
 	}
+	if len(seen) == 0 {
+		return nil
+	}
+	ps := make([]int, 0, len(seen))
+	for p := range seen {
+		ps = append(ps, p)
+	}
+	sort.Ints(ps)
 	return ps
 }
 

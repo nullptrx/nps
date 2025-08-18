@@ -1182,11 +1182,9 @@ func GetDashboardData(force bool) map[string]interface{} {
 	}
 
 	// chart
-	if n := len(tool.ServerStatus); n >= 10 {
-		fg := n / 10
-		for i := 0; i <= 9; i++ {
-			data["sys"+strconv.Itoa(i+1)] = tool.ServerStatus[i*fg]
-		}
+	deciles := tool.ChartDeciles()
+	for i, v := range deciles {
+		data["sys"+strconv.Itoa(i+1)] = v
 	}
 
 	now := time.Now()

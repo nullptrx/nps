@@ -139,6 +139,11 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.32.7 (2025-08-18)**
+  - 避免状态获取失败引起崩溃 [#133](https://github.com/djylb/nps/issues/133)
+  - 优化状态获取性能
+  - 修复IPv6地址显示 [#135](https://github.com/djylb/nps/issues/135)
+
 - **v0.32.6 (2025-08-18)**
   - 重构状态获取函数 [#134](https://github.com/djylb/nps/issues/134)
 
