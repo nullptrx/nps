@@ -248,7 +248,7 @@ func (s *BaseController) CheckUserAuth() {
 }
 
 func GetBestBridge(ip string) (bridgeType, bridgeAddr, bridgeIp, bridgePort string) {
-	bridgeIp = beego.AppConfig.DefaultString("bridge_addr", common.GetIpByAddr(ip))
+	bridgeIp = common.GetIpByAddr(beego.AppConfig.DefaultString("bridge_addr", ip))
 	if strings.IndexByte(bridgeIp, ':') >= 0 && !(strings.HasPrefix(bridgeIp, "[") && strings.HasSuffix(bridgeIp, "]")) {
 		bridgeIp = "[" + bridgeIp + "]"
 	}
