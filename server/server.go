@@ -83,13 +83,22 @@ func InitFromDb() {
 func DealBridgeTask() {
 	for {
 		select {
+		case h := <-Bridge.OpenHost:
+			if h != nil {
+				HttpProxyCache.Remove(h.Id)
+			}
 		case t := <-Bridge.OpenTask:
-			//_ = AddTask(t)
-			if err := StartTask(t.Id); err != nil {
-				logs.Error("StartTask(%d) error: %v", t.Id, err)
+			if t != nil {
+				//_ = AddTask(t)
+				_ = StopServer(t.Id)
+				if err := StartTask(t.Id); err != nil {
+					logs.Error("StartTask(%d) error: %v", t.Id, err)
+				}
 			}
 		case t := <-Bridge.CloseTask:
-			_ = StopServer(t.Id)
+			if t != nil {
+				_ = StopServer(t.Id)
+			}
 		case id := <-Bridge.CloseClient:
 			DelTunnelAndHostByClientId(id, true)
 			if v, ok := file.GetDb().JsonDb.Clients.Load(id); ok {
@@ -100,20 +109,22 @@ func DealBridgeTask() {
 		//case tunnel := <-Bridge.OpenTask:
 		//	_ = StartTask(tunnel.Id)
 		case s := <-Bridge.SecretChan:
-			logs.Trace("New secret connection, addr %v", s.Conn.Conn.RemoteAddr())
-			if t := file.GetDb().GetTaskByMd5Password(s.Password); t != nil {
-				if t.Status {
-					allowLocalProxy := beego.AppConfig.DefaultBool("allow_local_proxy", false)
-					allowSecretLink := beego.AppConfig.DefaultBool("allow_secret_link", false)
-					allowSecretLocal := beego.AppConfig.DefaultBool("allow_secret_local", false)
-					go proxy.NewSecretServer(Bridge, t, allowLocalProxy, allowSecretLink, allowSecretLocal).HandleSecret(s.Conn)
+			if s != nil {
+				logs.Trace("New secret connection, addr %v", s.Conn.Conn.RemoteAddr())
+				if t := file.GetDb().GetTaskByMd5Password(s.Password); t != nil {
+					if t.Status {
+						allowLocalProxy := beego.AppConfig.DefaultBool("allow_local_proxy", false)
+						allowSecretLink := beego.AppConfig.DefaultBool("allow_secret_link", false)
+						allowSecretLocal := beego.AppConfig.DefaultBool("allow_secret_local", false)
+						go proxy.NewSecretServer(Bridge, t, allowLocalProxy, allowSecretLink, allowSecretLocal).HandleSecret(s.Conn)
+					} else {
+						_ = s.Conn.Close()
+						logs.Trace("This key %s cannot be processed,status is close", s.Password)
+					}
 				} else {
+					logs.Trace("This key %s cannot be processed", s.Password)
 					_ = s.Conn.Close()
-					logs.Trace("This key %s cannot be processed,status is close", s.Password)
 				}
-			} else {
-				logs.Trace("This key %s cannot be processed", s.Password)
-				_ = s.Conn.Close()
 			}
 		}
 	}

@@ -42,6 +42,7 @@ type Bridge struct {
 	Client         *sync.Map
 	Register       *sync.Map
 	tunnelType     string //bridge type kcp or tcp
+	OpenHost       chan *file.Host
 	OpenTask       chan *file.Tunnel
 	CloseTask      chan *file.Tunnel
 	CloseClient    chan int
@@ -57,6 +58,7 @@ func NewTunnel(tunnelPort int, tunnelType string, ipVerify bool, runList *sync.M
 		tunnelType:     tunnelType,
 		Client:         &sync.Map{},
 		Register:       &sync.Map{},
+		OpenHost:       make(chan *file.Host, 100),
 		OpenTask:       make(chan *file.Tunnel, 100),
 		CloseTask:      make(chan *file.Tunnel, 100),
 		CloseClient:    make(chan int, 100),
@@ -1043,13 +1045,19 @@ loop:
 				h.Location = "/"
 			}
 
-			if !client.HasHost(h) {
+			hh, ok := client.HasHost(h)
+			if !ok {
 				if file.GetDb().IsHostExist(h) {
 					fail = true
 					_ = c.WriteAddFail()
 					break loop
 				}
 				_ = file.GetDb().NewHost(h)
+			} else {
+				if hh.NoStore {
+					hh.Update(h)
+					s.OpenHost <- hh
+				}
 			}
 			_ = c.WriteAddOk()
 
@@ -1116,29 +1124,30 @@ loop:
 						}
 					}
 				}
-				if !client.HasTunnel(tl) {
-					if tl.Mode == "file" {
-						cli := NewClient(client.Id, NewNode(uuid, vs, ver))
-						if clientValue, ok := s.Client.LoadOrStore(client.Id, cli); ok {
-							cli, ok = clientValue.(*Client)
-							if !ok {
-								logs.Error("Fail to load client %d", client.Id)
-								fail = true
-								_ = c.WriteAddFail()
-								break loop
-							}
+				if tl.MultiAccount == nil {
+					tl.MultiAccount = new(file.MultiAccount)
+				}
+				if tl.Mode == "file" {
+					cli := NewClient(client.Id, NewNode(uuid, vs, ver))
+					if clientValue, ok := s.Client.LoadOrStore(client.Id, cli); ok {
+						cli, ok = clientValue.(*Client)
+						if !ok {
+							logs.Error("Fail to load client %d", client.Id)
+							fail = true
+							_ = c.WriteAddFail()
+							break loop
 						}
-						if tl.MultiAccount == nil {
-							tl.MultiAccount = new(file.MultiAccount)
-						}
-						key := crypt.GenerateUUID(client.VerifyKey, tl.Mode, tl.ServerIp, strconv.Itoa(tl.Port), tl.LocalPath, tl.StripPre, strconv.FormatBool(tl.ReadOnly), tl.MultiAccount.Content)
-						err = cli.AddFile(key.String(), uuid)
-						if err != nil {
-							logs.Error("Add file failed, error %v", err)
-						}
-						tl.Target.TargetStr = fmt.Sprintf("file://%s", key.String())
 					}
+					key := crypt.GenerateUUID(client.VerifyKey, tl.Mode, tl.ServerIp, strconv.Itoa(tl.Port), tl.LocalPath, tl.StripPre, strconv.FormatBool(tl.ReadOnly), tl.MultiAccount.Content)
+					err = cli.AddFile(key.String(), uuid)
+					if err != nil {
+						logs.Error("Add file failed, error %v", err)
+					}
+					tl.Target.TargetStr = fmt.Sprintf("file://%s", key.String())
+				}
 
+				tt, ok := client.HasTunnel(tl)
+				if !ok {
 					if err := file.GetDb().NewTask(tl); err != nil {
 						logs.Warn("Add task error: %v", err)
 						fail = true
@@ -1153,6 +1162,11 @@ loop:
 					}
 
 					s.OpenTask <- tl
+				} else {
+					if tt.NoStore {
+						tt.Update(tl)
+						s.OpenTask <- tt
+					}
 				}
 				_ = c.WriteAddOk()
 			}

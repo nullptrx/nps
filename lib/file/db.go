@@ -573,6 +573,7 @@ func (s *DbUtils) FindCertByHost(host string) (*Host, error) {
 		return nil, errors.New("invalid Host")
 	}
 
+	host = common.GetIpByAddr(host)
 	hostLength := len(host)
 
 	ids := HostIndex.Lookup(host)

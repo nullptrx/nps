@@ -115,11 +115,12 @@ func (s *Client) GetConn() bool {
 	return false
 }
 
-func (s *Client) HasTunnel(t *Tunnel) (exist bool) {
+func (s *Client) HasTunnel(t *Tunnel) (tt *Tunnel, exist bool) {
 	GetDb().JsonDb.Tasks.Range(func(key, value interface{}) bool {
 		v := value.(*Tunnel)
 		if v.Client.Id == s.Id && v.Port == t.Port && t.Port != 0 {
 			exist = true
+			tt = v
 			return false
 		}
 		return true
@@ -146,17 +147,17 @@ func (s *Client) GetTunnelNum() (num int) {
 	return
 }
 
-func (s *Client) HasHost(h *Host) bool {
-	var has bool
+func (s *Client) HasHost(h *Host) (hh *Host, exist bool) {
 	GetDb().JsonDb.Hosts.Range(func(key, value interface{}) bool {
 		v := value.(*Host)
 		if v.Client.Id == s.Id && v.Host == h.Host && h.Location == v.Location {
-			has = true
+			exist = true
+			hh = v
 			return false
 		}
 		return true
 	})
-	return has
+	return
 }
 
 func (s *Client) EnsureWebPassword() {
@@ -202,6 +203,21 @@ type Tunnel struct {
 	MultiAccount *MultiAccount
 	Health
 	sync.RWMutex
+}
+
+func (s *Tunnel) Update(t *Tunnel) {
+	s.ServerIp = t.ServerIp
+	s.Mode = t.Mode
+	s.Password = t.Password
+	s.Remark = t.Remark
+	s.TargetType = t.TargetType
+	s.HttpProxy = t.HttpProxy
+	s.Socks5Proxy = t.Socks5Proxy
+	s.LocalPath = t.LocalPath
+	s.StripPre = t.StripPre
+	s.ReadOnly = t.ReadOnly
+	s.Target = t.Target
+	s.MultiAccount = t.MultiAccount
 }
 
 func (s *Tunnel) AddConn() {
@@ -256,6 +272,27 @@ type Host struct {
 	MultiAccount     *MultiAccount
 	Health           `json:"-"`
 	sync.RWMutex
+}
+
+func (s *Host) Update(h *Host) {
+	s.HeaderChange = h.HeaderChange
+	s.RespHeaderChange = h.RespHeaderChange
+	s.HostChange = h.HostChange
+	s.PathRewrite = h.PathRewrite
+	s.Remark = h.Remark
+	s.RedirectURL = h.RedirectURL
+	s.HttpsJustProxy = h.HttpsJustProxy
+	s.AutoSSL = h.AutoSSL
+	s.CertType = common.GetCertType(h.CertFile)
+	s.CertHash = crypt.FNV1a64(h.CertType, h.CertFile, h.KeyFile)
+	s.CertFile = h.CertFile
+	s.KeyFile = h.KeyFile
+	s.AutoHttps = h.AutoHttps
+	s.AutoCORS = h.AutoCORS
+	s.CompatMode = h.CompatMode
+	s.TargetIsHttps = h.TargetIsHttps
+	s.Target = h.Target
+	s.MultiAccount = h.MultiAccount
 }
 
 func (s *Host) AddConn() {

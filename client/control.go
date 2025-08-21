@@ -247,7 +247,6 @@ func StartFromFile(path string) {
 		}
 
 		NewRPClient(cnf.CommonConfig.Server, vkey, cnf.CommonConfig.Tp, cnf.CommonConfig.ProxyUrl, uuid, cnf, cnf.CommonConfig.DisconnectTime, fsm).Start()
-		//CloseLocalServer()
 		fsm.CloseAll()
 		cancel()
 	}
