@@ -893,6 +893,10 @@
 		<zh-CN>冒号分割，多个头部请填写多行</zh-CN>
 		<en-US>Colon separated, multiple lines please fill in</en-US>
 	</lang>
+	<lang id="info-httpsjustproxy">
+		<zh-CN>按首个 TLS 握手包的 SNI 分流。注意：当后端支持 H2 时，浏览器可能复用连接导致串站。</zh-CN>
+		<en-US>Routes by the SNI from the first TLS handshake. Note: when the backend supports H2, browsers may reuse the connection and cause misrouting.</en-US>
+	</lang>
 	<lang id="info-identificationkey">
 		<zh-CN>P2P连接和私密代理模式需要</zh-CN>
 		<en-US>When P2P or Secret</en-US>
