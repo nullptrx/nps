@@ -363,11 +363,9 @@ func (s *TRPClient) handleChan(src net.Conn) {
 		}
 		logs.Trace("sent ACK before proceeding")
 	}
-	//host for target processing
-	lk.Host = common.FormatAddress(lk.Host)
 	//socks5 udp
 	if lk.ConnType == "udp5" {
-		logs.Trace("new %s connection with the goal of %s, remote address:%s", lk.ConnType, lk.Host, lk.RemoteAddr)
+		logs.Trace("new %s connection of udp5, remote address:%s", lk.ConnType, lk.RemoteAddr)
 		conn.HandleUdp5(s.ctx, src, lk.Option.Timeout)
 		return
 	}
@@ -385,6 +383,12 @@ func (s *TRPClient) handleChan(src net.Conn) {
 		vl.Deliver(c)
 		return
 	}
+	//host for target processing
+	if lk.Host == "" {
+		_ = src.Close()
+		return
+	}
+	lk.Host = common.FormatAddress(lk.Host)
 	//connect to target if conn type is tcp or udp
 	if targetConn, err := net.DialTimeout(lk.ConnType, lk.Host, lk.Option.Timeout); err != nil {
 		logs.Warn("connect to %s error %v", lk.Host, err)
