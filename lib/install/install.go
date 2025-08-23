@@ -284,69 +284,68 @@ func downloadLatest(bin string) string {
 		}
 	}
 
-	var resp *http.Response
-	var downloadErr error
+	var lastErr error
 	for _, url := range urls {
 		fmt.Println("Trying:", url)
-		resp, downloadErr = httpClient.Get(url)
-		if downloadErr == nil && resp.StatusCode == http.StatusOK {
-			break
+		resp, err := httpClient.Get(url)
+		if err != nil {
+			lastErr = err
+			continue
 		}
-		if resp != nil {
+		if resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("status %d", resp.StatusCode)
 			_ = resp.Body.Close()
+			continue
 		}
-	}
-	if downloadErr != nil {
-		log.Fatal("Download failed:", downloadErr)
-	}
-	if resp == nil || resp.StatusCode != http.StatusOK {
-		var code any
-		if resp != nil {
-			code = resp.StatusCode
-		} else {
-			code = "no response"
+
+		var reader io.Reader = resp.Body
+		var hasher hash.Hash
+		if expectedHash != "" {
+			hasher = sha256.New()
+			reader = io.TeeReader(resp.Body, hasher)
 		}
-		log.Fatalf("All mirrors failed; last status: %v", code)
-	}
-	defer resp.Body.Close()
 
-	var reader io.Reader = resp.Body
-	var hasher hash.Hash
-	if expectedHash != "" {
-		hasher = sha256.New()
-		reader = io.TeeReader(resp.Body, hasher)
-	}
+		destPath, err := os.MkdirTemp(os.TempDir(), "nps-")
+		if err != nil {
+			_ = resp.Body.Close()
+			lastErr = err
+			//continue
+			log.Fatal("Failed to create temp directory:", err)
+		}
 
-	destPath, err := os.MkdirTemp(os.TempDir(), "nps-")
-	if err != nil {
-		log.Fatal("Failed to create temp directory:", err)
-	}
-
-	if err := unpackit.Unpack(reader, destPath); err != nil {
-		log.Fatal(err)
-		return ""
-	}
-
-	if expectedHash != "" {
-		sum := hex.EncodeToString(hasher.Sum(nil))
-		if sum != expectedHash {
-			fmt.Printf("  → checksum mismatch: got %s vs %s\n", sum, expectedHash)
+		if err := unpackit.Unpack(reader, destPath); err != nil {
+			_ = resp.Body.Close()
 			_ = os.RemoveAll(destPath)
-			return ""
+			fmt.Println("  → failed:", err)
+			lastErr = err
+			continue
 		}
-		//fmt.Printf("  → checksum verified: %s\n", sum)
-	}
+		_ = resp.Body.Close()
 
-	if bin == "server" {
-		destPath = strings.Replace(destPath, "/web", "", -1)
-		destPath = strings.Replace(destPath, `\web`, "", -1)
-		destPath = strings.Replace(destPath, "/views", "", -1)
-		destPath = strings.Replace(destPath, `\views`, "", -1)
-	} else {
-		destPath = strings.Replace(destPath, `\conf`, "", -1)
-		destPath = strings.Replace(destPath, "/conf", "", -1)
+		if expectedHash != "" {
+			sum := hex.EncodeToString(hasher.Sum(nil))
+			if sum != expectedHash {
+				fmt.Printf("  → checksum mismatch: got %s vs %s\n", sum, expectedHash)
+				_ = os.RemoveAll(destPath)
+				lastErr = fmt.Errorf("checksum mismatch")
+				continue
+			}
+			//fmt.Printf("  → checksum verified: %s\n", sum)
+		}
+
+		if bin == "server" {
+			destPath = strings.Replace(destPath, "/web", "", -1)
+			destPath = strings.Replace(destPath, `\web`, "", -1)
+			destPath = strings.Replace(destPath, "/views", "", -1)
+			destPath = strings.Replace(destPath, `\views`, "", -1)
+		} else {
+			destPath = strings.Replace(destPath, `\conf`, "", -1)
+			destPath = strings.Replace(destPath, "/conf", "", -1)
+		}
+		return destPath
 	}
-	return destPath
+	log.Fatalf("All mirrors failed; last error: %v", lastErr)
+	return ""
 }
 
 func copyStaticFile(srcPath, bin string) string {
