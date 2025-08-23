@@ -194,7 +194,12 @@ func downloadLatest(bin string) string {
 			if err != nil {
 				return nil, err
 			}
-			return conn.NewTimeoutTLSConn(raw, &tls.Config{InsecureSkipVerify: true}, idleTimeout, timeout)
+			host, _, _ := net.SplitHostPort(addr)
+			tlsConf := &tls.Config{InsecureSkipVerify: true}
+			if net.ParseIP(host) == nil {
+				tlsConf.ServerName = host
+			}
+			return conn.NewTimeoutTLSConn(raw, tlsConf, idleTimeout, timeout)
 		},
 		TLSHandshakeTimeout:   timeout,
 		ResponseHeaderTimeout: timeout,
