@@ -44,7 +44,7 @@ var TlsCfg = &tls.Config{
 }
 
 var QuicConfig = &quic.Config{
-	KeepAlivePeriod:    10 * time.Second,
+	KeepAlivePeriod:    5 * time.Second,
 	MaxIdleTimeout:     30 * time.Second,
 	MaxIncomingStreams: 100000,
 }

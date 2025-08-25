@@ -97,7 +97,7 @@ func (b *P2pBridge) SendLinkInfo(_ int, link *conn.Link, _ *file.Tunnel) (net.Co
 	}
 	mgr := b.mgr
 	var lastErr error
-	ctx, cancel := context.WithTimeout(mgr.ctx, 200*time.Millisecond)
+	ctx, cancel := context.WithTimeout(mgr.ctx, 1000*time.Millisecond)
 	defer cancel()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
@@ -460,7 +460,7 @@ func (mgr *P2PManager) handleUdpMonitor(cfg *config.CommonConfig, l *config.Loca
 		case <-mgr.statusCh:
 		}
 		mgr.mu.Lock()
-		ok := mgr.statusOK && (mgr.udpConn != nil || mgr.quicConn != nil)
+		ok := mgr.statusOK && (mgr.udpConn != nil || (mgr.quicConn != nil && mgr.quicConn.Context().Err() == nil))
 		oldConn := mgr.udpConn
 		oldQuicConn := mgr.quicConn
 		mgr.mu.Unlock()
