@@ -132,51 +132,49 @@
 (function () {
     var KEY = 'nps-theme';
     var html = document.documentElement;
-    var t = 'light';
     var saved = null;
-    var lsOK = true;
 
     try {
         saved = localStorage.getItem(KEY);
-    } catch (e) {
-        lsOK = false;
+    } catch (e) {}
+
+    function setThemeAttr(mode) {
+        if (mode === 'dark') html.setAttribute('theme', 'dark-mode');
+        else html.removeAttribute('theme');
     }
 
-    if (saved !== 'dark' && saved !== 'light') {
-        saved = null;
-    }
-    if (saved) {
-        t = saved;
+    if (saved === 'dark' || saved === 'light') {
+        setThemeAttr(saved);
     } else {
-        t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
-        if (lsOK) {
-            try {
-                localStorage.setItem(KEY, t);
-            } catch (e) {}
+        var mql = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+        setThemeAttr(mql && mql.matches ? 'dark' : 'light');
+
+        if (mql) {
+            var onChange = function (e) { setThemeAttr(e.matches ? 'dark' : 'light'); };
+            if (mql.addEventListener) mql.addEventListener('change', onChange);
+            else if (mql.addListener) mql.addListener(onChange);
         }
-    }
-
-    if (t === 'dark') {
-        html.setAttribute('theme', 'dark-mode');
-    } else {
-        html.removeAttribute('theme');
     }
 })();
 
 $(document).ready(function () {
-    const savedTheme = localStorage.getItem('nps-theme');
-    const html = document.documentElement;
     const icon = document.querySelector('#theme-toggle i');
 
-    if (savedTheme === 'dark') {
-        html.setAttribute('theme', 'dark-mode');
-        icon.classList.remove('fa-moon');
-        icon.classList.add('fa-sun');
-    } else {
-        html.removeAttribute('theme');
-        icon.classList.remove('fa-sun');
-        icon.classList.add('fa-moon');
+    function syncIconFromHtmlTheme() {
+        const isDark = document.documentElement.getAttribute('theme') === 'dark-mode';
+        if (icon) {
+            icon.classList.toggle('fa-sun',  isDark);
+            icon.classList.toggle('fa-moon', !isDark);
+        }
     }
+
+    syncIconFromHtmlTheme();
+
+    new MutationObserver(syncIconFromHtmlTheme).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['theme']
+    });
+
     $('body').cloudLang();
     $('body').on('click', 'li[lang]', function () {
         $('#languagemenu').attr('lang', $(this).attr('lang'));
