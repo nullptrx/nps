@@ -1,7 +1,6 @@
 package connection
 
 import (
-	"github.com/djylb/nps/lib/mux"
 	"net"
 	"os"
 	"strconv"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/beego/beego"
 	"github.com/djylb/nps/lib/logs"
+	"github.com/djylb/nps/lib/mux"
 	"github.com/djylb/nps/lib/pmux"
 )
 

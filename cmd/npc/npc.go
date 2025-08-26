@@ -7,7 +7,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/djylb/nps/lib/mux"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,6 +23,7 @@ import (
 	"github.com/djylb/nps/lib/file"
 	"github.com/djylb/nps/lib/install"
 	"github.com/djylb/nps/lib/logs"
+	"github.com/djylb/nps/lib/mux"
 	"github.com/djylb/nps/lib/version"
 	"github.com/kardianos/service"
 )
