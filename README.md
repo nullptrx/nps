@@ -142,8 +142,10 @@ npc update && npc restart
 - **v0.32.10 (2025-08-26)**
   - 添加调试日志输出
   - 优化P2P连接释放
+  - 修复深色主题下浅色加载背景 [#142](https://github.com/djylb/nps/issues/142)
   - 避免深色主题切换页面闪烁
   - 自动跟随浏览器默认主题
+  - 允许配置KeepAlive间隔
 
 - **v0.32.9 (2025-08-25)**
   - 避免下载过程中被阻断导致绕过换源 [#139](https://github.com/djylb/nps/issues/139)

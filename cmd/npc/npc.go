@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/djylb/nps/lib/mux"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,6 +59,7 @@ var (
 	protoVer       = flag.Int("proto_version", version.GetLatestIndex(), fmt.Sprintf("Protocol version (0-%d)", version.GetLatestIndex()))
 	skipVerify     = flag.Bool("skip_verify", false, "Skip verification of server certificate")
 	disconnectTime = flag.Int("disconnect_timeout", 60, "Disconnect timeout in seconds")
+	keepAlive      = flag.Int("keepalive", 5, "KeepAlive Period in seconds")
 	p2pTime        = flag.Int("p2p_timeout", 5, "P2P timeout in seconds")
 	dnsServer      = flag.String("dns_server", "8.8.8.8", "DNS server for domain lookup")
 	ntpServer      = flag.String("ntp_server", "", "NTP server for time synchronization")
@@ -107,6 +109,13 @@ func main() {
 	// 配置NTP
 	common.SetNtpServer(*ntpServer)
 	common.SetNtpInterval(time.Duration(*ntpInterval) * time.Minute)
+
+	// KeepAlive
+	if *keepAlive > 0 {
+		interval := time.Duration(*keepAlive) * time.Second
+		client.QuicConfig.KeepAlivePeriod = interval
+		mux.PingInterval = interval
+	}
 
 	// 初始化服务
 	options := make(service.KeyValue)
