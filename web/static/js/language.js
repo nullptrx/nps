@@ -129,6 +129,40 @@
 
 })(jQuery);
 
+(function () {
+    var KEY = 'nps-theme';
+    var html = document.documentElement;
+    var t = 'light';
+    var saved = null;
+    var lsOK = true;
+
+    try {
+        saved = localStorage.getItem(KEY);
+    } catch (e) {
+        lsOK = false;
+    }
+
+    if (saved !== 'dark' && saved !== 'light') {
+        saved = null;
+    }
+    if (saved) {
+        t = saved;
+    } else {
+        t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+        if (lsOK) {
+            try {
+                localStorage.setItem(KEY, t);
+            } catch (e) {}
+        }
+    }
+
+    if (t === 'dark') {
+        html.setAttribute('theme', 'dark-mode');
+    } else {
+        html.removeAttribute('theme');
+    }
+})();
+
 $(document).ready(function () {
     const savedTheme = localStorage.getItem('nps-theme');
     const html = document.documentElement;
