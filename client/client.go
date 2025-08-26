@@ -221,6 +221,17 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 	defer timer.Stop()
 	var kcpListener *kcp.Listener
 	var quicListener *quic.Listener
+
+	var preConnDone chan struct{}
+	var preConnDoneOnce sync.Once
+	done := func() {
+		preConnDoneOnce.Do(func() {
+			if preConnDone != nil {
+				close(preConnDone)
+			}
+		})
+	}
+
 	if mode == common.CONN_QUIC {
 		quicListener, err = quic.Listen(localConn, crypt.GetCertCfg(), QuicConfig)
 		if err != nil {
@@ -235,10 +246,16 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 			return
 		}
 		defer kcpListener.Close()
+		preConnDone = make(chan struct{})
 		go func() {
-			<-ctx.Done()
-			_ = kcpListener.Close()
+			select {
+			case <-ctx.Done():
+				_ = kcpListener.Close()
+			case <-preConnDone:
+				return
+			}
 		}()
+		defer done()
 	}
 
 	logs.Trace("start local p2p udp[%s] listen, role[%s], local address %s %v", mode, role, localAddr, localConn.LocalAddr())
@@ -290,6 +307,7 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 				_ = udpTunnel.Close()
 				return
 			}
+			done()
 			conn.SetUdpSession(udpTunnel)
 			logs.Trace("successful connection with client ,address %v", udpTunnel.RemoteAddr())
 			//read link info from remote
