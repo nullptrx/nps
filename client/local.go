@@ -459,23 +459,22 @@ func (mgr *P2PManager) handleUdpMonitor(cfg *config.CommonConfig, l *config.Loca
 		case <-ticker.C:
 		case <-mgr.statusCh:
 		}
+
 		mgr.mu.Lock()
 		ok := mgr.statusOK && (mgr.udpConn != nil || (mgr.quicConn != nil && mgr.quicConn.Context().Err() == nil))
-		oldConn := mgr.udpConn
-		oldQuicConn := mgr.quicConn
-		mgr.mu.Unlock()
-
 		if ok {
+			mgr.mu.Unlock()
 			continue
 		}
-
-		mgr.mu.Lock()
-		if oldConn != nil {
-			_ = oldConn.Close()
+		if mgr.udpConn != nil {
+			_ = mgr.udpConn.Close()
 			mgr.udpConn = nil
 		}
-		if oldQuicConn != nil {
-			_ = oldQuicConn.CloseWithError(0, "monitor close")
+		if mgr.quicConn != nil {
+			if mgr.quicConn.Context().Err() != nil {
+				logs.Debug("quic connection context error: %v", mgr.quicConn.Context().Err())
+			}
+			_ = mgr.quicConn.CloseWithError(0, "monitor close")
 			mgr.quicConn = nil
 		}
 		mgr.mu.Unlock()

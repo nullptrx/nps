@@ -139,6 +139,10 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.32.10 (2025-08-26)**
+  - 添加调试日志输出
+  - 优化P2P连接释放
+
 - **v0.32.9 (2025-08-25)**
   - 避免下载过程中被阻断导致绕过换源 [#139](https://github.com/djylb/nps/issues/139)
   - 优化P2P断连检测逻辑
