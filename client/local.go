@@ -623,7 +623,7 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 		logs.Error("Handle P2P failed: %v", err)
 		return
 	}
-	if mode == "" {
+	if mode == "" || mode != P2PMode {
 		mode = common.CONN_KCP
 	}
 	//logs.Debug("handleP2PUdp ok")

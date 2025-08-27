@@ -199,7 +199,7 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 		return
 	}
 	defer localConn.Close()
-	if mode == "" {
+	if mode == "" || mode != P2PMode {
 		mode = common.CONN_KCP
 	}
 	wait := time.Duration(s.disconnectTime) * time.Second
