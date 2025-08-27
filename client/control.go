@@ -139,6 +139,11 @@ func StartFromFile(pCtx context.Context, path string) {
 
 	first := true
 	for {
+		select {
+		case <-pCtx.Done():
+			return
+		default:
+		}
 		if !first && !cnf.CommonConfig.AutoReconnection {
 			return
 		}
