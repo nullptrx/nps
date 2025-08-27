@@ -25,7 +25,6 @@ type TRPClient struct {
 	proxyUrl       string
 	vKey           string
 	uuid           string
-	p2pAddr        map[string]string
 	tunnel         any
 	signal         *conn.Conn
 	fsm            *FileServerManager
@@ -42,7 +41,6 @@ type TRPClient struct {
 func NewRPClient(svrAddr, vKey, bridgeConnType, proxyUrl, uuid string, cnf *config.Config, disconnectTime int, fsm *FileServerManager) *TRPClient {
 	return &TRPClient{
 		svrAddr:        svrAddr,
-		p2pAddr:        make(map[string]string),
 		vKey:           vKey,
 		bridgeConnType: bridgeConnType,
 		proxyUrl:       proxyUrl,
@@ -167,25 +165,20 @@ func (s *TRPClient) handleMain() {
 					rAddr = common.BuildAddress(remoteIP.String(), strconv.Itoa(common.GetPortByAddr(rAddr)))
 				}
 				var localAddr string
-				//The local port remains unchanged for a certain period of time
-				if v, ok := s.p2pAddr[crypt.Md5(string(pwd)+strconv.Itoa(int(time.Now().Unix()/100)))]; !ok {
-					if strings.Contains(rAddr, "]:") {
-						tmpConn, err := common.GetLocalUdp6Addr()
-						if err != nil {
-							logs.Error("%v", err)
-							return
-						}
-						localAddr = tmpConn.LocalAddr().String()
-					} else {
-						tmpConn, err := common.GetLocalUdp4Addr()
-						if err != nil {
-							logs.Error("%v", err)
-							return
-						}
-						localAddr = tmpConn.LocalAddr().String()
+				if strings.Contains(rAddr, "]:") {
+					tmpConn, err := common.GetLocalUdp6Addr()
+					if err != nil {
+						logs.Error("%v", err)
+						return
 					}
+					localAddr = tmpConn.LocalAddr().String()
 				} else {
-					localAddr = v
+					tmpConn, err := common.GetLocalUdp4Addr()
+					if err != nil {
+						logs.Error("%v", err)
+						return
+					}
+					localAddr = tmpConn.LocalAddr().String()
 				}
 				if !DisableP2P {
 					go s.newUdpConn(localAddr, rAddr, string(pwd))
@@ -201,7 +194,7 @@ func (s *TRPClient) newUdpConn(localAddr, rAddr string, md5Password string) {
 	var remoteAddress, role, mode, data string
 	sendData := string(crypt.GetHMAC(s.vKey, crypt.GetCert().Certificate[0]))
 	//logs.Debug("newUdpConn %s %s", localAddr, rAddr)
-	if localConn, remoteAddress, localAddr, role, mode, data, err = handleP2PUdp(s.ctx, localAddr, rAddr, md5Password, common.WORK_P2P_PROVIDER, common.CONN_QUIC, sendData); err != nil {
+	if localConn, remoteAddress, localAddr, role, mode, data, err = handleP2PUdp(s.ctx, localAddr, rAddr, md5Password, common.WORK_P2P_PROVIDER, P2PMode, sendData); err != nil {
 		logs.Error("handle P2P error: %v", err)
 		return
 	}

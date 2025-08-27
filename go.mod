@@ -41,7 +41,7 @@ require (
 	github.com/klauspost/pgzip v1.2.6 // indirect
 	github.com/klauspost/reedsolomon v1.12.5 // indirect
 	github.com/libdns/libdns v1.1.0 // indirect
-	github.com/lufia/plan9stats v0.0.0-20250821153705-5981dea3221d // indirect
+	github.com/lufia/plan9stats v0.0.0-20250827001030-24949be3fa54 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mholt/acmez/v3 v3.1.2 // indirect

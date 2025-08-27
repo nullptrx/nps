@@ -36,6 +36,7 @@ const MaxPad = 64
 var Ver = version.GetLatestIndex()
 var SkipTLSVerify = false
 var DisableP2P = false
+var P2PMode = common.CONN_QUIC
 
 var TlsCfg = &tls.Config{
 	InsecureSkipVerify: true,
@@ -44,7 +45,7 @@ var TlsCfg = &tls.Config{
 }
 
 var QuicConfig = &quic.Config{
-	KeepAlivePeriod:    5 * time.Second,
+	KeepAlivePeriod:    10 * time.Second,
 	MaxIdleTimeout:     30 * time.Second,
 	MaxIncomingStreams: 100000,
 }
