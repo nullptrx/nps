@@ -430,6 +430,7 @@ func (s *TRPClient) handleChan(src net.Conn) {
 	} else {
 		logs.Trace("new %s connection with the goal of %s, remote address:%s", lk.ConnType, lk.Host, lk.RemoteAddr)
 		isFramed := lk.ConnType == "udp" && Ver > 6
+		//logs.Debug("%t", isFramed)
 		conn.CopyWaitGroup(src, targetConn, lk.Crypt, lk.Compress, nil, nil, false, 0, nil, nil, false, isFramed)
 	}
 }
