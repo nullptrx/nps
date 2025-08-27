@@ -631,8 +631,9 @@ func GetProxyConn(proxyUrl, server string, timeout time.Duration) (rawConn net.C
 			rawConn, err = NewHttpProxyConn(u, server, timeout)
 		}
 	} else {
-		dialer := net.Dialer{Timeout: timeout}
-		rawConn, err = dialer.Dial("tcp", server)
+		dialer := &net.Dialer{Timeout: timeout}
+		n := proxy.FromEnvironmentUsing(dialer)
+		rawConn, err = n.Dial("tcp", server)
 	}
 	if err != nil {
 		return nil, err
