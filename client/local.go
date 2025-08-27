@@ -360,7 +360,7 @@ func (mgr *P2PManager) getSecretConn() (c net.Conn, err error) {
 			}
 		case *quic.Conn:
 			var stream *quic.Stream
-			stream, err = tun.OpenStreamSync(context.Background())
+			stream, err = tun.OpenStreamSync(mgr.ctx)
 			if err == nil {
 				c = conn.NewQuicStreamConn(stream, tun)
 			} else {
@@ -544,7 +544,7 @@ func (mgr *P2PManager) newUdpConn(localAddr string, cfg *config.CommonConfig, l 
 			}
 		case *quic.Conn:
 			var stream *quic.Stream
-			stream, err = tun.OpenStreamSync(context.Background())
+			stream, err = tun.OpenStreamSync(mgr.ctx)
 			if err == nil {
 				c = conn.NewQuicStreamConn(stream, tun)
 			} else {

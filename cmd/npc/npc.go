@@ -401,7 +401,7 @@ func run(ctx context.Context) {
 			go func() {
 				for {
 					logs.Info("Start server: %s vkey: %s type: %s", serverAddr, verifyKey, connType)
-					client.NewRPClient(serverAddr, verifyKey, connType, *proxyUrl, "", nil, *disconnectTime, nil).Start()
+					client.NewRPClient(serverAddr, verifyKey, connType, *proxyUrl, "", nil, *disconnectTime, nil).Start(ctx)
 					logs.Info("Client closed! It will be reconnected in five seconds")
 					time.Sleep(time.Second * 5)
 				}
@@ -419,7 +419,7 @@ func run(ctx context.Context) {
 		}
 
 		for _, path := range configPaths {
-			go client.StartFromFile(path)
+			go client.StartFromFile(ctx, path)
 		}
 	}
 }

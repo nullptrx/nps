@@ -57,8 +57,8 @@ func NewRPClient(svrAddr, vKey, bridgeConnType, proxyUrl, uuid string, cnf *conf
 var NowStatus int
 var HasFailed = false
 
-func (s *TRPClient) Start() {
-	s.ctx, s.cancel = context.WithCancel(context.Background())
+func (s *TRPClient) Start(ctx context.Context) {
+	s.ctx, s.cancel = context.WithCancel(ctx)
 	defer s.Close()
 	NowStatus = 0
 	if Ver < 5 {

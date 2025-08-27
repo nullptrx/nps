@@ -117,7 +117,7 @@ func RegisterLocalIp(server string, vKey string, tp string, proxyUrl string, hou
 
 var errAdd = errors.New("the server returned an error, which port or host may have been occupied or not allowed to open")
 
-func StartFromFile(path string) {
+func StartFromFile(pCtx context.Context, path string) {
 	cnf, err := config.NewConfig(path)
 	if err != nil || cnf.CommonConfig == nil {
 		logs.Error("Config file %s loading error %v", path, err)
@@ -153,7 +153,7 @@ func StartFromFile(path string) {
 		}
 
 		if len(cnf.LocalServer) > 0 {
-			p2pm := NewP2PManager(context.Background(), cnf.CommonConfig)
+			p2pm := NewP2PManager(pCtx, cnf.CommonConfig)
 			//create local server secret or p2p
 			for _, v := range cnf.LocalServer {
 				go p2pm.StartLocalServer(v)
@@ -221,7 +221,7 @@ func StartFromFile(path string) {
 			}
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(pCtx)
 		fsm := NewFileServerManager(ctx)
 
 		//send  task to server
@@ -246,7 +246,7 @@ func StartFromFile(path string) {
 			logs.Info("web access login username:%s password:%s", cnf.CommonConfig.Client.WebUserName, cnf.CommonConfig.Client.WebPassword)
 		}
 
-		NewRPClient(cnf.CommonConfig.Server, vkey, cnf.CommonConfig.Tp, cnf.CommonConfig.ProxyUrl, uuid, cnf, cnf.CommonConfig.DisconnectTime, fsm).Start()
+		NewRPClient(cnf.CommonConfig.Server, vkey, cnf.CommonConfig.Tp, cnf.CommonConfig.ProxyUrl, uuid, cnf, cnf.CommonConfig.DisconnectTime, fsm).Start(ctx)
 		fsm.CloseAll()
 		cancel()
 	}
