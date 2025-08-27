@@ -925,6 +925,10 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 		}
 	}
 
+	if link.ConnType == "udp" && node.BaseVer > 6 {
+		target = conn.WrapFramed(target)
+	}
+
 	return
 }
 

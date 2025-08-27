@@ -2,7 +2,7 @@ package version
 
 import "fmt"
 
-const VERSION = "0.32.11"
+const VERSION = "0.33.0"
 const MinVer = 3
 
 var MinVersions = []string{
@@ -13,6 +13,7 @@ var MinVersions = []string{
 	"0.30.0", // 4
 	"0.31.0", // 5
 	"0.32.0", // 6
+	"0.33.0", // 7
 }
 
 func GetVersion(index int) string {
