@@ -57,25 +57,25 @@ print_ndk_info() {
 
 ensure_ndk() {
   if [[ -n "${NDK:-}" ]]; then
-    if [[ -d "${NDK}" && is_ndk_root "${NDK}" ]]; then
+    if [[ -d "${NDK}" ]] && is_ndk_root "${NDK}"; then
       NDK_ROOT="${NDK}"
     else
       echo "\$NDK points to a missing/invalid dir: ${NDK} -> will download"
       download_ndk_to "${NDK}"
     fi
   elif [[ -n "${ANDROID_NDK_HOME:-}" ]]; then
-    if [[ -d "${ANDROID_NDK_HOME}" && is_ndk_root "${ANDROID_NDK_HOME}" ]]; then
+    if [[ -d "${ANDROID_NDK_HOME}" ]] && is_ndk_root "${ANDROID_NDK_HOME}"; then
       NDK_ROOT="${ANDROID_NDK_HOME}"
     else
       echo "\$ANDROID_NDK_HOME points to a missing/invalid dir: ${ANDROID_NDK_HOME} -> will download"
       download_ndk_to "${ANDROID_NDK_HOME}"
     fi
   else
-    if [[ -d "${NDK_CACHE_DIR}" && is_ndk_root "${NDK_CACHE_DIR}" ]]; then
+    if [[ -d "${NDK_CACHE_DIR}" ]] && is_ndk_root "${NDK_CACHE_DIR}"; then
       NDK_ROOT="${NDK_CACHE_DIR}"
     else
       local default_dir="${NDK_CACHE_DIR}/android-ndk-${NDK_VERSION}"
-      if [[ -d "${default_dir}" && is_ndk_root "${default_dir}" ]]; then
+      if [[ -d "${default_dir}" ]] && is_ndk_root "${default_dir}"; then
         NDK_ROOT="${default_dir}"
       else
         echo "NDK not found locally -> will download to ${default_dir}"
