@@ -131,7 +131,7 @@ jobs:
     env:
       API: '24'
       NDK_VERSION: 'r28c'
-      NDK_CACHE_DIR: '${{ runner.home }}/ndk-cache'
+      NDK_CACHE_DIR: '${{ runner.temp }}/ndk-cache'
 
     steps:
       - name: Checkout codebase
