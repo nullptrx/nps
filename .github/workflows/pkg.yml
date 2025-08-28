@@ -152,7 +152,7 @@ jobs:
       - name: Cache Android NDK
         uses: actions/cache@v4
         with:
-          path: ${{ env.NDK_CACHE_DIR }}/android-ndk-${{ env.NDK_VERSION }}
+          path: ${{ env.NDK_CACHE_DIR }}
           key: ndk-${{ runner.os }}-${{ env.NDK_VERSION }}
 
       - name: Get dependencies
@@ -169,6 +169,7 @@ jobs:
           NDK_VERSION: ${{ env.NDK_VERSION }}
           NDK_CACHE_DIR: ${{ env.NDK_CACHE_DIR }}
         run: |
+          mkdir -p ${{ env.NDK_CACHE_DIR }}
           chmod +x build.android.sh
           ./build.android.sh
           ls -l android_libs_client.tar.gz || true
