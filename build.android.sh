@@ -98,7 +98,7 @@ build_one() {
 
   if command -v readelf >/dev/null 2>&1; then
     echo "-- readelf (${outdir}) --"
-    readelf -l "$bin" | grep -E 'LOAD|Align' || true
+    readelf -lW "$bin" | awk '/LOAD/ {print $0}' || true
   fi
 }
 
@@ -112,6 +112,14 @@ main() {
 
   echo "OK. Outputs:"
   find "$OUT_ROOT" -maxdepth 2 -type f -name 'lib'"$APP_NAME"'.so' -printf '%P\t%k KB\n' | sort
+
+  tar -czf android_libs_client.tar.gz \
+    arm64-v8a/lib${APP_NAME}.so \
+    x86_64/lib${APP_NAME}.so \
+    armeabi-v7a/lib${APP_NAME}.so \
+    x86/lib${APP_NAME}.so
+
+  echo "Packed: android_libs_client.tar.gz"
 }
 
 main "$@"
