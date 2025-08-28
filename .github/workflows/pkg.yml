@@ -131,7 +131,6 @@ jobs:
     env:
       API: '24'
       NDK_VERSION: 'r28c'
-      NDK_CACHE_DIR: 'ndk-cache'
 
     steps:
       - name: Checkout codebase
@@ -149,10 +148,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y curl unzip jq tar binutils
 
+      - name: Set NDK cache dir from $HOME
+        run: echo "NDK_CACHE_DIR=$HOME/ndk-cache" >> "$GITHUB_ENV"
+
       - name: Cache Android NDK
+        id: cache-ndk
         uses: actions/cache@v4
         with:
-          path: ${{ env.NDK_CACHE_DIR }}
+          path: ${{ env.NDK_CACHE_DIR }}/android-ndk-${{ env.NDK_VERSION }}
           key: ndk-${{ runner.os }}-${{ env.NDK_VERSION }}
 
       - name: Get dependencies
@@ -168,8 +171,8 @@ jobs:
           API: ${{ env.API }}
           NDK_VERSION: ${{ env.NDK_VERSION }}
           NDK_CACHE_DIR: ${{ env.NDK_CACHE_DIR }}
+          NDK: ${{ env.NDK_CACHE_DIR }}/android-ndk-${{ env.NDK_VERSION }}
         run: |
-          mkdir -p ${{ env.NDK_CACHE_DIR }}
           chmod +x build.android.sh
           ./build.android.sh
           ls -l android_libs_client.tar.gz || true
@@ -188,7 +191,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
           tag_name: v${{ env.NPS_VERSION }}
-          files: "android_libs_client.tar.gz"
+          files: "*.tar.gz"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
