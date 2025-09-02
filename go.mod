@@ -15,6 +15,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/kardianos/service v1.2.4
 	github.com/miekg/dns v1.1.68
+	github.com/oschwald/maxminddb-golang v1.13.1
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/quic-go/quic-go v0.54.0
 	github.com/rs/zerolog v1.34.0

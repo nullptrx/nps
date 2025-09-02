@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/djylb/nps/ipguard"
 	"github.com/djylb/nps/lib/common"
 	"github.com/djylb/nps/lib/conn"
 	"github.com/djylb/nps/lib/crypt"
@@ -855,8 +856,8 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 
 	client := clientValue.(*Client)
 	// If IP is restricted, do IP verification
+	ip := common.GetIpByAddr(link.RemoteAddr)
 	if s.ipVerify {
-		ip := common.GetIpByAddr(link.RemoteAddr)
 		ipValue, ok := s.Register.Load(ip)
 		if !ok {
 			return nil, fmt.Errorf("the ip %s is not in the validation list", ip)
@@ -865,6 +866,15 @@ func (s *Bridge) SendLinkInfo(clientId int, link *conn.Link, t *file.Tunnel) (ta
 		if !ipValue.(time.Time).After(time.Now()) {
 			return nil, fmt.Errorf("the validity of the ip %s has expired", ip)
 		}
+	}
+
+	decide, meta, _ := guard.Decide(context.Background(), ip)
+	if decide == ipguard.Deny {
+		alias := meta.Org
+		if len(alias) == 0 {
+			alias = meta.Country
+		}
+		return nil, fmt.Errorf("the ip %s (%s) is blocked", ip, alias)
 	}
 
 	var tunnel any
@@ -1185,4 +1195,33 @@ loop:
 
 func (s *Bridge) IsServer() bool {
 	return true
+}
+
+var guard *ipguard.Guard
+
+func init() {
+	guard = ipguard.New(ipguard.Options{
+		Provider: ipguard.DefaultProvider,
+		CacheTTL: 2 * time.Minute,
+		CacheCap: 100_000,
+	})
+	// 规则：私网放行；非 CN 一律拒；家宽 ASN 放行；云 ASN 拒
+	cn := map[string]struct{}{"CN": {}}
+	allowASNs := map[uint]struct{}{4134: {}, 4837: {}, 9808: {}} // 电信/联通/移动
+	denyASNs := map[uint]struct{}{
+		// 常见云（示例，实际请补全维护）
+		16509:  {}, // AWS
+		45102:  {}, // Alibaba
+		132203: {}, // Tencent
+		8075:   {}, // Azure
+		15169:  {}, // Google
+		24940:  {}, // Hetzner
+		16276:  {}, // OVH
+	}
+	guard.UpdateRules([]ipguard.Rule{
+		ipguard.AllowPrivate{},
+		ipguard.DenyNotCountries{Set: cn},
+		ipguard.AllowASNs{Set: allowASNs},
+		ipguard.DenyASNs{Set: denyASNs},
+	})
 }
