@@ -139,6 +139,11 @@ npc update && npc restart
 
 ### Stable
 
+- **v0.33.2 (2025-09-05)**
+  - 修复深色背景下分页按钮为浅色背景问题 [#149](https://github.com/djylb/nps/pull/149)
+  - 添加P2P打洞重试次数限制
+  - 更新相关依赖包
+
 - **v0.33.1 (2025-08-30)**
   - 添加UDP不兼容提示
   - 添加Android编译

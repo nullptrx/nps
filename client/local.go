@@ -452,6 +452,10 @@ func (mgr *P2PManager) handleUdpMonitor(cfg *config.CommonConfig, l *config.Loca
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
+	const maxRetry = 300
+	var addrRetry int
+	var notReadyRetry int
+
 	for {
 		select {
 		case <-mgr.ctx.Done():
@@ -463,6 +467,8 @@ func (mgr *P2PManager) handleUdpMonitor(cfg *config.CommonConfig, l *config.Loca
 		mgr.mu.Lock()
 		ok := mgr.statusOK && (mgr.udpConn != nil || (mgr.quicConn != nil && mgr.quicConn.Context().Err() == nil))
 		if ok {
+			addrRetry = 0
+			notReadyRetry = 0
 			mgr.mu.Unlock()
 			continue
 		}
@@ -494,10 +500,16 @@ func (mgr *P2PManager) handleUdpMonitor(cfg *config.CommonConfig, l *config.Loca
 		}
 
 		if errV4 != nil && errV6 != nil {
-			logs.Error("Both IPv4 and IPv6 address retrieval failed, exiting.")
-			mgr.resetStatus(false)
-			return
+			addrRetry++
+			if addrRetry >= maxRetry {
+				logs.Error("Both IPv4 and IPv6 address retrieval failed %d times, exiting.", addrRetry)
+				mgr.resetStatus(false)
+				return
+			}
+			logs.Warn("No local IP available yet (retry %d/%d).", addrRetry, maxRetry)
+			continue
 		}
+		addrRetry = 0
 
 		for i := 0; i < 10; i++ {
 			logs.Debug("try P2P hole punch %d", i+1)
@@ -525,6 +537,21 @@ func (mgr *P2PManager) handleUdpMonitor(cfg *config.CommonConfig, l *config.Loca
 			}
 			mgr.mu.Unlock()
 			time.Sleep(50 * time.Millisecond)
+		}
+
+		mgr.mu.Lock()
+		stillBad := !mgr.statusOK
+		mgr.mu.Unlock()
+		if stillBad {
+			notReadyRetry++
+			if notReadyRetry >= maxRetry {
+				logs.Error("P2P connection not established after %d retries (~%ds), exiting.", notReadyRetry, maxRetry)
+				mgr.resetStatus(false)
+				return
+			}
+			logs.Warn("P2P not established yet (retry %d/%d).", notReadyRetry, maxRetry)
+		} else {
+			notReadyRetry = 0
 		}
 	}
 }
